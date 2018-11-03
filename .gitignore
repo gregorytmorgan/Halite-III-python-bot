@@ -1,2 +1,7 @@
 *.log
 archive
+README.md
+docs/
+halite
+hlt/
+replays
