@@ -9,6 +9,7 @@ from hlt import constants
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Direction
+from hlt.positionals import Position
 
 # This library allows you to generate random numbers.
 import random
@@ -18,6 +19,13 @@ import random
 import logging
 
 import os
+
+DIRECTIONS = {
+    "n": Direction.North,
+    "s": Direction.South,
+    "e": Direction.East,
+    "w": Direction.West
+}
 
 """ <<<Game Begin>>> """
 
@@ -103,14 +111,16 @@ while True:
             ship_status[ship.id] = "returning"
 
         if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or ship.is_full:
-            command_queue.append(
-                ship.move(random.choice(["n", "s", "e", "w"])))
+            move = random.choice(["n", "s", "e", "w"])
+            moveOffset = ship.position.directional_offset(DIRECTIONS[move])
+            move = game_map.naive_navigate(ship, Position(ship.position.x + moveOffset.x, ship.position.y + moveOffset.y))
+            command_queue.append(ship.move(move))
         else:
             command_queue.append(ship.stay_still())
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    if ((game.turn_number % 20) == 0 or game.turn_number == 1) and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    if me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
         command_queue.append(me.shipyard.spawn())
         logging.info("Ship - Spawn")
 
