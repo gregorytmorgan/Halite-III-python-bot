@@ -35,9 +35,15 @@ fi
 # create new archive
 #
 
+echo "Incrementing version ..."
+
 Version=$(expr $Version + 1)
 
+echo "Incrementing version ... done."
+
 ARCHIVE_NAME="MyBot.$Version.zip"
+
+echo "Zipping ..."
 
 /usr/bin/zip $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE $HLT_DIR
 Retval=$?
@@ -46,6 +52,10 @@ if [ $Retval != 0 ]; then
 	echo "Error - zip failed with error $Retval"
 	exit 5
 fi
+
+echo "Zipping ... done."
+
+echo "Uploading ..."
 
 # python3 -m hlt_client bot -b MyBot.5.zip upload
 python3 -m hlt_client bot -b $ARCHIVE_NAME upload
@@ -57,7 +67,13 @@ if [ $Retval != 0 ]; then
 	exit 5
 fi
 
+echo "Uploading ... done."
+
+echo "Updating version file ..."
+
 echo $Version > $VERSION_FILE
+
+echo "Updating version file ... done."
 
 echo "Done."
 
