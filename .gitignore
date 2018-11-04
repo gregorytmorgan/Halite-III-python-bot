@@ -1,9 +1,14 @@
 *.log
+*.zip
+
 archive
 README.md
-docs/
 halite
-hlt/
 replays
 nbproject
 node_modules
+api-key.txt
+
+hlt/
+docs/
+hlt_client/
