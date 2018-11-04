@@ -1,6 +1,7 @@
 *.log
 *.zip
 
+version.txt
 archive
 README.md
 halite
@@ -8,7 +9,6 @@ replays
 nbproject
 node_modules
 api-key.txt
-version.txt
 
 hlt/
 docs/
