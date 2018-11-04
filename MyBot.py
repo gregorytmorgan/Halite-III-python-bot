@@ -71,6 +71,8 @@ while True:
     #   end of the turn.
     command_queue = []
 
+    nShips = len(me.get_ships())
+
     for ship in me.get_ships():
         # For each of your ships, move randomly if the ship is on a low halite location or the ship is full.
         # Else, collect halite.
@@ -78,14 +80,13 @@ while True:
         if ship.id not in ship_status:
             ship_status[ship.id] = "exploring"
 
-        logging.info("Ship {} has {} halite and is {}".format(ship.id, ship.halite_amount, ship_status[ship.id]))
+        logging.info("Ship {} at {} has {} halite and is {}".format(ship.id, ship.position, ship.halite_amount, ship_status[ship.id]))
 
         if ship_status[ship.id] == "returning":
             if ship.position == me.shipyard.position:
                 logging.info("Ship - Drop-off")
                 ship_status[ship.id] = "exploring"
             else:
-                # move = closes dropoff or shipyard
                 dropoffs = me.get_dropoffs()
                 destinations = list(dropoffs) + [me.shipyard.position]
 
@@ -101,9 +102,18 @@ while True:
                         minDistance = distance
                         movePosition = dest
 
-                logging.info("Game - movePostition: {}".format(movePosition))
+                move =  Direction.convert(game_map.naive_navigate(ship, movePosition))
 
-                move = game_map.naive_navigate(ship, movePosition)
+                logging.info("Ship - initial move1: {}".format(move))
+
+                if move == "o":
+                    logging.info("Ship - STUCK1")
+                else:
+                    fuelCost = round(game_map[ship.position].halite_amount * .1, 2)
+                    if fuelCost > ship.halite_amount:
+                        logging.info("Ship - insuffient fuel. Have {}, need {}".format(ship.halite_amount, fuelCost))
+                        move = "o"
+
                 command_queue.append(ship.move(move))
                 continue
 
@@ -112,17 +122,36 @@ while True:
 
         if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or ship.is_full:
             move = random.choice(["n", "s", "e", "w"])
+
+            #logging.info("Ship - initial move2: {}".format(move))
+
             moveOffset = ship.position.directional_offset(DIRECTIONS[move])
-            move = game_map.naive_navigate(ship, Position(ship.position.x + moveOffset.x, ship.position.y + moveOffset.y))
+
+            #logging.info("Ship - moveOffset2: {}".format(moveOffset))
+
+            move = Direction.convert(game_map.naive_navigate(ship, moveOffset))
+
+            #logging.info("Ship - final move2: {}".format(move))
+
+            if move == "o":
+                logging.info("Ship - STUCK2")
+            else:
+                fuelCost = round(game_map[ship.position].halite_amount * .1, 2)
+                if fuelCost > ship.halite_amount:
+                    logging.info("Ship - insuffient fuel. Have {}, need {}".format(ship.halite_amount, fuelCost))
+                    move = "o"
+
             command_queue.append(ship.move(move))
         else:
             command_queue.append(ship.stay_still())
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
-    if me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
+    if (nShips < 8 or game.turn_number <= 200) and me.halite_amount >= constants.SHIP_COST and not game_map[me.shipyard].is_occupied:
         command_queue.append(me.shipyard.spawn())
         logging.info("Ship - Spawn")
+
+    #logging.info("Game - commad queue: {}".format(command_queue))
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
