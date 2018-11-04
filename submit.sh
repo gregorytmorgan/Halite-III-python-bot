@@ -45,7 +45,7 @@ ARCHIVE_NAME="MyBot.$Version.zip"
 
 echo "Zipping ..."
 
-/usr/bin/zip $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE $HLT_DIR
+/usr/bin/zip -r $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE $HLT_DIR
 Retval=$?
 
 if [ $Retval != 0 ]; then
@@ -57,7 +57,7 @@ echo "Zipping ... done."
 
 echo "Uploading ..."
 
-# python3 -m hlt_client bot -b MyBot.5.zip upload
+# example: python3 -m hlt_client bot -b MyBot.5.zip upload
 python3 -m hlt_client bot -b $ARCHIVE_NAME upload
 
 Retval=$?
