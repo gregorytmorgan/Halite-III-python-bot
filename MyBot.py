@@ -38,11 +38,11 @@ def spawnShip(game):
     nShips = len(game.me.get_ships())
 
     if game.turn_number <= 200:
-        maxShips = 8
-    elif game.turn_number <= 350:
         maxShips = 6
+    elif game.turn_number <= 350:
+        maxShips = 3
     else:
-        maxShips = 5
+        maxShips = 2
 
     if nShips >= maxShips:
         return False
