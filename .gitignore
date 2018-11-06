@@ -10,7 +10,7 @@ nbproject
 node_modules
 api-key.txt
 db.sqlite3
-manager
+halite3-match-manager
 
 docs/
 hlt_client/
