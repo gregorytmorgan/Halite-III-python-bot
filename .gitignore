@@ -9,7 +9,10 @@ replays
 nbproject
 node_modules
 api-key.txt
+db.sqlite3
+manager
 
 docs/
 hlt_client/
 __pycache__
+
