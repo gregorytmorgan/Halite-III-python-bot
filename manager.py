@@ -1,1 +1,1 @@
-manager/manager.py
+halite3-match-manager/manager.py
