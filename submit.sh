@@ -95,7 +95,7 @@ ARCHIVE_NAME="MyBot.v$Version.zip"
 if [ "$cleanup_version" != "" ]; then
 	rm -fv $BOT_DIR/$MyBot_VFileName
 	rm -fv $ARCHIVE_DIR/$ARCHIVE_NAME
-	./manager.py -d MyBot.v$Version
+	./manager.py -D MyBot.v$Version
 	echo "Don't forget to manually update version.txt"
 	exit 0
 fi
@@ -150,7 +150,7 @@ fi
 if [ -f manager.py ]; then
 	if [ -f $BOT_DIR/$MyBot_VFileName ]; then
 		# use relative path ... easier to read
-		./manager.py -A MyBot.v$Version -p "python3 $bots/$MyBot_VFileName"
+		./manager.py -A MyBot.v$Version -p "python3 bots/$MyBot_VFileName"
 		./manager.py -a MyBot.v$Version
 	else
 		echo "Couldn't find $BOT_DIR/$MyBot_VFileName."
