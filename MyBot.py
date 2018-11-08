@@ -17,8 +17,6 @@ import random
 # Logging allows you to save messages for yourself. This is required because the regular STDOUT
 #   (print statements) are reserved for the engine-bot communication.
 import logging
-
-import os
 import datetime
 
 #
@@ -30,6 +28,34 @@ DIRECTIONS = {
     "e": Direction.East,
     "w": Direction.West
 }
+
+def get_random_move(ship):
+
+    moveChoice = random.choice(["n", "s", "e", "w"])
+    #logging.info("Ship - get_random_move() - ship {} moveChoice2: {}".format(ship.id, moveChoice))
+
+    moveOffset = ship.position.directional_offset(DIRECTIONS[moveChoice])
+    #logging.info("Ship - get_random_move() - ship {} moveOffset2: {}".format(ship.id, moveOffset))
+
+    move = Direction.convert(game_map.naive_navigate(ship, moveOffset))
+    #logging.info("Ship - get_random_move() - ship {} final move2: {}".format(ship.id, move))
+
+    if move == "o":
+        for i in range(4):
+            # get char direction vs alt code below so we can log consistent msg
+            # alt code: ship.move(random.choice([Direction.North, Direction.South, Direction.East, Direction.West]))
+            moveChoice = random.choice(["n", "s", "e", "w"])
+            moveOffset = ship.position.directional_offset(DIRECTIONS[moveChoice])
+            move = Direction.convert(game_map.naive_navigate(ship, moveOffset))
+            if move != "o":
+                break
+
+        if move == "o":
+            logging.info("Ship - get_random_move() - ship {} Collision, original {}, correct failed".format(ship.id, moveChoice))
+        else:
+            logging.info("Ship - get_random_move() -  ship {} Collision, original {}, corrected {}".format(ship.id, moveChoice, move))
+
+    return move
 
 #
 #
@@ -43,6 +69,8 @@ def spawn_ship(game):
         maxShips = 3
     else:
         maxShips = 2
+
+    maxShips = 1
 
     if nShips >= maxShips:
         return False
@@ -90,7 +118,7 @@ def get_backoff_point(game, ship, destination):
     if backoffPoint.y <    0:
         backoffPoint.y = 0
 
-    logging.info("Ship - Ship {} backoffPoint {}".format(ship.id, backoffPoint))
+    logging.info("Ship - get_backoff_point() - ship {} backoffPoint {}".format(ship.id, backoffPoint))
 
     return backoffPoint
 
@@ -128,19 +156,7 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-# create a bot name based on version.txt
-if os.path.exists("./version.txt"):
-    try:
-        version_file = open("./version.txt", 'r')
-        version = version_file.read().strip()
-        version_file.close()
-    except IOError:
-        logging.info("Version file read failed")
-        version = "X"
-else:
-    version = "X"
-
-BotName = "MyBot" + version
+BotName = "MyBot"
 
 #
 # game start
@@ -179,7 +195,7 @@ while True:
         else:
             logging.info("Game - New ship with ID {}".format(ship.id))
             ship_states[ship.id] = {
-                "status": "exloring",
+                "status": "exploring",
                 "path": []
             }
             ship.status = ship_states[ship.id]["status"]
@@ -220,44 +236,41 @@ while True:
 
         # state - backoff
         elif ship.status == "backingoff":
-            logging.info("Ship - ship {} is backing off".format(ship.id))
-            backoff_position = ship.path[0]
+            logging.info("Ship - ship {} is backing off to {}".format(ship.id, ship.path[len(ship.path) - 1]))
+            backoff_position = ship.path[len(ship.path) - 1]
             if ship.position == backoff_position:
                 logging.info("Ship - ship {} backing off is complete at {}".format(ship.id, backoff_position))
                 ship.status = "returning"
                 ship.path.pop()
                 ship.path.append(get_dropoff_position(ship))
 
-        # state - exloring
+        # state - exploring / state change
         elif ship.halite_amount >= constants.MAX_HALITE / 4:
             logging.info("Ship - ship {} is now returning".format(ship.id))
             ship.status = "returning"
 
         # Move
+        #
+        # conditions:
+        #  1. ignore cells with less than 10% cell capacity (1000)
+        #  2. treat 90% ship capacity (1000) as full
+        #if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or (ship.halite_amount / constants.MAX_HALITE > .9):
         if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or ship.is_full:
-            if len(ship.path):
-                move = Direction.convert(game_map.naive_navigate(ship, ship.path[0]))
-                if move == "o":
-                    for i in range(4):
-                        moveChoice = random.choice(["n", "s", "e", "w"])
-                        moveOffset = ship.position.directional_offset(DIRECTIONS[moveChoice])
-                        move = Direction.convert(game_map.naive_navigate(ship, moveOffset))
-                        if move != "o":
-                            break
-
-                logging.info("Ship - ship {} backoffMove: {}".format(ship.id, move))
+            # if we don't have a nav path, then make a random move, otherwise make a nav move.
+            # In the case of a nav move, if collision, then just get a one-time random move
+            if len(ship.path) == 0:
+                move = get_random_move(ship)
             else:
-                moveChoice = random.choice(["n", "s", "e", "w"])
-                #logging.info("Ship - ship {} moveChoice2: {}".format(ship.id, moveChoice))
+                move = Direction.convert(game_map.naive_navigate(ship, ship.path[len(ship.path) - 1]))
+                if move == "o":
+                    move = get_random_move(ship)
 
-                moveOffset = ship.position.directional_offset(DIRECTIONS[moveChoice])
-                #logging.info("Ship - ship {} moveOffset2: {}".format(ship.id, moveOffset))
+                if move == "o":
+                    logging.info("Ship - ship {} Nav move collision, original {}, correct failed {}".format(ship.id, ship.path[len(ship.path) - 1]))
+                else:
+                    logging.info("Ship - ship {} Nav move collision, original {}, corrected {}".format(ship.id, ship.path[len(ship.path) - 1], move))
 
-                move = Direction.convert(game_map.naive_navigate(ship, moveOffset))
-                #logging.info("Ship - ship {} final move2: {}".format(ship.id, move))
-
-                if moveChoice != move:
-                    logging.info("Ship - ship {} Collision, original {}, corrected {}".format(ship.id, moveChoice, move))
+                logging.info("Ship - ship {} Nav Move: {}".format(ship.id, move))
 
             if move != "o":
                 fuelCost = round(game_map[ship.position].halite_amount * .1, 2)
@@ -281,7 +294,7 @@ while True:
 
     #logging.info("Game - commad queue: {}".format(command_queue))
 
-    #logging.info("Game - end ship_states: {}".format(ship_states))
+    logging.info("Game - end ship_states: {}".format(ship_states))
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
