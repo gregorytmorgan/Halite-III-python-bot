@@ -18,6 +18,7 @@ import random
 #   (print statements) are reserved for the engine-bot communication.
 import logging
 import datetime
+import time
 
 #
 #
@@ -171,6 +172,8 @@ logging.info("Successfully created bot! My Player ID is {}. {}".format(game.my_i
 """ <<<Game Loop>>> """
 
 while True:
+    TurnStartTime = time.time()
+
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
     # running update_frame().
     game.update_frame()
@@ -298,3 +301,5 @@ while True:
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
+
+    logging.info("elapsed turn time: {:.4f}".format(time.time() - TurnStartTime))
