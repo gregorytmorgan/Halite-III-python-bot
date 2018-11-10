@@ -102,7 +102,8 @@ def get_backoff_point(game, ship, destination):
     choice = random.choice(destinationMoves)
     backoffDirection = Direction.invert(choice)
 
-    mult = random.randint(1, 8)
+	# when there's a collion, we backoff between 1 and nShips/2 cells
+    mult = random.randint(1, round(len(game.me.get_ships()) / 2))
 
     backoffPoint = ship.position + Position(backoffDirection[0] * mult, backoffDirection[1] * mult)
 
