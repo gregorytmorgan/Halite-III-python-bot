@@ -18,9 +18,25 @@ import random
 #   (print statements) are reserved for the engine-bot communication.
 import logging
 import datetime
+import math
 import time
 
+# scipy lib is installed on server env by default
+from scipy.stats import norm
+
+# when a ship is sent off from the shipyard, this is the max distance.  It set
+# dynamically. The min loiter distance is stored as an offset, see MinLoiterDist
+MaxLoiterDist = 1
+MinLoiterDist = 4
+
 # container for debug/metrics
+DebugMetrics = {
+    "NavMults": [],
+    "loiterOffsets": [],
+    "loiterDistances": []
+}
+
+# convert a Direction obj back to a string
 DIRECTIONS = {
     "n": Direction.North,
     "s": Direction.South,
@@ -28,6 +44,50 @@ DIRECTIONS = {
     "w": Direction.West
 }
 
+#
+#
+#
+def get_loiter_multiple(game):
+    maxLoiterDistX = abs(game.me.shipyard.position.x - game.game_map.width)
+    maxLoiterDistY = abs(game.me.shipyard.position.y - game.game_map.height)
+    MaxLoiterDist = min(maxLoiterDistX/2, maxLoiterDistY/2)
+
+    #
+    # stdist
+    #
+    # 0.3989422804014327 @ loc=0, scale=1.0
+    # smaller number reduces tail flatness
+    #inputWidth = 5.0
+    #maxNorm = norm.pdf(0, loc=0, scale=1.0)
+    #loiterMult = norm.pdf(inputWidth/2.0 - ((game.turn_number - 1)/constants.MAX_TURNS) * inputWidth, loc=0, scale=1.0)/maxNorm * maxLoiterDist
+
+    #
+    # atan
+    #
+    # inputOffset values shift curve left so we get into the steep part earlier
+    #inputOffset = 75
+    #
+    # std value is pi? large inputWidth values result in 'more tail', small value move toward a strait line
+    #inputWidth = math.pi * 2.0
+    #
+    #maxArcTan = math.atan(inputWidth - inputWidth/2) + math.atan(inputWidth/2)
+    #loiterMult = math.atan(((game.turn_number - 1.0 + inputOffset)/constants.MAX_TURNS) * inputWidth - (inputWidth/2.0)) + math.atan(inputWidth/2.0)
+    #loiterMult = loiterMult / maxArcTan * MaxLoiterDist
+
+    #
+    # linear
+    #
+    loiterMult = float((game.turn_number - 1) / constants.MAX_TURNS) * MaxLoiterDist
+
+    # make sure we don't a useless mult
+    if loiterMult < MinLoiterDist:
+        loiterMult = MinLoiterDist
+
+    return loiterMult
+
+#
+#
+#
 def get_random_move(ship):
 
     moveChoice = random.choice(["n", "s", "e", "w"])
@@ -212,9 +272,38 @@ while True:
 
         # state - returning
         if ship.status == "returning":
+            ### TODO drop loc should be updated to handle dropoffs points
             if ship.position == me.shipyard.position:
                 logging.info("Ship - Ship {} completed a Dropoff".format(ship.id))
                 ship.path.clear()
+
+                # 1. get the max loiter distance
+                # 2. get the loiter multiple based on turn and max/min loiter distance
+                # 3. get a random point on a circle an mult by the loiter multiple
+                # 4. add the result to the current postion to get a destination
+
+                loiterMult = get_loiter_multiple(game)
+                logging.info("Ship - backoff/loiter mult: {}".format(loiterMult))
+
+                # Debug metric
+                #DebugMetrics["NavMults"].append((game.turn_number, round(loiterMult, 2)))
+
+                # get a random point on a cicle
+                randPi = random.random() * math.pi * 2
+                loiterOffset = Position(round(math.cos(randPi) * loiterMult + MaxLoiterDist), round(math.sin(randPi) * loiterMult + MaxLoiterDist))
+
+                #logging.info("Ship - backoff/loiter loiterOffset: {}".format(loiterOffset))
+
+                # Debug metric, can't use position because will be for diff ship/position every time
+                #DebugMetrics["loiterOffsets"].append((loiterOffset.x, loiterOffset.y))
+                #DebugMetrics["loiterDistances"].append((game.turn_number, round(math.sqrt(loiterOffset.x ** 2 + loiterOffset.y ** 2), 2)))
+
+                loiterPoint = ship.position + loiterOffset
+
+                #logging.info("Ship - backoff/loiter point: {}".format(loiterPoint))
+
+                ship.path.append(loiterPoint)
+
                 ship.status = "exploring"
             else:
                 dropoff_position = get_dropoff_position(ship)
@@ -306,6 +395,12 @@ while True:
     #logging.info("Game - commad queue: {}".format(command_queue))
 
     logging.info("Game - end ship_states: {}".format(ship_states))
+
+    #    if game.turn_number == constants.MAX_TURNS:
+    #        logging.info("NavMults: {}".format(DebugMetrics["NavMults"]))
+    #        logging.info("loiterOffsets: {}".format(DebugMetrics["loiterOffsets"]))
+    #        logging.info("loiterDistances: {}".format(DebugMetrics["loiterDistances"]))
+    #        logging.info("loiterDistances: {}")
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
