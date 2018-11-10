@@ -64,14 +64,14 @@ def get_random_move(ship):
 def spawn_ship(game):
     nShips = len(game.me.get_ships())
 
-    if game.turn_number <= 200:
+    if game.turn_number <= 100:
+        maxShips = 8
+    elif game.turn_number <= 200:
         maxShips = 6
-    elif game.turn_number <= 350:
-        maxShips = 3
+    elif game.turn_number <= 300:
+        maxShips = 4
     else:
         maxShips = 2
-
-    maxShips = 1
 
     if nShips >= maxShips:
         return False
