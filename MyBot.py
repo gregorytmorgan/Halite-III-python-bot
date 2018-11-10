@@ -260,6 +260,10 @@ while True:
         #  2. treat 90% ship capacity (1000) as full
         #if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or (ship.halite_amount / constants.MAX_HALITE > .9):
         if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or ship.is_full:
+
+            if len(ship.path) and ship.position == ship.path[len(ship.path) - 1]:
+                ship.path.pop()
+
             # if we don't have a nav path, then make a random move, otherwise make a nav move.
             # In the case of a nav move, if collision, then just get a one-time random move
             if len(ship.path) == 0:
