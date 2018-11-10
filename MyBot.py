@@ -20,9 +20,7 @@ import logging
 import datetime
 import time
 
-#
-#
-#
+# container for debug/metrics
 DIRECTIONS = {
     "n": Direction.North,
     "s": Direction.South,
@@ -42,6 +40,7 @@ def get_random_move(ship):
     #logging.info("Ship - get_random_move() - ship {} final move2: {}".format(ship.id, move))
 
     if move == "o":
+        original_move = move
         for i in range(4):
             # get char direction vs alt code below so we can log consistent msg
             # alt code: ship.move(random.choice([Direction.North, Direction.South, Direction.East, Direction.West]))
@@ -52,9 +51,9 @@ def get_random_move(ship):
                 break
 
         if move == "o":
-            logging.info("Ship - get_random_move() - ship {} Collision, original {}, correct failed".format(ship.id, moveChoice))
+            logging.info("Ship - get_random_move() - ship {} Collision, original {}, correct failed".format(ship.id, original_move))
         else:
-            logging.info("Ship - get_random_move() -  ship {} Collision, original {}, corrected {}".format(ship.id, moveChoice, move))
+            logging.info("Ship - get_random_move() -  ship {} Collision, original {}, corrected {}".format(ship.id, original_move, move))
 
     return move
 
@@ -84,9 +83,13 @@ def spawn_ship(game):
 
     entryExitCells = game.me.shipyard.position.get_surrounding_cardinals()
 
+    occupiedCells = 0
     for pos in entryExitCells:
         if game.game_map[pos].is_occupied:
-            return False
+            occupiedCells = occupiedCells + 1
+
+    if occupiedCells > 0:
+        return False
 
     return True
 
@@ -102,7 +105,7 @@ def get_backoff_point(game, ship, destination):
     choice = random.choice(destinationMoves)
     backoffDirection = Direction.invert(choice)
 
-	# when there's a collion, we backoff between 1 and nShips/2 cells
+    # when there's a collion, we backoff between 1 and nShips/2 cells
     mult = random.randint(1, round(len(game.me.get_ships()) / 2))
 
     backoffPoint = ship.position + Position(backoffDirection[0] * mult, backoffDirection[1] * mult)
@@ -216,7 +219,7 @@ while True:
             else:
                 dropoff_position = get_dropoff_position(ship)
 
-                move =  Direction.convert(game_map.naive_navigate(ship, dropoff_position))
+                move = Direction.convert(game_map.naive_navigate(ship, dropoff_position))
 
                 logging.info("Ship - Ship {} initial move1: {}".format(ship.id, move))
 
