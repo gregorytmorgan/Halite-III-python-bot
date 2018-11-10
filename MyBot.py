@@ -271,12 +271,12 @@ while True:
             else:
                 move = Direction.convert(game_map.naive_navigate(ship, ship.path[len(ship.path) - 1]))
                 if move == "o":
+                    original_move = move
                     move = get_random_move(ship)
-
-                if move == "o":
-                    logging.info("Ship - ship {} Nav move collision, original {}, correct failed {}".format(ship.id, ship.path[len(ship.path) - 1]))
-                else:
-                    logging.info("Ship - ship {} Nav move collision, original {}, corrected {}".format(ship.id, ship.path[len(ship.path) - 1], move))
+                    if move == "o":
+                        logging.info("2 Ship - ship {} Nav move collision, original {}, correct failed.".format(ship.id, original_move))
+                    else:
+                        logging.info("2 Ship - ship {} Nav move collision, original {}, corrected {}".format(ship.id, original_move, move))
 
                 logging.info("Ship - ship {} Nav Move: {}".format(ship.id, move))
 
