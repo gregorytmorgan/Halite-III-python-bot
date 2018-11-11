@@ -110,7 +110,7 @@ if os.path.exists("./version.txt"):
 else:
     version = "X"
 
-BotName = "MyBot" + version
+BotName = "MyBot.v6"
 
 #
 # game start
