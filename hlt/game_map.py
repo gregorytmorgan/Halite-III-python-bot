@@ -5,7 +5,7 @@ from .entity import Entity, Shipyard, Ship, Dropoff
 from .player import Player
 from .positionals import Direction, Position
 from .common import read_input
-
+import logging
 
 class MapCell:
     """A cell on the game map."""
@@ -68,6 +68,9 @@ class GameMap:
     Can be indexed by a position, or by a contained entity.
     Coordinates start at 0. Coordinates are normalized for you
     """
+
+    DEBUG = False
+
     def __init__(self, cells, width, height):
         self.width = width
         self.height = height
@@ -154,8 +157,7 @@ class GameMap:
         :param destination: Ending position
         :return: A direction.
         """
-        # No need to normalize destination, since get_unsafe_moves
-        # does that
+        # No need to normalize destination, since get_unsafe_moves does that
         for direction in self.get_unsafe_moves(ship.position, destination):
             target_pos = ship.position.directional_offset(direction)
             if not self[target_pos].is_occupied:
@@ -163,6 +165,149 @@ class GameMap:
                 return direction
 
         return Direction.Still
+
+    def move_cost(self, a, b, mode="halite"):
+        # ignore a since the cost is only a function of the current cell
+
+#        if self[b].is_occupied:
+#            return 9999
+
+        halite_amount = self[a].halite_amount
+
+        if mode == "turns":
+            return 1
+        elif mode == "halite":
+            return halite_amount * .1
+        else:
+            raise RuntimeError("Unknown nav mode: " + mode)
+
+    def heuristic(self, start, end):
+
+        # EXPECTS NORMALIXED VALUES
+        #start = self.normalize(start)
+        #end = self.normalize(end)
+
+        dx = abs(start.x - end.x)
+        dy = abs(start.y - end.y)
+
+        #Use Chebyshev distance heuristic if we can move one square either adjacent or diagonal
+        #D = 1
+        #D2 = 1
+        #Chebyshev = D * (dx + dy) + (D2 - 2 * D) * min(dx, dy)
+
+        # manhatten
+        manhatten = dx + dy
+
+        return manhatten
+
+    def navigate(self, ship, destination):
+
+        # return None if no soln, returns empty list with zero cost if start == end,
+        # otherwise returns a path list and a cumlative cost
+
+        G = {} #Actual movement cost to each position from the start position
+        F = {} #Estimated movement cost of start to end going via this position
+
+        start = self.normalize(ship.position)
+        end = self.normalize(destination)
+
+        if start == end:
+            return [], 0 #Done!
+
+#        start = (start.x, start.y)
+#        end = (end.x, end.y)
+
+        if self.DEBUG: logging.info("{} -> {}".format(start, end)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+
+        #Initialize starting values
+        G[start] = 0
+        F[start] = self.heuristic(start, end)
+
+        closedVertices = set()
+        openVertices = set([start])
+
+        if self.DEBUG: logging.info("start: adding {} to openVertices".format(start)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+
+        cameFrom = {}
+
+        while len(openVertices) > 0:
+            #Get the vertex in the open list with the lowest F score
+            current = None
+            currentFscore = None
+
+            for pos in openVertices:
+                if current is None or F[pos] < currentFscore:
+                    if self.DEBUG: logging.info("updating current score to: {}".format(F[pos])) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    currentFscore = F[pos]
+                    current = pos
+
+            #Check if we have reached the goal
+            if current == end:
+                if self.DEBUG: logging.info("reached goal: {}".format(end)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+
+                #Retrace our route backward
+                path = [current]
+                while current in cameFrom:
+                    current = cameFrom[current]
+                    path.append(current)
+
+                #path.reverse()
+                #path.pop() # remove the start
+                return path, F[end] #Done!
+
+            #Mark the current vertex as closed
+
+            if self.DEBUG: logging.info("removing {} from openVertices".format(current)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+
+            openVertices.remove(current)
+
+            if self.DEBUG: logging.info("adding {} to closedVertices".format(current)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+
+            closedVertices.add(current)
+
+            #Update scores for vertices near the current position
+            #for neighbour in graph.get_vertex_neighbours(current):
+
+            #neighbours = self.get_vertex_neighbours(current)
+
+            neighbours = []
+            for n in current.get_surrounding_cardinals():
+                neighbours.append(n)
+
+            if self.DEBUG: logging.info("neighbours for {}: {}".format(current, neighbours))
+
+            for neighbour in neighbours:
+
+                if self.DEBUG: logging.info("neighbour: {}".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+
+                if neighbour in closedVertices:
+                    if self.DEBUG: logging.info("skipping neighbour {}, already checked".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    continue #We have already processed this node exhaustively
+
+                cost = self.move_cost(current, neighbour)
+
+#                if cost == 9999:  # what should this be?
+#                    if self.DEBUG: logging.info("adding neighbour to {} closedVertices, blocked".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+#                    closedVertices.add(neighbour)
+#                    continue
+
+                candidateG = G[current] + cost
+
+                if neighbour not in openVertices:
+                    if self.DEBUG: logging.info("Discovered a new cell {}, adding to  openVertices".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    openVertices.add(neighbour) #Discovered a new vertex
+                elif candidateG >= G[neighbour]:
+                    if self.DEBUG: logging.info("Ignoring cell {}, cost is too high".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    continue #This G score is worse than previously found
+
+                #Adopt this G score
+                cameFrom[neighbour] = current
+                G[neighbour] = candidateG
+                H = self.heuristic(neighbour, end)
+                F[neighbour] = G[neighbour] + H
+
+        #raise RuntimeError("A* failed to find a solution")
+        return None, None
 
     @staticmethod
     def _generate():
@@ -193,3 +338,29 @@ class GameMap:
         for _ in range(int(read_input())):
             cell_x, cell_y, cell_energy = map(int, read_input().split())
             self[Position(cell_x, cell_y)].halite_amount = cell_energy
+
+    def __repr__(self):
+        map = ""
+        for y in range(self.height):
+            row = ""
+            for x in range(self.width):
+                cell = self[Position(x, y)]
+
+                if cell.is_empty:
+                    s = "{:<6d}".format(cell.halite_amount)
+                elif cell.has_structure:
+                    if cell.is_occupied:
+                        s = "{:<6s}".format("[<" + str(cell.ship.id) + ">]")
+                    else:
+                        s = "{:<6s}".format("[ X ]")
+                else:
+                    s = "{:<6s}".format("<" + str(cell.ship.id) + ">")
+
+                if row == "":
+                    row = row + "{:<3d}{}".format(y, s)
+                else:
+                    row = row + "{}".format(s)
+
+            map = map + row
+
+        return map

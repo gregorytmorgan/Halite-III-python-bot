@@ -47,6 +47,77 @@ DIRECTIONS = {
 #
 #
 #
+def get_ship_move(ship):
+
+    fuelCost = round(game_map[ship.position].halite_amount * .1, 2)
+
+    if fuelCost > ship.halite_amount:
+        logging.info("Ship - Ship {} has insuffient fuel. Have {}, need {}".format(ship.id, ship.halite_amount, fuelCost))
+        game_map[ship.position].mark_unsafe(ship)
+        return 'o'
+
+    if ship.path == None:
+        ship.path = []
+        game_map[ship.position].mark_unsafe(ship)
+        logging.info("Ship - ship {} is blocked at {}".format(ship.id, ship.position))
+        return 'o'
+
+    logging.info("Ship - ship {} path {}".format(ship.id, ship.path))
+
+    if len(ship.path) == 0:
+        game_map[ship.position].mark_unsafe(ship)
+        logging.info("Ship - ship {} empty path".format(ship.id))
+        return 'o'
+
+    new_position = ship.path[len(ship.path) - 1]
+    logging.info("Ship - ship {} new_position {}".format(ship.id, new_position))
+
+    normalized_position = game_map.normalize(new_position)
+    logging.info("Ship - ship {} normalized_position {}".format(ship.id, normalized_position))
+
+    if normalized_position == ship.position:
+        ship.path.pop()
+        game_map[ship.position].mark_unsafe(ship)
+        return 'o'
+
+    if game_map.calculate_distance(ship.position, normalized_position) > 1:
+        # we have a waypoint, not a continous path, re-calc path + position
+        path, cost = game_map.navigate(ship, normalized_position)
+
+        if path == None:
+            logging.info("Ship - ship {} Nav failed, can't reach {}".format(ship.id, normalized_position))
+            return 'o'
+        else:
+            ship.path.pop()
+            ship.path = ship.path + path
+
+        new_position = ship.path[len(ship.path) - 1]
+        logging.info("Ship - ship {} new_position {}".format(ship.id, new_position))
+
+        normalized_position = game_map.normalize(new_position)
+        logging.info("Ship - ship {} normalized_position {}".format(ship.id, normalized_position))
+
+    cell = game_map[normalized_position]
+
+    # once we have the move, handle collisions
+    if cell.is_occupied:
+        move_offset = game_map.naive_navigate(ship, normalized_position)
+        move = Direction.convert(move_offset)
+        game_map[normalized_position].mark_unsafe(ship)
+
+        logging.info("Ship - ship {} collision at {} with ship {}, using {} {}".format(ship.id, normalized_position, cell.ship.id , move, move_offset))
+    else:
+        cell.mark_unsafe(ship.position)
+        ship.path.pop()
+        offset = (normalized_position.x - ship.position.x, normalized_position.y - ship.position.y)
+        logging.info("Ship - ship {} offset {}".format(ship.id, offset))
+        move = Direction.convert(offset)
+
+    return move
+
+#
+#
+#
 def get_loiter_multiple(game):
     maxLoiterDistX = abs(game.me.shipyard.position.x - game.game_map.width)
     maxLoiterDistY = abs(game.me.shipyard.position.y - game.game_map.height)
@@ -89,6 +160,13 @@ def get_loiter_multiple(game):
 #
 #
 def get_dense_move(ship):
+
+    fuelCost = round(game_map[ship.position].halite_amount * .1, 2)
+
+    if fuelCost > ship.halite_amount:
+        logging.info("Ship - Ship {} has insuffient fuel. Have {}, need {}".format(ship.id, ship.halite_amount, fuelCost))
+        return 'o'
+
     moves = []
     for d in ship.position.get_surrounding_cardinals():
         if game_map[d].halite_amount > constants.MAX_HALITE/10 and not ship.is_full:
@@ -129,6 +207,12 @@ def get_dense_move(ship):
 #
 #
 def get_random_move(ship):
+
+    fuelCost = round(game_map[ship.position].halite_amount * .1, 2)
+
+    if fuelCost > ship.halite_amount:
+        logging.info("Ship - Ship {} has insuffient fuel. Have {}, need {}".format(ship.id, ship.halite_amount, fuelCost))
+        return 'o'
 
     moveChoice = random.choice(["n", "s", "e", "w"])
     #logging.info("Ship - get_random_move() - ship {} moveChoice2: {}".format(ship.id, moveChoice))
@@ -196,36 +280,36 @@ def spawn_ship(game):
 #
 # destination - The direction the ship is trying to go.  Backoff will be opposite
 #
-def get_backoff_point(game, ship, destination):
-    destinationMoves = game.game_map.get_unsafe_moves(ship.position, destination)
-
-    if len(destinationMoves) == 0:
-        return ship.position
-
-    choice = random.choice(destinationMoves)
-    backoffDirection = Direction.invert(choice)
-
-    # when there's a collion, we backoff between 1 and nShips/2 cells
-    mult = random.randint(1, round(len(game.me.get_ships()) / 2))
-
-    backoffPoint = ship.position + Position(backoffDirection[0] * mult, backoffDirection[1] * mult)
-
-    # if the backup point wrap, truncate it to the edge to prevent simple nav from failing
-    if backoffPoint.x > game.game_map.width - 1:
-        backoffPoint.x = game.game_map.width - 1
-
-    if backoffPoint.x < 0:
-        backoffPoint.x = 0
-
-    if backoffPoint.y > game.game_map.height - 1:
-        backoffPoint.y = game.game_map.height - 1
-
-    if backoffPoint.y <    0:
-        backoffPoint.y = 0
-
-    logging.info("Ship - get_backoff_point() - ship {} backoffPoint {}".format(ship.id, backoffPoint))
-
-    return backoffPoint
+#def get_backoff_point(game, ship, destination):
+#    destinationMoves = game.game_map.get_unsafe_moves(ship.position, destination)
+#
+#    if len(destinationMoves) == 0:
+#        return ship.position
+#
+#    choice = random.choice(destinationMoves)
+#    backoffDirection = Direction.invert(choice)
+#
+#    # when there's a collion, we backoff between 1 and nShips/2 cells
+#    mult = random.randint(1, round(len(game.me.get_ships()) / 2))
+#
+#    backoffPoint = ship.position + Position(backoffDirection[0] * mult, backoffDirection[1] * mult)
+#
+#    # if the backup point wrap, truncate it to the edge to prevent simple nav from failing
+#    if backoffPoint.x > game.game_map.width - 1:
+#        backoffPoint.x = game.game_map.width - 1
+#
+#    if backoffPoint.x < 0:
+#        backoffPoint.x = 0
+#
+#    if backoffPoint.y > game.game_map.height - 1:
+#        backoffPoint.y = game.game_map.height - 1
+#
+#    if backoffPoint.y <    0:
+#        backoffPoint.y = 0
+#
+#    logging.info("Ship - get_backoff_point() - ship {} backoffPoint {}".format(ship.id, backoffPoint))
+#
+#    return backoffPoint
 
 #
 #
@@ -261,7 +345,7 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-BotName = "MyBot"
+BotName = "MyBot.v11"
 
 #
 # game start
@@ -315,7 +399,6 @@ while True:
             ### TODO drop loc should be updated to handle dropoffs points
             if ship.position == me.shipyard.position:
                 logging.info("Ship - Ship {} completed a Dropoff".format(ship.id))
-                ship.path.clear()
 
                 # 1. get the max loiter distance
                 # 2. get the loiter multiple based on turn and max/min loiter distance
@@ -323,7 +406,7 @@ while True:
                 # 4. add the result to the current postion to get a destination
 
                 loiterMult = get_loiter_multiple(game)
-                logging.info("Ship - backoff/loiter mult: {}".format(loiterMult))
+                logging.info("Ship - loiter mult: {}".format(loiterMult))
 
                 # Debug metric
                 #DebugMetrics["NavMults"].append((game.turn_number, round(loiterMult, 2)))
@@ -332,7 +415,7 @@ while True:
                 randPi = random.random() * math.pi * 2
                 loiterOffset = Position(round(math.cos(randPi) * loiterMult + MaxLoiterDist), round(math.sin(randPi) * loiterMult + MaxLoiterDist))
 
-                #logging.info("Ship - backoff/loiter loiterOffset: {}".format(loiterOffset))
+                #logging.info("Ship - loiter loiterOffset: {}".format(loiterOffset))
 
                 # Debug metric, can't use position because will be for diff ship/position every time
                 #DebugMetrics["loiterOffsets"].append((loiterOffset.x, loiterOffset.y))
@@ -340,27 +423,16 @@ while True:
 
                 loiterPoint = ship.position + loiterOffset
 
-                #logging.info("Ship - backoff/loiter point: {}".format(loiterPoint))
+                #logging.info("Ship - loiter point: {}".format(loiterPoint))
 
-                ship.path.append(loiterPoint)
-
+                ship.path.clear()
+                ship.path, cost = game_map.navigate(ship, loiterPoint)
                 ship.status = "exploring"
             else:
-                dropoff_position = get_dropoff_position(ship)
+                # should already have a path to the dropoff
+                move = get_ship_move(ship)
 
-                move = Direction.convert(game_map.naive_navigate(ship, dropoff_position))
-
-                logging.info("Ship - Ship {} initial move1: {}".format(ship.id, move))
-
-                if move == "o":
-                    logging.info("Ship - Ship {} Collision returning".format(ship.id))
-                    ship.status = "backingoff"
-                    ship.path.append(get_backoff_point(game, ship, dropoff_position))
-                else:
-                    fuelCost = round(game_map[ship.position].halite_amount * .1, 2)
-                    if fuelCost > ship.halite_amount:
-                        logging.info("Ship - Ship {} has insuffient fuel. Have {}, need {}".format(ship.id, ship.halite_amount, fuelCost))
-                        move = "o"
+                logging.info("Ship - ship {} navigate move: {}".format(ship.id, move))
 
                 command_queue.append(ship.move(move))
 
@@ -370,20 +442,14 @@ while True:
 
                 continue
 
-        # state - backoff
-        elif ship.status == "backingoff":
-            logging.info("Ship - ship {} is backing off to {}".format(ship.id, ship.path[len(ship.path) - 1]))
-            backoff_position = ship.path[len(ship.path) - 1]
-            if ship.position == backoff_position:
-                logging.info("Ship - ship {} backing off is complete at {}".format(ship.id, backoff_position))
-                ship.status = "returning"
-                ship.path.pop()
-                ship.path.append(get_dropoff_position(ship))
-
         # state - exploring / state change
         elif ship.halite_amount >= constants.MAX_HALITE / 4:
-            logging.info("Ship - ship {} is now returning".format(ship.id))
+            dropoff = get_dropoff_position(ship)
             ship.status = "returning"
+            ship.path, cost = game_map.navigate(ship, dropoff)
+            move = get_ship_move(ship)
+            logging.info("Ship - ship {} is now returning to {}".format(ship.id, dropoff))
+
 
         # Move
         #
@@ -397,30 +463,16 @@ while True:
                 ship.path.pop()
 
             # if we don't have a nav path, then make a dense move, otherwise make a nav move.
-            # In the case of a nav move, if collision, then just get a one-time random move
+            # In the case of a nav move
             if len(ship.path) == 0:
                 if ship.is_full:
-                    move = game_map.naive_navigate(ship, get_dropoff_position(ship))
-                else:
-                    move = get_dense_move(ship)
-                    logging.info("Ship - ship {} dense_move: {}".format(ship.id, move))
+                    ship.path, cost = game_map.navigate(ship, get_dropoff_position(ship))
+
+                move = get_dense_move(ship)
+                logging.info("Ship - ship {} dense_move: {}".format(ship.id, move))
             else:
-                move = Direction.convert(game_map.naive_navigate(ship, ship.path[len(ship.path) - 1]))
-                if move == "o":
-                    original_move = move
-                    move = get_dense_move(ship)
-                    if move == "o":
-                        logging.info("2 Ship - ship {} Nav move collision, original {}, correct failed.".format(ship.id, original_move))
-                    else:
-                        logging.info("2 Ship - ship {} Nav move collision, original {}, corrected {}".format(ship.id, original_move, move))
-
+                move = get_ship_move(ship)
                 logging.info("Ship - ship {} Nav Move: {}".format(ship.id, move))
-
-            if move != "o":
-                fuelCost = round(game_map[ship.position].halite_amount * .1, 2)
-                if fuelCost > ship.halite_amount:
-                    logging.info("Ship - Ship {} has insuffient fuel. Have {}, need {}".format(ship.id, ship.halite_amount, fuelCost))
-                    move = "o"
 
             command_queue.append(ship.move(move))
         else:
