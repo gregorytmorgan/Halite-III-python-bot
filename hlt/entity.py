@@ -92,7 +92,8 @@ class Ship(Entity):
         return ship_id, Ship(player_id, ship_id, Position(x_position, y_position), halite)
 
     def __repr__(self):
-        return "{}(id={}, {}, cargo={} halite)".format(self.__class__.__name__,
+        return "{}(id={}, {}, cargo={} halite, status={})".format(self.__class__.__name__,
                                                        self.id,
                                                        self.position,
-                                                       self.halite_amount)
+                                                       self.halite_amount,
+													   self.status)
