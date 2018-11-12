@@ -261,7 +261,7 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-BotName = "MyBot"
+BotName = "MyBot.v11"
 
 #
 # game start
@@ -381,7 +381,7 @@ while True:
                 ship.path.append(get_dropoff_position(ship))
 
         # state - exploring / state change
-        elif ship.halite_amount >= constants.MAX_HALITE / 4:
+        elif ship.halite_amount >= constants.MAX_HALITE:
             logging.info("Ship - ship {} is now returning".format(ship.id))
             ship.status = "returning"
 
