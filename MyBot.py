@@ -409,7 +409,7 @@ while True:
                 logging.info("Ship - loiter mult: {}".format(loiterMult))
 
                 # Debug metric
-                #DebugMetrics["NavMults"].append((game.turn_number, round(loiterMult, 2)))
+                #DebugMetrics["NavMults"].append((game.turn_number, round(loiterMult, 2))
 
                 # get a random point on a cicle
                 randPi = random.random() * math.pi * 2
