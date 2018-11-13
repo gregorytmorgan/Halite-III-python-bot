@@ -103,10 +103,9 @@ def get_dense_move(game, ship):
 #
 #
 def get_max_loiter_distance(game):
-    if game.players == 2:
-        max_loiter_distance = min(game.game_map.width / 2, MAX_LOITER)
-    else:
-        max_loiter_distance = min(game.game_map.height / 4, MAX_LOITER)
+    max_loiter_dist_x = abs(game.me.shipyard.position.x - game.game_map.width)
+    max_loiter_dist_y = abs(game.me.shipyard.position.y - game.game_map.height)
+    max_loiter_distance = min(max_loiter_dist_x/2, max_loiter_dist_y/2)
 
     return max_loiter_distance
 
@@ -154,18 +153,19 @@ def get_random_move(game, ship):
 #
 #
 def spawn_ship(game):
-    nShips = len(game.me.get_ships())
+    ship_count = len(game.me.get_ships())
 
     if game.turn_number <= 100:
-        maxShips = 8
+        max_ships = 8
     elif game.turn_number <= 200:
-        maxShips = 6
+        max_ships = 6
     elif game.turn_number <= 300:
-        maxShips = 4
+        max_ships = 4
     else:
-        maxShips = 2
+        max_ships = 2
 
-    if nShips >= maxShips:
+
+    if ship_count >= max_ships:
         return False
 
     if game.me.halite_amount < constants.SHIP_COST:
@@ -174,14 +174,14 @@ def spawn_ship(game):
     if game.game_map[game.me.shipyard].is_occupied:
         return False
 
-    entryExitCells = game.me.shipyard.position.get_surrounding_cardinals()
+    entryexit_cells = game.me.shipyard.position.get_surrounding_cardinals()
 
-    occupiedCells = 0
-    for pos in entryExitCells:
+    occupied_cells = 0
+    for pos in entryexit_cells:
         if game.game_map[pos].is_occupied:
-            occupiedCells = occupiedCells + 1
+            occupied_cells = occupied_cells + 1
 
-    if occupiedCells > 0:
+    if occupied_cells > 0:
         return False
 
     return True
