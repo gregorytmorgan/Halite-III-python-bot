@@ -2,6 +2,8 @@
 #
 #
 
+Repos
+
 # Alternative visualizer
 https://github.com/fohristiwhirl/fluorine
 
@@ -13,3 +15,13 @@ https://github.com/HaliteChallenge/Halite-III/tree/master/tools/hlt_client
 
 # totally optional
 https://github.com/HaliteChallenge/Halite-III
+
+
+Notes
+=========================================
+
+Ship states and navigation
+-----------------------------------------
+
+Exploring
+1. Exploring ships have two 'sub-states', 'navigating' and 'mining/searching'.
