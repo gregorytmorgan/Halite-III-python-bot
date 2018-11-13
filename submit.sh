@@ -53,6 +53,7 @@ ARCHIVE_DIR="$PROJECT_ROOT/archive"
 VERSION_FILE="version.txt"
 MYBOT_FILE="MyBot.py"
 HLT_DIR="hlt"
+UTIL_DIR="myutils"
 
 
 if [ ! -f $VERSION_FILE ]; then
@@ -106,7 +107,7 @@ fi
 
 echo "Zipping ..."
 
-/usr/bin/zip -r $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE install.sh $HLT_DIR -x hlt/__pycache__/\*
+/usr/bin/zip -r $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE install.sh $HLT_DIR $UTIL_DIR -x hlt/__pycache__/\*
 Retval=$?
 
 if [ $Retval != 0 ]; then
