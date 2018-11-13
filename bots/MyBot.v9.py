@@ -221,7 +221,7 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-BotName = "MyBot"
+BotName = "MyBot.v9"
 
 #
 # game start
