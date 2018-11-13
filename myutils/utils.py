@@ -8,11 +8,66 @@ from hlt import constants
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Position
 
+import math
 import random
 import logging
 
 # mybot utils
 from myutils.constants import *
+
+#
+#
+#
+def spawn_ship(game):
+    ship_count = len(game.me.get_ships())
+
+    if game.turn_number <= 100:
+        max_ships = 8
+    elif game.turn_number <= 200:
+        max_ships = 6
+    elif game.turn_number <= 300:
+        max_ships = 4
+    else:
+        max_ships = 2
+
+    if ship_count >= max_ships:
+        return False
+
+    if game.me.halite_amount < constants.SHIP_COST:
+        return False
+
+    if game.game_map[game.me.shipyard].is_occupied:
+        return False
+
+    entryexit_cells = game.me.shipyard.position.get_surrounding_cardinals()
+
+    occupied_cells = 0
+    for pos in entryexit_cells:
+        if game.game_map[pos].is_occupied:
+            occupied_cells = occupied_cells + 1
+
+    if occupied_cells > 0:
+        return False
+
+    return True
+
+#
+#
+#
+def get_max_loiter_distance(game):
+    max_loiter_dist_x = min(game.me.shipyard.position.x, (game.game_map.width - game.me.shipyard.position.x))
+    max_loiter_dist_y = min(game.me.shipyard.position.y, (game.game_map.height - game.me.shipyard.position.y))
+    max_loiter_distance = min(max_loiter_dist_x, max_loiter_dist_y, MAX_LOITER)
+
+    return float(max_loiter_distance)
+
+#
+#
+#
+def get_min_loiter_distance(game):
+    # when a ship is sent off from the shipyard, this is the max distance.  It set
+    # dynamically. The min loiter distance is stored as an offset, see min_loiter_distance
+    return float(MIN_LOITER)
 
 #
 #
@@ -46,12 +101,15 @@ def get_loiter_multiple(game):
     #
     #maxArcTan = math.atan(inputWidth - inputWidth/2) + math.atan(inputWidth/2)
     #loiterMult = math.atan(((game.turn_number - 1.0 + inputOffset)/constants.MAX_TURNS) * inputWidth - (inputWidth/2.0)) + math.atan(inputWidth/2.0)
-    #loiterMult = loiterMult / maxArcTan * MaxLoiterDist
+    #loiterMult = loiterMult / maxArcTan * get_max_loiter_distance(game)
 
     #
     # linear
     #
-    loiterMult = float((game.turn_number - 1) / constants.MAX_TURNS) * get_max_loiter_distance(game)
+    #loiterMult = (float(game.turn_number - 1) / float(constants.MAX_TURNS)) * get_max_loiter_distance(game)
+
+    # based on area
+    loiterMult = math.sqrt(game.turn_number - 1.0) / math.sqrt(constants.MAX_TURNS) * get_max_loiter_distance(game)
 
     # make sure we don't a useless mult
     if loiterMult < min_loiter_distance:
@@ -70,52 +128,34 @@ def get_dense_move(game, ship):
 
     sorted_moves = sorted(moves, key=lambda item: item[2], reverse=True)
 
-    logging.info("Ship - get_dense_move() - sorted_moves {}".format(sorted_moves))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} sorted_moves: {}".format(ship.id, sorted_moves))
 
     if len(sorted_moves) == 0:
         move = get_random_move(game, ship)
     else:
-        pos = Position(sorted_moves[0][0] - ship.position.x, sorted_moves[0][1] - ship.position.y)
-        logging.info("Ship - ship {} get_dense_move() - pos {}".format(ship.id, pos))
+        moveOffset = Position(sorted_moves[0][0] - ship.position.x, sorted_moves[0][1] - ship.position.y)
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} moveOffset: {}".format(ship.id, moveOffset))
 
-        moveOffset = game.game_map.normalize(pos)
-        logging.info("Ship - ship {} get_dense_move() - moveOffset {}".format(ship.id, moveOffset))
+        newPosition = game.game_map.normalize(ship.position + moveOffset)
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} newPosition: {}".format(ship.id, newPosition))
 
-        move = Direction.convert(game.game_map.naive_navigate(ship, ship.position + moveOffset))
-        logging.info("Ship - ship {} get_dense_move() - move {}".format(ship.id, move))
+        move = Direction.convert(game.game_map.naive_navigate(ship, newPosition))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} move: {}".format(ship.id, move))
 
         if move == "o":
             for i in range(1, len(sorted_moves)):
                 moveOffset = game.game_map.normalize(Position(sorted_moves[i][0] - ship.position.x, sorted_moves[i][1] - ship.position.y))
 
-                logging.info("Ship - ship {} get_dense_move() - moveOffset {}".format(ship.id, moveOffset))
+                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} moveOffset: {}".format(ship.id, moveOffset))
 
                 move = Direction.convert(game.game_map.naive_navigate(ship, moveOffset))
                 if move != "o":
                     break
 
     if move == "o":
-        logging.info("Ship - ship {} get_dense_move() - noop".format(ship.id))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} no move/still".format(ship.id))
 
     return move
-
-#
-#
-#
-def get_max_loiter_distance(game):
-    max_loiter_dist_x = abs(game.me.shipyard.position.x - game.game_map.width)
-    max_loiter_dist_y = abs(game.me.shipyard.position.y - game.game_map.height)
-    max_loiter_distance = min(max_loiter_dist_x/2, max_loiter_dist_y/2)
-
-    return max_loiter_distance
-
-#
-#
-#
-def get_min_loiter_distance(game):
-    # when a ship is sent off from the shipyard, this is the max distance.  It set
-    # dynamically. The min loiter distance is stored as an offset, see min_loiter_distance
-    return MIN_LOITER
 
 #
 #
@@ -143,49 +183,11 @@ def get_random_move(game, ship):
                 break
 
         if move == "o":
-            logging.info("Ship - get_random_move() - ship {} Collision, original {}, correct failed".format(ship.id, original_move))
+            if DEBUG & (DEBUG_NAV): logging.info("Nav.get_random_move() - Ship {} Collision, original {}, correct failed".format(ship.id, original_move))
         else:
-            logging.info("Ship - get_random_move() -  ship {} Collision, original {}, corrected {}".format(ship.id, original_move, move))
+            if DEBUG & (DEBUG_NAV): logging.info("Nav.get_random_move() -  Ship {} Collision, original {}, corrected {}".format(ship.id, original_move, move))
 
     return move
-
-#
-#
-#
-def spawn_ship(game):
-    ship_count = len(game.me.get_ships())
-
-    if game.turn_number <= 100:
-        max_ships = 8
-    elif game.turn_number <= 200:
-        max_ships = 6
-    elif game.turn_number <= 300:
-        max_ships = 4
-    else:
-        max_ships = 2
-
-
-    if ship_count >= max_ships:
-        return False
-
-    if game.me.halite_amount < constants.SHIP_COST:
-        return False
-
-    if game.game_map[game.me.shipyard].is_occupied:
-        return False
-
-    entryexit_cells = game.me.shipyard.position.get_surrounding_cardinals()
-
-    occupied_cells = 0
-    for pos in entryexit_cells:
-        if game.game_map[pos].is_occupied:
-            occupied_cells = occupied_cells + 1
-
-    if occupied_cells > 0:
-        return False
-
-    return True
-
 #
 # destination - The direction the ship is trying to go.  Backoff will be opposite
 #
@@ -216,7 +218,7 @@ def get_backoff_point(game, ship, destination):
     if backoffPoint.y <    0:
         backoffPoint.y = 0
 
-    logging.info("Ship - get_backoff_point() - ship {} backoffPoint {}".format(ship.id, backoffPoint))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav.get_backoff_point() - ship {} has backoffPoint {}".format(ship.id, backoffPoint))
 
     return backoffPoint
 
