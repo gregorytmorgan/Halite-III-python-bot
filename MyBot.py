@@ -82,8 +82,7 @@ while True:
     #logging.info("Game - begin ship_states: {}".format(ship_states))
 
     for ship in me.get_ships():
-        # For each of your ships, move randomly if the ship is on a low halite location or the ship is full.
-        # Else, collect halite.
+        dropoff_position = get_dropoff_position(game, ship)
 
         if ship.id in ship_states:
             ship.status = ship_states[ship.id]["status"]
@@ -137,11 +136,10 @@ while True:
 
                 ship.status = "exploring"
             else:
-                dropoff_position = get_dropoff_position(game, ship)
+                moveDirection = game_map.naive_navigate(ship, dropoff_position)
+                move = Direction.convert(moveDirection)
 
-                move = Direction.convert(game_map.naive_navigate(ship, dropoff_position))
-
-                if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} initial move1: {}".format(ship.id, move))
+                if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} initial move: {}".format(ship.id, move))
 
                 if move == "o":
                     if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Collision returning".format(ship.id))
@@ -169,7 +167,7 @@ while True:
                 if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} backing off is complete at {}".format(ship.id, backoff_position))
                 ship.status = "returning"
                 ship.path.pop()
-                ship.path.append(get_dropoff_position(game, ship))
+                ship.path.append(dropoff_position)
 
         # state - exploring / state change
         elif ship.halite_amount >= constants.MAX_HALITE:
@@ -191,12 +189,15 @@ while True:
             # In the case of a nav move, if collision, then just get a one-time random move
             if len(ship.path) == 0:
                 if ship.is_full:
-                    move = game_map.naive_navigate(ship, get_dropoff_position(game, ship))
+                    moveDirection = game_map.naive_navigate(ship, dropoff_position)
+                    move = Direction.convert(moveDirection)
+                    if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} naive move: {}".format(ship.id, move))
                 else:
                     move = get_dense_move(game, ship)
-                    if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} dense_move: {}".format(ship.id, move))
+                    if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} dense move: {}".format(ship.id, move))
             else:
-                move = Direction.convert(game_map.naive_navigate(ship, ship.path[len(ship.path) - 1]))
+                moveDirection = game_map.naive_navigate(ship, ship.path[len(ship.path) - 1])
+                move = Direction.convert(moveDirection)
                 if move == "o":
                     original_move = move
                     move = get_dense_move(game, ship)
