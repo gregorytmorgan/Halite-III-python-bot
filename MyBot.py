@@ -41,7 +41,7 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-botName = "MyBot.dev"
+botName = "MyBot.v12"
 
 if DEBUG & (DEBUG_NAV_METRICS):
 # container for debug/metrics
