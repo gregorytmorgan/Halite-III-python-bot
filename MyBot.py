@@ -20,6 +20,7 @@ import logging
 import datetime
 import math
 import time
+import numpy as np
 
 # mybot code
 from myutils.utils import *
@@ -50,6 +51,15 @@ if DEBUG & (DEBUG_NAV_METRICS):
         "loiter_multiples": [],
         "loiter_offsets": [],
         "loiter_distances": []
+    }
+
+if DEBUG & (DEBUG_GAME_METRICS):
+    debug_game_metrics = {
+        "mined": [],
+        "gathered": [(0, 0, 5000)],
+        "ships": [],
+        "time": [],
+        "burned": []
     }
 
 #
@@ -87,6 +97,19 @@ while True:
         if ship.id in ship_states:
             ship.status = ship_states[ship.id]["status"]
             ship.path = ship_states[ship.id]["path"]
+
+            if ship.halite_amount != ship_states[ship.id]["prior_halite_amount"]:
+                if ship.halite_amount == 0:
+                    fuel_cost = math.floor(game_map[ship_states[ship.id]["prior_position"]].halite_amount * .1)
+                    gathered = ship_states[ship.id]["prior_halite_amount"] - fuel_cost
+                    debug_game_metrics["gathered"].append((game.turn_number, ship.id, gathered))
+                elif ship.halite_amount < ship_states[ship.id]["prior_halite_amount"]:
+                    fuel_cost = ship_states[ship.id]["prior_halite_amount"] - ship.halite_amount
+                    debug_game_metrics["burned"].append((game.turn_number, ship.id, fuel_cost))
+                else:
+                    mined = ship.halite_amount - ship_states[ship.id]["prior_halite_amount"]
+                    debug_game_metrics["mined"].append((game.turn_number, ship.id, mined))
+
         else:
             if DEBUG & (DEBUG_GAME): logging.info("Game - New ship with ID {}".format(ship.id))
             ship_states[ship.id] = {
@@ -156,6 +179,8 @@ while True:
                 # save the ship state
                 ship_states[ship.id]["status"] = ship.status
                 ship_states[ship.id]["path"] = ship.path
+                ship_states[ship.id]["prior_position"] = ship.position
+                ship_states[ship.id]["prior_halite_amount"] = ship.halite_amount
 
                 continue
 
@@ -221,6 +246,8 @@ while True:
         # save the ship state
         ship_states[ship.id]["status"] = ship.status
         ship_states[ship.id]["path"] = ship.path
+        ship_states[ship.id]["prior_position"] = ship.position
+        ship_states[ship.id]["prior_halite_amount"] = ship.halite_amount
 
     # If the game is in the first 200 turns and you have enough halite, spawn a ship.
     # Don't spawn a ship if you currently have a ship at port, though - the ships will collide.
@@ -233,6 +260,21 @@ while True:
     if DEBUG & (DEBUG_GAME): logging.info("Game - end ship_states: {}".format(ship_states))
 
     if game.turn_number == constants.MAX_TURNS:
+        if DEBUG & (DEBUG_GAME_METRICS):
+            #logging.info("Game - Time: {}".format(debug_game_metrics["time"]))
+            logging.info("Game - Min turn time: {}".format(min(debug_game_metrics["time"], key = lambda t: t[1])))
+            logging.info("Game - Max turn time: {}".format(max(debug_game_metrics["time"], key = lambda t: t[1])))
+            logging.info("Game - Avg turn time: {:.4f}".format(np.mean(debug_game_metrics["time"], axis=0)[1]))
+
+            #logging.info("Game - Mined: {}".format(debug_game_metrics["mined"]))
+            logging.info("Game - Total mined: {}".format(sum(x[2] for x in debug_game_metrics["mined"])))
+
+            #logging.info("Game - Gathered: {}".format(debug_game_metrics["gathered"]))
+            logging.info("Game - Total gathered: {}".format(sum(x[2] for x in debug_game_metrics["gathered"])))
+
+            logging.info("Game - Burned: {}".format(debug_game_metrics["burned"]))
+            #logging.info("Game - Total burned: {}".format(sum(x[2] for x in debug_game_metrics["burned"])))
+
         if DEBUG & (DEBUG_NAV_METRICS):
             logging.info("Nav - Loiter multiples: {}".format(DebugMetrics["loiter_multiples"]))
             logging.info("Nav - Loiter offsets: {}".format(DebugMetrics["loiter_offsets"]))
@@ -241,4 +283,4 @@ while True:
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
 
-    #if DEBUG & (DEBUG_GAME_METRICS): debug_game_metrics["time"].append((game.turn_number, round(time.time() - TurnStartTime, 4)))
+    if DEBUG & (DEBUG_GAME_METRICS): debug_game_metrics["time"].append((game.turn_number, round(time.time() - TurnStartTime, 4)))
