@@ -41,14 +41,15 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-botName = "MyBot.v12"
+botName = "MyBot.dev"
+
+# containers for debug metrics
 
 if DEBUG & (DEBUG_NAV_METRICS):
-# container for debug/metrics
-    DebugMetrics = {
-        "NavMults": [],
-        "loiterOffsets": [],
-        "loiterDistances": []
+    debug_metrics = {
+        "loiter_multiples": [],
+        "loiter_offsets": [],
+        "loiter_distances": []
     }
 
 #
@@ -113,8 +114,7 @@ while True:
                 loiterMult = get_loiter_multiple(game)
                 if DEBUG & (DEBUG_NAV_METRICS): logging.info("NAV - Ship {} loiterMult: {}".format(ship.id, loiterMult))
 
-                # Debug metric
-                DebugMetrics["NavMults"].append((game.turn_number, round(loiterMult, 2)))
+                if DEBUG & (DEBUG_NAV_METRICS): debug_metrics["loiter_multiples"].append((game.turn_number, round(loiterMult, 2)))
 
                 #max_loiter_distance = get_max_loiter_distance(game)
 
@@ -126,8 +126,8 @@ while True:
                 if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} loiterOffset: {}".format(ship.id, loiterOffset))
 
                 # Debug metric, can't use position because will be for diff ship/position every time
-                if DEBUG & (DEBUG_NAV_METRICS): DebugMetrics["loiterOffsets"].append((loiterOffset.x, loiterOffset.y))
-                if DEBUG & (DEBUG_NAV_METRICS): DebugMetrics["loiterDistances"].append((game.turn_number, round(math.sqrt(loiterOffset.x ** 2 + loiterOffset.y ** 2), 2)))
+                if DEBUG & (DEBUG_NAV_METRICS): debug_metrics["loiter_offsets"].append((loiterOffset.x, loiterOffset.y))
+                if DEBUG & (DEBUG_NAV_METRICS): debug_metrics["loiter_distances"].append((game.turn_number, round(math.sqrt(loiterOffset.x ** 2 + loiterOffset.y ** 2), 2)))
 
                 loiterPoint = ship.position + loiterOffset
 
@@ -231,13 +231,13 @@ while True:
 
     if DEBUG & (DEBUG_GAME): logging.info("Game - end ship_states: {}".format(ship_states))
 
-    if DEBUG & (DEBUG_NAV_METRICS):
-        if game.turn_number == constants.MAX_TURNS:
-            logging.info("Nav - NavMults: {}".format(DebugMetrics["NavMults"]))
-            logging.info("Nav - loiterOffsets: {}".format(DebugMetrics["loiterOffsets"]))
-            logging.info("Nav - loiterDistances: {}".format(DebugMetrics["loiterDistances"]))
+    if game.turn_number == constants.MAX_TURNS:
+        if DEBUG & (DEBUG_NAV_METRICS):
+            logging.info("Nav - Loiter multiples: {}".format(DebugMetrics["loiter_multiples"]))
+            logging.info("Nav - Loiter offsets: {}".format(DebugMetrics["loiter_offsets"]))
+            logging.info("Nav - Loiter distances: {}".format(DebugMetrics["loiter_distances"]))
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
 
-    if DEBUG & (DEBUG_GAME): logging.info("elapsed turn time: {:.4f}".format(time.time() - TurnStartTime))
+    #if DEBUG & (DEBUG_GAME_METRICS): debug_game_metrics["time"].append((game.turn_number, round(time.time() - TurnStartTime, 4)))
