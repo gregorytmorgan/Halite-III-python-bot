@@ -53,13 +53,6 @@ if DEBUG & (DEBUG_NAV_METRICS):
         "loiter_distances": []
     }
 
-game_metrics = {
-	"mined": [],
-	"gathered": [(0, 0, 5000)],
-	"time": [],
-	"burned": []
-}
-
 #
 # game start
 #
@@ -82,6 +75,7 @@ while True:
     # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
     game_map = game.game_map
+    game_metrics = game.game_metrics
 
     # A command queue holds all the commands you will run this turn. You build this list up and submit it at the
     # end of the turn.

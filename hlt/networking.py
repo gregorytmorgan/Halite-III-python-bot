@@ -17,6 +17,12 @@ class Game:
         Also sets up basic logging.
         """
         self.turn_number = 0
+        self.game_metrics = {
+            "mined": [],
+            "gathered": [(0, 0, 5000)],
+            "time": [],
+            "burned": []
+        }
 
         # Grab constants JSON
         raw_constants = read_input()
