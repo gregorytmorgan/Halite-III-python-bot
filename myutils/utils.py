@@ -11,6 +11,7 @@ from hlt.positionals import Position
 import math
 import random
 import logging
+import numpy as np
 
 # mybot utils
 from myutils.constants import *
@@ -18,19 +19,50 @@ from myutils.constants import *
 #
 #
 #
-def spawn_ship(game):
+def get_mining_rate(game):
+    mined = []
+
+    if len(game.game_metrics["mined"]) == 0:
+        return 0
+
+    trailing_turn = 1 if game.turn_number < 50 else 50
+    i = len(game.game_metrics["mined"]) - 1
+    while i >= 0 and game.game_metrics["mined"][i][0] > trailing_turn:
+        mined.append(game.game_metrics["mined"][i][2])
+        i -= 1
+
+    return np.average(mined)
+
+
+#
+#
+#
+def ships_are_spawnable(game):
+    safety_margin = 2
+    ship_cost = 1000
     ship_count = len(game.me.get_ships())
 
-    if game.turn_number <= 100:
-        max_ships = 8
-    elif game.turn_number <= 200:
-        max_ships = 6
-    elif game.turn_number <= 300:
-        max_ships = 4
-    else:
-        max_ships = 2
+    if ship_count == 0:
+        return True
 
-    if ship_count >= max_ships:
+    mining_rate = get_mining_rate(game) / ship_count
+
+    if mining_rate == 0:
+        return True
+
+    payback = ship_cost / mining_rate
+
+    remaining_turns = constants.MAX_TURNS - game.turn_number
+
+    return (payback * safety_margin) < remaining_turns
+
+
+#
+#
+#
+def spawn_ship(game):
+
+    if not ships_are_spawnable(game):
         return False
 
     if game.me.halite_amount < constants.SHIP_COST:
@@ -115,7 +147,7 @@ def get_loiter_multiple(game):
     if loiterMult < min_loiter_distance:
         loiterMult = min_loiter_distance
 
-    return loiterMult
+    return loiterMult *.25
 
 #
 #
