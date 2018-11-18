@@ -199,7 +199,7 @@ while True:
                 ship.path.pop()
 
             if len(ship.path) == 0:
-                move = get_dense_move(game, ship)
+                move = get_density_move(game, ship)
             else:
                 move = get_ship_nav_move(game, ship)
 
