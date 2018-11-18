@@ -147,8 +147,15 @@ while True:
                 loiterPoint = ship.position + loiterOffset
 
                 ship.path.clear()
-                ship.path, cost = game_map.navigate(ship, loiterPoint, "turns")
-                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is heading out to {}, ETA {} turns ({}).".format(ship.id, loiterPoint, len(ship.path), cost))
+                path, cost = game_map.navigate(ship, loiterPoint,  "astar", {"move_cost": "turns"})
+
+                if path == None:
+                    if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
+                    ship.path = []
+                else:
+                    ship.path = path
+                    if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is heading out to {}, ETA {} turns ({}).".format(ship.id, loiterPoint, len(ship.path), cost))
+
                 ship.status = "exploring"
             else:
                 #
@@ -156,7 +163,7 @@ while True:
                 #
                 # For a returning ship in transit, we don't need to do anything, the move
                 # code will  grab the next position/point and create a move for it
-                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} returning and is {} moves from dropoff ({})".format(ship.id, len(ship.path), ship.path[0]))
+                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} returning and is {} moves from dropoff ({})".format(ship.id, len(ship.path), dropoff_position))
 
         #
         # status - backing off
@@ -178,8 +185,14 @@ while True:
         #
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
-            ship.path, cost = game_map.navigate(ship, dropoff_position, "halite")
-            if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} is now returning to {} at a cost of {} ({} turns)".format(ship.id, dropoff_position, round(cost, 1), len(ship.path)))
+            path, cost = game_map.navigate(ship, dropoff_position, "astar", {"move_cost": "halite"})
+
+            if path == None:
+                if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
+                ship.path = []
+            else:
+                ship.path = path
+                if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} is now returning to {} at a cost of {} ({} turns)".format(ship.id, dropoff_position, round(cost, 1), len(ship.path)))
 
         #
         # Move
@@ -198,7 +211,7 @@ while True:
             if len(ship.path) == 0:
                 move = get_density_move(game, ship)
             else:
-                move = get_ship_nav_move(game, ship)
+                move = get_ship_nav_move(game, ship, "astar", {"move_cost": "halite"})
 
             if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is moving {}".format(ship.id, move))
 

@@ -166,17 +166,17 @@ class GameMap:
 
         return Direction.Still
 
-    def move_cost(self, a, b, mode="turns"):
+    def move_cost(self, a, b, move_cost = "turns"):
         # ignore 'a' since the cost is only a function of the current cell
 
         halite_amount = self[a].halite_amount
 
-        if mode == "turns":
+        if move_cost == "turns":
             return 1
-        elif mode == "halite":
+        elif move_cost == "halite":
             return halite_amount * .1
         else:
-            raise RuntimeError("Unknown nav mode: " + mode)
+            raise RuntimeError("Unknown nav move_cost: " + str(move_cost))
 
     def heuristic(self, start, end):
         dx = abs(start.x - end.x)
@@ -192,7 +192,52 @@ class GameMap:
 
         return manhatten
 
-    def navigate(self, ship, destination, mode="turns"):
+    #
+    #
+    # algorithm: 'astar', 'naive'
+    #   'astar' takes args: 'move_cost': 'turns'|'halite'
+    #   'naive' takes no args
+    def navigate(self, ship, destination, algorithm="astar", args={}):
+        if algorithm == "astar":
+            move_cost = args["move_cost"] if "move_cost" in args else None
+            path, cost = self.astar(ship, destination, move_cost)
+        elif algorithm == "naive":
+            path, cost = self.get_naive_path(ship, destination)
+        else:
+            logging.info("Error unknown navigate algorithm {}".format(algorithm))
+            path, cost = None, None
+
+        return path, cost
+
+    #
+    #
+    #
+    def get_naive_path(self, ship, destination):
+        umoves = self.get_unsafe_moves(ship.position, destination)
+        first_move = umoves[0]
+
+        first_position =  Position(ship.position.x + first_move[0], ship.position.y + first_move[1])
+        path = [first_position]
+
+        step = 1 if destination.x > ship.position.x else -1
+        x = ship.position.x
+        if destination.x != ship.position.x:
+            for x in range(first_position.x + step,  destination.x + step, step):
+                path.append(Position(x, first_position.y))
+
+        step = 1 if destination.y > ship.position.y else -1
+        if destination.y != ship.position.y:
+            for y in range(first_position.y + step,  destination.y + step, step):
+                path.append(Position(x, y))
+
+        path.reverse()
+
+        return path, len(path)
+
+    #
+    # Get a path using a-star search, cost function can use 'halite' or 'turns'
+    #
+    def astar(self, ship, destination, move_cost="turns"):
 
         # return None if no soln, returns empty list with zero cost if start == end,
         # otherwise returns a path list and a cumlative cost
@@ -273,12 +318,7 @@ class GameMap:
                     if self.DEBUG: logging.info("skipping neighbour {}, already checked".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
                     continue #We have already processed this node exhaustively
 
-                cost = self.move_cost(current, neighbour, mode)
-
-#                if cost == 9999:  # what should this be?
-#                    if self.DEBUG: logging.info("adding neighbour to {} closedVertices, blocked".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
-#                    closedVertices.add(neighbour)
-#                    continue
+                cost = self.move_cost(current, neighbour, move_cost)
 
                 candidateG = G[current] + cost
 

@@ -303,7 +303,7 @@ def get_dropoff_position(game, ship):
 #
 # nav moves resolv randomly
 #
-def get_ship_nav_move(game, ship, mode = "turns"):
+def get_ship_nav_move(game, ship, algo = "astar", args = {"move_cost": "turns"}):
     game_map = game.game_map
 
     if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} getting nav move for path {}".format(ship.id, ship.path))
@@ -324,7 +324,7 @@ def get_ship_nav_move(game, ship, mode = "turns"):
         if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} found waypoint {} ({}), calulating complete path".format(ship.id, next_position, normalized_next_position))
 
         # calc a continous path
-        path, cost = game_map.navigate(ship, normalized_next_position, mode)
+        path, cost = game_map.navigate(ship, normalized_next_position, algo, args)
 
         if path == None:
             if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} Nav failed, can't reach {}".format(ship.id, normalized_next_position))
@@ -355,7 +355,7 @@ def get_ship_nav_move(game, ship, mode = "turns"):
         cell.mark_unsafe(ship)
         ship.path.pop()
 
-		# use get_unsafe_moves() to get a normalized directional offset. We should always get one soln.
+        # use get_unsafe_moves() to get a normalized directional offset. We should always get one soln.
         offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
 
         logging.info("Ship - ship {} offset {}".format(ship.id, offset))
