@@ -151,16 +151,6 @@ while True:
                 # code will  grab the next position/point and create a move for it
                 if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} returning and is {} moves out".format(ship.id, len(ship.path)))
 
-#                if move == "o":
-#                    if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} Collision returning".format(ship.id))
-#                    ship.status = "backingoff"
-#                    bop = get_backoff_point(game, ship, dropoff_position)
-#                    logging.info("DEBUG - Ship {} bop: {}".format(ship.id, bop))
-#                    ship.path.append(bop)
-
-
-
-
         #
         # status - backing off
         #

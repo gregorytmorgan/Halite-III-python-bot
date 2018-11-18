@@ -53,6 +53,7 @@ ARCHIVE_DIR="$PROJECT_ROOT/archive"
 VERSION_FILE="version.txt"
 MYBOT_FILE="MyBot.py"
 HLT_DIR="hlt"
+UTIL_DIR="myutils"
 
 
 if [ ! -f $VERSION_FILE ]; then
@@ -106,7 +107,12 @@ fi
 
 echo "Zipping ..."
 
-/usr/bin/zip -r $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE install.sh $HLT_DIR -x hlt/__pycache__/\*
+if [ -z $ARCHIVE_DIR/$ARCHIVE_NAME ]; then
+	echo "Archive $ARCHIVE_DIR/$ARCHIVE_NAME already exists"
+	exit 4
+fi
+
+/usr/bin/zip -r $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE install.sh $HLT_DIR $UTIL_DIR -x hlt/__pycache__/\*
 Retval=$?
 
 if [ $Retval != 0 ]; then
@@ -136,11 +142,16 @@ echo "Uploading ... done."
 # save current bot for testing
 #
 
+if [ -f $BOT_DIR/$MyBot_VFileName ]; then
+	echo "Saved bot file $BOT_DIR/$MyBot_VFileName already exists"
+	exit 6
+fi
+
 cp -f $MYBOT_FILE $BOT_DIR/$MyBot_VFileName
 Retval=$?
 if [ $Retval != 0 ]; then
 	echo "Error - Copy of current bot failed with error $Retval"
-	exit 6
+	exit 7
 fi
 
 #

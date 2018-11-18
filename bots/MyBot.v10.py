@@ -22,7 +22,7 @@ import math
 import time
 
 # scipy lib is installed on server env by default
-from scipy.stats import norm
+#from scipy.stats import norm
 
 # when a ship is sent off from the shipyard, this is the max distance.  It set
 # dynamically. The min loiter distance is stored as an offset, see MinLoiterDist
@@ -84,6 +84,46 @@ def get_loiter_multiple(game):
         loiterMult = MinLoiterDist
 
     return loiterMult
+
+#
+#
+#
+def get_dense_move(ship):
+    moves = []
+    for d in ship.position.get_surrounding_cardinals():
+        if game_map[d].halite_amount > constants.MAX_HALITE/10 and not ship.is_full:
+            moves.append((d.x, d.y, game_map[d].halite_amount))
+
+    sorted_moves = sorted(moves, key=lambda item: item[2], reverse=True)
+
+    logging.info("Ship - get_dense_move() - sorted_moves {}".format(sorted_moves))
+
+    if len(sorted_moves) == 0:
+        move = get_random_move(ship)
+    else:
+        pos = Position(sorted_moves[0][0] - ship.position.x, sorted_moves[0][1] - ship.position.y)
+        logging.info("Ship - ship {} get_dense_move() - pos {}".format(ship.id, pos))
+
+        moveOffset = game_map.normalize(pos)
+        logging.info("Ship - ship {} get_dense_move() - moveOffset {}".format(ship.id, moveOffset))
+
+        move = Direction.convert(game_map.naive_navigate(ship, ship.position + moveOffset))
+        logging.info("Ship - ship {} get_dense_move() - move {}".format(ship.id, move))
+
+        if move == "o":
+            for i in range(1, len(sorted_moves)):
+                moveOffset = game_map.normalize(Position(sorted_moves[i][0] - ship.position.x, sorted_moves[i][1] - ship.position.y))
+
+                logging.info("Ship - ship {} get_dense_move() - moveOffset {}".format(ship.id, moveOffset))
+
+                move = Direction.convert(game_map.naive_navigate(ship, moveOffset))
+                if move != "o":
+                    break
+
+    if move == "o":
+        logging.info("Ship - ship {} get_dense_move() - noop".format(ship.id))
+
+    return move
 
 #
 #
@@ -221,7 +261,7 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-BotName = "MyBot.v9"
+BotName = "MyBot.v10"
 
 #
 # game start
@@ -356,15 +396,19 @@ while True:
             if len(ship.path) and ship.position == ship.path[len(ship.path) - 1]:
                 ship.path.pop()
 
-            # if we don't have a nav path, then make a random move, otherwise make a nav move.
+            # if we don't have a nav path, then make a dense move, otherwise make a nav move.
             # In the case of a nav move, if collision, then just get a one-time random move
             if len(ship.path) == 0:
-                move = get_random_move(ship)
+                if ship.is_full:
+                    move = game_map.naive_navigate(ship, get_dropoff_position(ship))
+                else:
+                    move = get_dense_move(ship)
+                    logging.info("Ship - ship {} dense_move: {}".format(ship.id, move))
             else:
                 move = Direction.convert(game_map.naive_navigate(ship, ship.path[len(ship.path) - 1]))
                 if move == "o":
                     original_move = move
-                    move = get_random_move(ship)
+                    move = get_dense_move(ship)
                     if move == "o":
                         logging.info("2 Ship - ship {} Nav move collision, original {}, correct failed.".format(ship.id, original_move))
                     else:
