@@ -315,47 +315,49 @@ def get_ship_nav_move(game, ship, mode = "turns"):
         if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} empty path".format(ship.id))
         return 'o'
 
-    new_position = ship.path[len(ship.path) - 1]
-    if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} new_position {}".format(ship.id, new_position))
+    next_position = ship.path[len(ship.path) - 1]
 
-    normalized_position = game_map.normalize(new_position)
-    if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} normalized_position {}".format(ship.id, normalized_position))
+     # check to see if we have a waypoint, not a continous path
+    if game_map.calculate_distance(ship.position, next_position) > 1:
+        normalized_next_position = game_map.normalize(next_position)
 
-    if normalized_position == ship.position:
-        ship.path.pop()
-        return 'o'
+        if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} found waypoint {} ({}), calulating complete path".format(ship.id, next_position, normalized_next_position))
 
-    if game_map.calculate_distance(ship.position, normalized_position) > 1:
-        # we have a waypoint, not a continous path, so calc a continous path
-        path, cost = game_map.navigate(ship, normalized_position, mode)
+        # calc a continous path
+        path, cost = game_map.navigate(ship, normalized_next_position, mode)
 
         if path == None:
-            if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} Nav failed, can't reach {}".format(ship.id, normalized_position))
+            if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} Nav failed, can't reach {}".format(ship.id, normalized_next_position))
             return 'o'
         else:
+            if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} path to waypoint found with a cost of {} ({} turns)".format(ship.id, cost, len(path)))
             ship.path.pop()
             ship.path = ship.path + path
 
-        new_position = ship.path[len(ship.path) - 1]
-        if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} new_position {}".format(ship.id, new_position))
+    new_position = ship.path[len(ship.path) - 1]
+    if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} new_position1 {}".format(ship.id, new_position))
 
-        normalized_position = game_map.normalize(new_position)
-        if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} normalized_position {}".format(ship.id, normalized_position))
+    normalized_new_position = game_map.normalize(new_position)
+    if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} normalized_new_position1 {}".format(ship.id, normalized_new_position))
 
-    cell = game_map[normalized_position]
+    if normalized_new_position == ship.position:
+        ship.path.pop()
+        return 'o'
+
+    cell = game_map[normalized_new_position]
 
     # once we have the move, handle collisions
     if cell.is_occupied:
-        #move_offset = game_map.naive_navigate(ship, normalized_position)
-        #move = Direction.convert(move_offset)
         move = get_random_move(game, ship)
-
         if move == "o":
-            if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_position, cell.ship.id , move))
+            if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
     else:
         cell.mark_unsafe(ship)
         ship.path.pop()
-        offset = (normalized_position.x - ship.position.x, normalized_position.y - ship.position.y)
+
+		# use get_unsafe_moves() to get a normalized directional offset. We should always get one soln.
+        offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
+
         logging.info("Ship - ship {} offset {}".format(ship.id, offset))
         move = Direction.convert(offset)
 
