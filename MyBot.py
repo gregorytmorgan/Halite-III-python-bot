@@ -83,7 +83,10 @@ while True:
         if ship.id in ship_states:
             ship.status = ship_states[ship.id]["status"]
             ship.path = ship_states[ship.id]["path"]
+            ship.last_seen = game.turn_number
 
+            # we calc mined amount and fuel cost based on the diff of what we had
+            # last turn and what the server says we have now
             if ship.halite_amount != ship_states[ship.id]["prior_halite_amount"]:
                 if ship.halite_amount == 0:
                     fuel_cost = math.floor(game_map[ship_states[ship.id]["prior_position"]].halite_amount * .1)
@@ -99,12 +102,16 @@ while True:
             if DEBUG & (DEBUG_GAME): logging.info("Game - New ship with ID {}".format(ship.id))
 
             ship_states[ship.id] = {
+                "last_seen": game.turn_number,
+                "prior_position": None,
+                "prior_halite_amount": None,
                 "status": "exploring",
                 "path": []
             }
 
             ship.status = ship_states[ship.id]["status"]
             ship.path = ship_states[ship.id]["path"]
+            ship.last_seen = game.turn_number
 
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} at {} has {} halite and is {}".format(ship.id, ship.position, ship.halite_amount, ship.status))
 
@@ -149,17 +156,7 @@ while True:
                 #
                 # For a returning ship in transit, we don't need to do anything, the move
                 # code will  grab the next position/point and create a move for it
-                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} returning and is {} moves out".format(ship.id, len(ship.path)))
-
-#                if move == "o":
-#                    if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} Collision returning".format(ship.id))
-#                    ship.status = "backingoff"
-#                    bop = get_backoff_point(game, ship, dropoff_position)
-#                    logging.info("DEBUG - Ship {} bop: {}".format(ship.id, bop))
-#                    ship.path.append(bop)
-
-
-
+                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} returning and is {} moves from dropoff ({})".format(ship.id, len(ship.path), ship.path[0]))
 
         #
         # status - backing off
@@ -182,7 +179,7 @@ while True:
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
             ship.path, cost = game_map.navigate(ship, dropoff_position, "halite")
-            if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} is now returning to {} at a cost of {}".format(ship.id, dropoff_position, cost))
+            if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} is now returning to {} at a cost of {} ({} turns)".format(ship.id, dropoff_position, round(cost, 1), len(ship.path)))
 
         #
         # Move
@@ -220,10 +217,14 @@ while True:
         ship_states[ship.id]["path"] = ship.path
         ship_states[ship.id]["prior_position"] = ship.position
         ship_states[ship.id]["prior_halite_amount"] = ship.halite_amount
+        ship_states[ship.id]["last_seen"] = ship.last_seen
 
-    #
-    #
-    #
+    # check of lost ships
+    for ship_id in ship_states:
+        if not me.has_ship(ship_id):
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen on turn {}".format(ship_id, ship_states[ship_id]["last_seen"]))
+
+    # check if we can spawn a ship
     if spawn_ship(game):
         command_queue.append(me.shipyard.spawn())
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn")
@@ -232,6 +233,8 @@ while True:
 
     if DEBUG & (DEBUG_STATES): logging.info("Game - end ship_states: {}".format(ship_states))
 
+    # dump metrics on last turn, if we do this after the game loop it'll never happen since
+    # the game shuts down immediately after the last turn
     if game.turn_number == constants.MAX_TURNS:
         if DEBUG & (DEBUG_GAME_METRICS):
             #logging.info("Game - Time: {}".format(game_metrics["time"]))

@@ -55,6 +55,7 @@ class Ship(Entity):
         self.halite_amount = halite_amount
         self.status = "uninitialized"
         self.path = []
+        self.last_seen = 0
 
     @property
     def is_full(self):
