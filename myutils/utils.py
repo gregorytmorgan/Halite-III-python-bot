@@ -174,18 +174,6 @@ def get_density_move(game, ship):
     if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} sorted_moves: {}".format(ship.id, sorted_moves))
 
     if len(sorted_moves) != 0:
-#        moveOffset = Position(sorted_moves[0][0] - ship.position.x, sorted_moves[0][1] - ship.position.y)
-#        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} moveOffset: {}".format(ship.id, moveOffset))
-#
-#        newPosition = game.game_map.normalize(ship.position + moveOffset)
-#        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} newPosition: {}".format(ship.id, newPosition))
-#
-#        move = Direction.convert(game.game_map.naive_navigate(ship, newPosition))
-#        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} move: {}".format(ship.id, move))
-#
-#        # if we have a collisition, first try any other dense cells
-#        if move == "o":
-
         for i in range(0, len(sorted_moves)):
             move_offset = (sorted_moves[i][0] - ship.position.x, sorted_moves[i][1] - ship.position.y)
             if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} moveOffset: {}".format(ship.id, move_offset))
@@ -220,7 +208,7 @@ def get_random_move(game, ship):
 
     move = "o"
 
-    if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} getting random move".format(ship.id))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting random move".format(ship.id))
 
     if not check_fuel_cost(game, ship):
         return move
@@ -231,13 +219,13 @@ def get_random_move(game, ship):
 
     for idx in range(moveIdx, moveIdx + 4):
         moveChoice = moves[idx % 4]
-        logging.info("DEBUG - get_random_move() - ship {} moveChoice2: {} {}".format(ship.id, idx, moveChoice))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - get_random_move() - ship {} moveChoice2: {} {}".format(ship.id, idx, moveChoice))
 
         new_position = ship.position.directional_offset(DIRECTIONS[moveChoice])
-        logging.info("DEBUG - get_random_move() - ship {} new_position: {}".format(ship.id, new_position))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - get_random_move() - ship {} new_position: {}".format(ship.id, new_position))
 
         normalized_position = game.game_map.normalize(new_position)
-        if DEBUG & (DEBUG_SHIP): logging.info("DEBUG - ship {} normalized_position {}".format(ship.id, normalized_position))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} normalized_position {}".format(ship.id, normalized_position))
 
         cell = game.game_map[normalized_position]
 
@@ -306,13 +294,13 @@ def get_dropoff_position(game, ship):
 def get_ship_nav_move(game, ship, algo = "astar", args = {"move_cost": "turns"}):
     game_map = game.game_map
 
-    if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} getting nav move for path {}".format(ship.id, ship.path))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting nav move for path {}".format(ship.id, ship.path))
 
     if not check_fuel_cost(game, ship):
         return 'o'
 
     if len(ship.path) == 0:
-        if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} empty path".format(ship.id))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} empty path".format(ship.id))
         return 'o'
 
     next_position = ship.path[len(ship.path) - 1]
@@ -321,24 +309,24 @@ def get_ship_nav_move(game, ship, algo = "astar", args = {"move_cost": "turns"})
     if game_map.calculate_distance(ship.position, next_position) > 1:
         normalized_next_position = game_map.normalize(next_position)
 
-        if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} found waypoint {} ({}), calulating complete path".format(ship.id, next_position, normalized_next_position))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} found waypoint {} ({}), calulating complete path".format(ship.id, next_position, normalized_next_position))
 
         # calc a continous path
         path, cost = game_map.navigate(ship, normalized_next_position, algo, args)
 
         if path == None:
-            if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} Nav failed, can't reach {}".format(ship.id, normalized_next_position))
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Nav failed, can't reach {}".format(ship.id, normalized_next_position))
             return 'o'
         else:
-            if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} path to waypoint found with a cost of {} ({} turns)".format(ship.id, cost, len(path)))
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} path to waypoint found with a cost of {} ({} turns)".format(ship.id, cost, len(path)))
             ship.path.pop()
             ship.path = ship.path + path
 
     new_position = ship.path[len(ship.path) - 1]
-    if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} new_position1 {}".format(ship.id, new_position))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} new_position1 {}".format(ship.id, new_position))
 
     normalized_new_position = game_map.normalize(new_position)
-    if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} normalized_new_position1 {}".format(ship.id, normalized_new_position))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} normalized_new_position1 {}".format(ship.id, normalized_new_position))
 
     if normalized_new_position == ship.position:
         ship.path.pop()
@@ -350,15 +338,13 @@ def get_ship_nav_move(game, ship, algo = "astar", args = {"move_cost": "turns"})
     if cell.is_occupied:
         move = get_random_move(game, ship)
         if move == "o":
-            if DEBUG & (DEBUG_SHIP): logging.info("Ship - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
     else:
         cell.mark_unsafe(ship)
         ship.path.pop()
 
         # use get_unsafe_moves() to get a normalized directional offset. We should always get one soln.
         offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
-
-        logging.info("Ship - ship {} offset {}".format(ship.id, offset))
         move = Direction.convert(offset)
 
     return move
@@ -370,7 +356,7 @@ def check_fuel_cost(game, ship):
     fuelCost = game.game_map[ship.position].halite_amount * .1
 
     if round(fuelCost) > ship.halite_amount:
-        logging.info("Ship - Ship {} has insuffient fuel. Have {}, need {}".format(ship.id, ship.halite_amount, round(fuelCost, 2)))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} has insuffient fuel. Have {}, need {}".format(ship.id, ship.halite_amount, round(fuelCost, 2)))
         return False
 
     return True
