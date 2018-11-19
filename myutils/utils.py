@@ -8,6 +8,8 @@ from hlt import constants
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Position
 
+import os
+import time
 import math
 import random
 import logging
@@ -360,3 +362,24 @@ def check_fuel_cost(game, ship):
         return False
 
     return True
+
+#
+#
+#
+def dump_stats(game, data, key = "all"):
+    if key == "all":
+        keys = data.keys()
+    else:
+        keys = [key]
+
+    ts = time.strftime("%Y%m%d-%s", time.gmtime())
+
+    if os.path.exists(STATS_DIR):
+        stats_dir = STATS_DIR
+    else:
+        stats_dir = "."
+
+    for k in keys:
+        with open(stats_dir + '/' + k + "-" + ts + "-bot-" + str(game.me.id) + ".txt", "w") as f:
+            for line in data[k]:
+                f.write(str(line) + "\n")

@@ -57,7 +57,9 @@ if DEBUG & (DEBUG_GAME): logging.info("Game - Successfully created bot! My Playe
 """ <<<Game Loop>>> """
 
 while True:
-    TurnStartTime = time.time()
+    turn_spent = 0
+    turn_gathered = 0
+    turn_start_time = time.time()
 
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
     # running update_frame().
@@ -91,6 +93,7 @@ while True:
                 if ship.halite_amount == 0:
                     fuel_cost = math.floor(game_map[ship_states[ship.id]["prior_position"]].halite_amount * .1)
                     gathered = ship_states[ship.id]["prior_halite_amount"] - fuel_cost
+                    turn_gathered += gathered
                     game_metrics["gathered"].append((game.turn_number, ship.id, gathered))
                 elif ship.halite_amount < ship_states[ship.id]["prior_halite_amount"]:
                     fuel_cost = ship_states[ship.id]["prior_halite_amount"] - ship.halite_amount
@@ -112,6 +115,8 @@ while True:
             ship.status = ship_states[ship.id]["status"]
             ship.path = ship_states[ship.id]["path"]
             ship.last_seen = game.turn_number
+
+
 
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} at {} has {} halite and is {}".format(ship.id, ship.position, ship.halite_amount, ship.status))
 
@@ -185,7 +190,7 @@ while True:
         #
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
-            path, cost = game_map.navigate(ship, dropoff_position, "astar", {"move_cost": "halite"})
+            path, cost = game_map.navigate(ship, dropoff_position, "naive")
 
             if path == None:
                 if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
@@ -240,11 +245,15 @@ while True:
     # check if we can spawn a ship
     if spawn_ship(game):
         command_queue.append(me.shipyard.spawn())
+        turn_spent = constants.SHIP_COST
+        game_metrics["spent"].append((game.turn_number, turn_spent))
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn")
 
     if DEBUG & (DEBUG_COMMANDS): logging.info("Game - command queue: {}".format(command_queue))
 
     if DEBUG & (DEBUG_STATES): logging.info("Game - end ship_states: {}".format(ship_states))
+
+    game_metrics["profit"].append((game.turn_number, turn_gathered - turn_spent))
 
     # dump metrics on last turn, if we do this after the game loop it'll never happen since
     # the game shuts down immediately after the last turn
@@ -264,12 +273,18 @@ while True:
             #logging.info("Game - Burned: {}".format(game_metrics["burned"]))
             logging.info("Game - Total burned: {}".format(sum(x[2] for x in game_metrics["burned"])))
 
+            # profit = gathered - spent
+            logging.info("Game - Profit: {}".format(sum(x[1] for x in game_metrics["profit"])))
+
         if DEBUG & (DEBUG_NAV_METRICS):
             logging.info("Nav - Loiter multiples: {}".format(debug_metrics["loiter_multiples"]))
             logging.info("Nav - Loiter offsets: {}".format(debug_metrics["loiter_offsets"]))
             logging.info("Nav - Loiter distances: {}".format(debug_metrics["loiter_distances"]))
 
+        if DEBUG & (DEBUG_OUTPUT_GAME_METRICS):
+            dump_stats(game, game_metrics, "all")
+
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
 
-    if DEBUG & (DEBUG_GAME_METRICS): game_metrics["time"].append((game.turn_number, round(time.time() - TurnStartTime, 4)))
+    if DEBUG & (DEBUG_GAME_METRICS): game_metrics["time"].append((game.turn_number, round(time.time() - turn_start_time, 4)))

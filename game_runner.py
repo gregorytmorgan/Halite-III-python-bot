@@ -21,7 +21,7 @@ arg_seed = "--seed 1542497313"
 # 64x64, 4 player, 1541460138, opponent collision at turn 422
 # , bot3_args, bot4_args
 # , arg_width, arg_height
-args = ["./halite", arg_seed, arg_replay, arg_verbosity, bot1_args, bot2_args]
+args = ["./halite", arg_replay, arg_verbosity, bot1_args, bot2_args]
 
 # run is only available in python 3.5+, prior use subprocess.call
 retval = subprocess.run(args, stdout=subprocess.PIPE, stderr=sys.stderr)

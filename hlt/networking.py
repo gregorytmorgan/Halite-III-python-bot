@@ -18,6 +18,8 @@ class Game:
         """
         self.turn_number = 0
         self.game_metrics = {
+            "spent": [],
+            'profit': [],
             "mined": [],
             "gathered": [(0, 0, 5000)],
             "time": [],
