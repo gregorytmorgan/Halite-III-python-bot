@@ -54,6 +54,7 @@ VERSION_FILE="version.txt"
 MYBOT_FILE="MyBot.py"
 HLT_DIR="hlt"
 UTIL_DIR="myutils"
+EXCLUDES="hlt/__pycache__/\* myutils/__pycache__/\*"
 
 
 if [ ! -f $VERSION_FILE ]; then
@@ -112,7 +113,7 @@ if [ -z $ARCHIVE_DIR/$ARCHIVE_NAME ]; then
 	exit 4
 fi
 
-/usr/bin/zip -r $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE install.sh $HLT_DIR $UTIL_DIR -x hlt/__pycache__/\*
+/usr/bin/zip -r $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE install.sh $HLT_DIR $UTIL_DIR -x $EXCLUDES
 Retval=$?
 
 if [ $Retval != 0 ]; then
