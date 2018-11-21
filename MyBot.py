@@ -162,11 +162,12 @@ while True:
                 if path == None:
                     if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
                     ship.path = []
+                    logging.warning("Ship {} Error, navigate failed for loiter point {}".format(ship.id, loiterPoint))
                 else:
                     ship.path = path
                     if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is heading out to {}, ETA {} turns ({}).".format(ship.id, loiterPoint, len(ship.path), round(cost)))
 
-                    ship.status = "exploring"
+                ship.status = "exploring"
             else:
                 #
                 # Returning - in transit
@@ -200,6 +201,7 @@ while True:
             if path == None:
                 if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
                 ship.path = []
+                logging.warning("Ship {} Error, navigate failed for dropoff {}".format(ship.id, dropoff_position))
             else:
                 ship.path = path
                 if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} is now returning to {} at a cost of {} ({} turns)".format(ship.id, dropoff_position, round(cost, 1), len(ship.path)))
@@ -216,7 +218,7 @@ while True:
             #
             # if we're already at out next position, pop it off we don't waste the turn
             if len(ship.path) and ship.position == ship.path[len(ship.path) - 1]:
-                logging.info("WARN - popped a useless point {}".format(ship.path[len(ship.path) - 1]))
+                logging.warning("Ship {} popped a useless point {}".format(ship.id, ship.path[len(ship.path) - 1]))
                 ship.path.pop()
 
             if len(ship.path) == 0:
@@ -228,8 +230,6 @@ while True:
 
             command_queue.append(ship.move(move))
         else:
-            logging.info("DEBUG - game_map[ship.position].halite_amount {}".format(game_map[ship.position].halite_amount))
-
             #
             # mining
             #
