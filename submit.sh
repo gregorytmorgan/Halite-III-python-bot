@@ -143,16 +143,41 @@ echo "Uploading ... done."
 # save current bot for testing
 #
 
-if [ -f $BOT_DIR/$MyBot_VFileName ]; then
-	echo "Saved bot file $BOT_DIR/$MyBot_VFileName already exists"
+if [ -e $BOT_DIR/v$Version ]; then
+	echo "Saved bot directory $BOT_DIR/v$Version already exists"
 	exit 6
 fi
 
-cp -f $MYBOT_FILE $BOT_DIR/$MyBot_VFileName
+mdkir -p $BOT_DIR/v$Version
+
+Retval=$?
+if [ $Retval != 0 ]; then
+	echo "Error - mkdir for bot failed with error $Retval"
+	exit 7
+fi
+
+if [ -f $BOT_DIR/v$Version/$MyBot_VFileName ]; then
+	echo "Saved bot file $BOT_DIR/v$Version/$MyBot_VFileName already exists"
+	exit 8
+fi
+
+cp -f $MYBOT_FILE $BOT_DIR/v13/$MyBot_VFileName
 Retval=$?
 if [ $Retval != 0 ]; then
 	echo "Error - Copy of current bot failed with error $Retval"
-	exit 7
+	exit 9
+fi
+
+cp -f hlt $BOT_DIR/v$Version
+if [ $Retval != 0 ]; then
+	echo "Error - Saving hlt directory failed with error $Retval"
+	exit 10
+fi
+
+cp -f myutils $BOT_DIR/v$Version
+if [ $Retval != 0 ]; then
+	echo "Error - Saving myutils directory failed with error $Retval"
+	exit 11
 fi
 
 #
@@ -160,12 +185,12 @@ fi
 #
 
 if [ -f manager.py ]; then
-	if [ -f $BOT_DIR/$MyBot_VFileName ]; then
+	if [ -f $BOT_DIR/v$Version/$MyBot_VFileName ]; then
 		# use relative path ... easier to read
-		./manager.py -A MyBot.v$Version -p "python3 bots/$MyBot_VFileName"
+		./manager.py -A MyBot.v$Version -p "python3 bots/v$Version/$MyBot_VFileName"
 		./manager.py -a MyBot.v$Version
 	else
-		echo "Couldn't find $BOT_DIR/$MyBot_VFileName."
+		echo "Couldn't find $BOT_DIR/v$Version/$MyBot_VFileName."
 	fi
 fi
 
