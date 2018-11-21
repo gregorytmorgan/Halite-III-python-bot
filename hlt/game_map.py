@@ -6,6 +6,7 @@ from .player import Player
 from .positionals import Direction, Position
 from .common import read_input
 import logging
+import time
 
 class MapCell:
     """A cell on the game map."""
@@ -70,6 +71,7 @@ class GameMap:
     """
 
     DEBUG = False
+    DEBUG_TIMING = True
 
     def __init__(self, cells, width, height):
         self.width = width
@@ -166,31 +168,30 @@ class GameMap:
 
         return Direction.Still
 
-    def move_cost(self, a, b, move_cost = "turns"):
+    def move_cost(self, a, b, move_cost_type = "turns"):
         # ignore 'a' since the cost is only a function of the current cell
 
-        halite_amount = self[a].halite_amount
-
-        if move_cost == "turns":
+        if move_cost_type == "turns":
             return 1
-        elif move_cost == "halite":
-            return halite_amount * .1
+        elif move_cost_type == "halite":
+            return self[a].halite_amount * .1
         else:
-            raise RuntimeError("Unknown nav move_cost: " + str(move_cost))
+            raise RuntimeError("Unknown nav move_cost_type: " + str(move_cost_type))
 
-    def heuristic(self, start, end):
-        dx = abs(start.x - end.x)
-        dy = abs(start.y - end.y)
+    def heuristic(self, start, current, goal, move_cost_type = "turns"):
+        manhatten = self.calculate_distance(current, goal)
 
-        #Use Chebyshev distance heuristic if we can move one square either adjacent or diagonal
-        #D = 1
-        #D2 = 1
-        #Chebyshev = D * (dx + dy) + (D2 - 2 * D) * min(dx, dy)
+        if move_cost_type == "turns":
+            dx1 = current.x - goal.x
+            dy1 = current.y - goal.y
+            dx2 = start.x - goal.x
+            dy2 = start.y - goal.y
+            cross = abs(dx1 * dy2 - dx2 * dy1)
+            retval = manhatten + cross * 0.001
+        elif move_cost_type == "halite":
+            retval = manhatten * constants.MAX_HALITE
 
-        # manhatten
-        manhatten = dx + dy
-
-        return manhatten
+        return retval
 
     #
     #
@@ -204,30 +205,37 @@ class GameMap:
         elif algorithm == "naive":
             path, cost = self.get_naive_path(ship, destination)
         else:
-            logging.info("Error unknown navigate algorithm {}".format(algorithm))
+            logging.info("Error - Unknown navigate algorithm {}".format(algorithm))
             path, cost = None, None
 
         return path, cost
 
     #
-    #
+    # return None if no soln, returns empty list with zero cost if start == end,
+    # otherwise returns a path list and a cumlative cost
     #
     def get_naive_path(self, ship, destination):
+
+        if ship.position == destination:
+            return [], 0
+
         umoves = self.get_unsafe_moves(ship.position, destination)
         first_move = umoves[0]
 
         first_position =  Position(ship.position.x + first_move[0], ship.position.y + first_move[1])
         path = [first_position]
 
-        step = 1 if destination.x > ship.position.x else -1
-        x = ship.position.x
-        if destination.x != ship.position.x:
-            for x in range(first_position.x + step,  destination.x + step, step):
-                path.append(Position(x, first_position.y))
+        logging.info("DEBUG - unsafe_moves {} {} -> {} first_position: {}".format(umoves, ship.position, destination, first_position))
+
+        step = 1 if destination.x >= ship.position.x else -1
+        x = first_position.x
+        for i in range(first_position.x + step,  destination.x + step, step):
+            x = i
+            path.append(Position(x, first_position.y))
 
         step = 1 if destination.y > ship.position.y else -1
         if destination.y != ship.position.y:
-            for y in range(first_position.y + step,  destination.y + step, step):
+            for y in range(first_position.y,  destination.y + step, step):
                 path.append(Position(x, y))
 
         path.reverse()
@@ -237,10 +245,12 @@ class GameMap:
     #
     # Get a path using a-star search, cost function can use 'halite' or 'turns'
     #
-    def astar(self, ship, destination, move_cost="turns"):
-
-        # return None if no soln, returns empty list with zero cost if start == end,
-        # otherwise returns a path list and a cumlative cost
+    # return None if no soln, returns empty list with zero cost if start == end,
+    # otherwise returns a path list and a cumlative cost
+    #
+    def astar(self, ship, destination, move_cost_type="turns"):
+        astar_start_time = time.time()
+        if self.DEBUG_TIMING: logging.info("astar start time: {}".format(round(astar_start_time, 4)))
 
         G = {} #Actual movement cost to each position from the start position
         F = {} #Estimated movement cost of start to end going via this position
@@ -255,7 +265,7 @@ class GameMap:
 
         #Initialize starting values
         G[start] = 0
-        F[start] = self.heuristic(start, end)
+        F[start] = self.heuristic(start, start, end, move_cost_type)
 
         closedVertices = set()
         openVertices = set([start])
@@ -271,7 +281,7 @@ class GameMap:
 
             for pos in openVertices:
                 if current is None or F[pos] < currentFscore:
-                    if self.DEBUG: logging.info("updating current score to: {}".format(F[pos])) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    if self.DEBUG: logging.info("updating current score with F score ({}) from {}".format(F[pos], pos)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
                     currentFscore = F[pos]
                     current = pos
 
@@ -285,57 +295,45 @@ class GameMap:
                     current = cameFrom[current]
                     path.append(current)
 
-                #path.reverse()
                 path.pop() # remove the start point
+
+                if self.DEBUG_TIMING: logging.info("Total A* elapsed time {}".format(round(time.time() - astar_start_time, 4))) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+
                 return path, F[end] # Done!
 
             #Mark the current vertex as closed
-
+            openVertices.remove(current)
             if self.DEBUG: logging.info("removing {} from openVertices".format(current)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
 
-            openVertices.remove(current)
-
-            if self.DEBUG: logging.info("adding {} to closedVertices".format(current)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
-
             closedVertices.add(current)
+            if self.DEBUG: logging.info("adding {} to closedVertices".format(current)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
 
             #Update scores for vertices near the current position
             #for neighbour in graph.get_vertex_neighbours(current):
-
-            #neighbours = self.get_vertex_neighbours(current)
-
-            neighbours = []
-            for n in current.get_surrounding_cardinals():
-                neighbours.append(n)
-
-            if self.DEBUG: logging.info("neighbours for {}: {}".format(current, neighbours))
-
-            for neighbour in neighbours:
-
+            for neighbour in current.get_surrounding_cardinals():
+                neighbour = self.normalize(neighbour)
                 if self.DEBUG: logging.info("neighbour: {}".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
 
                 if neighbour in closedVertices:
                     if self.DEBUG: logging.info("skipping neighbour {}, already checked".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
                     continue #We have already processed this node exhaustively
 
-                cost = self.move_cost(current, neighbour, move_cost)
-
-                candidateG = G[current] + cost
+                candidateG = G[current] + self.move_cost(current, neighbour, move_cost_type)
 
                 if neighbour not in openVertices:
-                    if self.DEBUG: logging.info("Discovered a new cell {}, adding to  openVertices".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    if self.DEBUG: logging.info("Discovered a new cell {}, adding to  openVertices.".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
                     openVertices.add(neighbour) #Discovered a new vertex
                 elif candidateG >= G[neighbour]:
-                    if self.DEBUG: logging.info("Ignoring cell {}, cost is too high".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    if self.DEBUG: logging.info("Ignoring candiate cell {}, cost is too high at {}".format(neighbour, round(candidateG, 4))) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
                     continue #This G score is worse than previously found
 
                 #Adopt this G score
                 cameFrom[neighbour] = current
                 G[neighbour] = candidateG
-                H = self.heuristic(neighbour, end)
+                H = self.heuristic(start, neighbour, end, move_cost_type)
                 F[neighbour] = G[neighbour] + H
+                if self.DEBUG: logging.info("Neighbour elapsed time {}".format(round(time.time() - astar_start_time, 4)))
 
-        #raise RuntimeError("A* failed to find a solution")
         return None, None
 
     @staticmethod

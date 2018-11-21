@@ -74,14 +74,12 @@ while True:
     # end of the turn.
     command_queue = []
 
-    #if DEBUG & (DEBUG_STATES): logging.info("Game - begin ship_states: {}".format(ship_states))
+    my_ships = me.get_ships()
 
-    for ship in me.get_ships():
-        dropoff_position = get_dropoff_position(game, ship)
-
-        #
-        # initialize ship states
-        #
+    #
+    # initialize the ship states
+    #
+    for ship in my_ships:
         if ship.id in ship_states:
             ship.status = ship_states[ship.id]["status"]
             ship.path = ship_states[ship.id]["path"]
@@ -108,7 +106,7 @@ while True:
                 "last_seen": game.turn_number,
                 "prior_position": None,
                 "prior_halite_amount": None,
-                "status": "exploring",
+                "status": "returning",
                 "path": []
             }
 
@@ -116,7 +114,11 @@ while True:
             ship.path = ship_states[ship.id]["path"]
             ship.last_seen = game.turn_number
 
-
+    #
+    # handle each ship for this turn
+    #
+    for ship in my_ships:
+        dropoff_position = get_dropoff_position(game, ship)
 
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} at {} has {} halite and is {}".format(ship.id, ship.position, ship.halite_amount, ship.status))
 
@@ -124,8 +126,11 @@ while True:
         # status - returning
         #
         if ship.status == "returning":
+            #
+            # Returning - in transit
+            #
             if ship.position == dropoff_position:
-                if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} completed Dropoff of {} halite at {}".format(ship.id, ship_states[ship.id]["prior_halite_amount"], dropoff_position))
+                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} completed Dropoff of {} halite at {}".format(ship.id, ship_states[ship.id]["prior_halite_amount"], dropoff_position))
 
                 # Returning - at dropoff:
                 #
@@ -152,23 +157,23 @@ while True:
                 loiterPoint = ship.position + loiterOffset
 
                 ship.path.clear()
-                path, cost = game_map.navigate(ship, loiterPoint,  "astar", {"move_cost": "turns"})
+                path, cost = game_map.navigate(ship, loiterPoint, "astar", {"move_cost": "turns"})
 
                 if path == None:
                     if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
                     ship.path = []
                 else:
                     ship.path = path
-                    if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is heading out to {}, ETA {} turns ({}).".format(ship.id, loiterPoint, len(ship.path), cost))
+                    if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is heading out to {}, ETA {} turns ({}).".format(ship.id, loiterPoint, len(ship.path), round(cost)))
 
-                ship.status = "exploring"
+                    ship.status = "exploring"
             else:
                 #
                 # Returning - in transit
                 #
                 # For a returning ship in transit, we don't need to do anything, the move
-                # code will  grab the next position/point and create a move for it
-                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} returning and is {} moves from dropoff ({})".format(ship.id, len(ship.path), dropoff_position))
+                # code will grab the next position/point and create a move for it
+                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from dropoff ({}). ETA {} turns.".format(ship.id, len(ship.path), dropoff_position, len(ship.path)))
 
         #
         # status - backing off
@@ -190,7 +195,7 @@ while True:
         #
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
-            path, cost = game_map.navigate(ship, dropoff_position, "naive")
+            path, cost = game_map.navigate(ship, dropoff_position, "naive") # "naive", "astar", {"move_cost": "halite"})
 
             if path == None:
                 if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
@@ -202,30 +207,33 @@ while True:
         #
         # Move
         #
-        # if the cell we're on is essentially empty or the ship is full, continue on ...
-        # else we'll stay in place and mine
-        if game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or ship.is_full:
 
+        # if cell is essentially empty then continue, if the ship is full continue
+        # else we'll stay in place and mine
+        if should_move(game, ship):
             #
             # exploring (not mining)
             #
             # if we're already at out next position, pop it off we don't waste the turn
             if len(ship.path) and ship.position == ship.path[len(ship.path) - 1]:
+                logging.info("WARN - popped a useless point {}".format(ship.path[len(ship.path) - 1]))
                 ship.path.pop()
 
             if len(ship.path) == 0:
-                move = get_density_move(game, ship)
+                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is exploring(density)".format(ship.id))
+                move = get_move(game, ship, "density")
             else:
+                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is transiting".format(ship.id))
                 move = get_ship_nav_move(game, ship, "astar", {"move_cost": "halite"})
-
-            if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is moving {}".format(ship.id, move))
 
             command_queue.append(ship.move(move))
         else:
+            logging.info("DEBUG - game_map[ship.position].halite_amount {}".format(game_map[ship.position].halite_amount))
 
             #
             # mining
             #
+            if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is mining".format(ship.id))
             command_queue.append(ship.stay_still())
 
         #

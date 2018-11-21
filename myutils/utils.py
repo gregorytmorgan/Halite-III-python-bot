@@ -155,6 +155,20 @@ def get_loiter_multiple(game):
     return loiterMult
 
 #
+# type: 'random', 'density'
+# collision_resolution: 'random', 'density', 'navigate'
+#
+def get_move(game, ship, type="random", collision_resolution="random"):
+    if type == "random":
+        move = get_random_move(game, ship)
+    elif type == "density":
+        move = get_density_move(game, ship)
+    else:
+        raise RuntimeError("Unknown move type: " + str(type))
+
+    return move
+
+#
 # nav moves resolv first by density, then randomly
 #
 def get_density_move(game, ship):
@@ -221,13 +235,13 @@ def get_random_move(game, ship):
 
     for idx in range(moveIdx, moveIdx + 4):
         moveChoice = moves[idx % 4]
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - get_random_move() - ship {} moveChoice2: {} {}".format(ship.id, idx, moveChoice))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
 
         new_position = ship.position.directional_offset(DIRECTIONS[moveChoice])
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - get_random_move() - ship {} new_position: {}".format(ship.id, new_position))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} new_position: {}".format(ship.id, new_position))
 
         normalized_position = game.game_map.normalize(new_position)
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} normalized_position {}".format(ship.id, normalized_position))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} normalized_position {}".format(ship.id, normalized_position))
 
         cell = game.game_map[normalized_position]
 
@@ -293,7 +307,9 @@ def get_dropoff_position(game, ship):
 #
 # nav moves resolv randomly
 #
-def get_ship_nav_move(game, ship, algo = "astar", args = {"move_cost": "turns"}):
+# waypoint_algorithm: if a point is not continous, then calc path using waypoint_algorithm
+#
+def get_ship_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": "turns"}):
     game_map = game.game_map
 
     if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting nav move for path {}".format(ship.id, ship.path))
@@ -314,13 +330,13 @@ def get_ship_nav_move(game, ship, algo = "astar", args = {"move_cost": "turns"})
         if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} found waypoint {} ({}), calulating complete path".format(ship.id, next_position, normalized_next_position))
 
         # calc a continous path
-        path, cost = game_map.navigate(ship, normalized_next_position, algo, args)
+        path, cost = game_map.navigate(ship, normalized_next_position, waypoint_algorithm, args)
 
         if path == None:
             if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Nav failed, can't reach {}".format(ship.id, normalized_next_position))
             return 'o'
         else:
-            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} path to waypoint found with a cost of {} ({} turns)".format(ship.id, cost, len(path)))
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} path to waypoint found with a cost of {} ({} turns)".format(ship.id, round(cost), len(path)))
             ship.path.pop()
             ship.path = ship.path + path
 
@@ -383,3 +399,25 @@ def dump_stats(game, data, key = "all"):
         with open(stats_dir + '/' + k + "-" + ts + "-bot-" + str(game.me.id) + ".txt", "w") as f:
             for line in data[k]:
                 f.write(str(line) + "\n")
+
+def should_move(game, ship):
+    cell_halite = game.game_map[ship.position].halite_amount
+
+    if ship.is_full:
+        return True
+
+    if cell_halite < constants.MAX_HALITE / 10:
+        return True
+
+#    cargo_threshold = .95 * constants.MAX_HALITE
+#    logging.info("DEBUG cargo {} > cargo threshold {} === {}".format(ship.halite_amount, cargo_threshold, ship.halite_amount > cargo_threshold))
+#    if ship.halite_amount > cargo_threshold and ship.status == "returning":
+#        return True
+
+#    remaining_cargo_capacity = constants.MAX_HALITE - ship.halite_amount
+#    mining_yield = cell_halite * .25
+#    logging.info("DEBUG {} >= {} === {}".format(mining_yield, remaining_cargo_capacity, mining_yield < remaining_cargo_capacity))
+#    if mining_yield < remaining_cargo_capacity and ship.status == "returning":
+#        return True
+
+    return False
