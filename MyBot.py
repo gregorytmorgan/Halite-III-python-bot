@@ -157,7 +157,7 @@ while True:
                 loiterPoint = ship.position + loiterOffset
 
                 ship.path.clear()
-                path, cost = game_map.navigate(ship, loiterPoint, "astar", {"move_cost": "turns"})
+                path, cost = game_map.navigate(ship, loiterPoint, "astar", {"move_cost": "turns"}) # heading out to loiter point
 
                 if path == None:
                     if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
@@ -196,7 +196,7 @@ while True:
         #
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
-            path, cost = game_map.navigate(ship, dropoff_position, "naive") # "naive", "astar", {"move_cost": "halite"})
+            path, cost = game_map.navigate(ship, dropoff_position, "naive") # returning to shipyard/dropoff
 
             if path == None:
                 if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
