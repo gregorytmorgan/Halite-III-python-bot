@@ -42,7 +42,7 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-botName = "MyBot.dev"
+botName = "MyBot.v13"
 
 #
 # game start
@@ -196,7 +196,7 @@ while True:
         #
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
-            path, cost = game_map.navigate(ship, dropoff_position, "naive") # returning to shipyard/dropoff
+            path, cost = game_map.navigate(ship, dropoff_position, "astar", {"move_cost": "turns"}) # returning to shipyard/dropoff
 
             if path == None:
                 if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
@@ -226,7 +226,8 @@ while True:
                 move = get_move(game, ship, "density")
             else:
                 if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is transiting".format(ship.id))
-                move = get_ship_nav_move(game, ship, "astar", {"move_cost": "halite"})
+                # here, the path scheme specifies the algo to use if we have an incomplete path
+                move = get_ship_nav_move(game, ship, "astar", {"move_cost": "turns"})
 
             command_queue.append(ship.move(move))
         else:
