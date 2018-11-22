@@ -97,4 +97,4 @@ class Ship(Entity):
                                                        self.id,
                                                        self.position,
                                                        self.halite_amount,
-													   self.status)
+                                                       self.status)
