@@ -1,19 +1,19 @@
 #!/bin/bash
 #
 # To 'undo' a submission
-#	1) delete bots/MyBot.v[version].py
-#	2) delete archive/MyBot.v[version].zip
-#	3) remove from manager
+#    1) delete bots/MyBot.v[version].py
+#    2) delete archive/MyBot.v[version].zip
+#    3) remove from manager
 
 #
 # Usage
 #
 show_help ()
 {
-	echo
-	echo "Usage: submit.sh [-c cleanup_version | -s submit_version]"
-	echo ""
-	echo "Default is to submit based on version.txt". If both -c and -s, then -c.
+    echo
+    echo "Usage: submit.sh [-c cleanup_version | -s submit_version]"
+    echo ""
+    echo "Default is to submit based on version.txt". If both -c and -s, then -c.
 }
 
 #
@@ -58,18 +58,18 @@ EXCLUDES="hlt/__pycache__/\* myutils/__pycache__/\*"
 
 
 if [ ! -f $VERSION_FILE ]; then
-	echo "No $VERSION_FILE file"
-	exit 1
+    echo "No $VERSION_FILE file"
+    exit 1
 fi
 
 if [ ! -f $MYBOT_FILE ]; then
-	echo "No $MYBOT_FILE file"
-	exit 2
+    echo "No $MYBOT_FILE file"
+    exit 2
 fi
 
 if [ ! -d $HLT_DIR ]; then
-	echo "No $HLT_DIR directory"
-	exit 3
+    echo "No $HLT_DIR directory"
+    exit 3
 fi
 
 #
@@ -77,14 +77,14 @@ fi
 #
 
 if [ "$cleanup_version" != "" ]; then
-	Version=$cleanup_version
+    Version=$cleanup_version
 elif [ "$submit_version" != "" ]; then
-	Version=$submit_version
+    Version=$submit_version
 else
-	Version=$(cat ./version.txt)
-	echo "Incrementing version ..."
-	Version=$(expr $Version + 1)
-	echo "Incrementing version ... done."
+    Version=$(cat ./version.txt)
+    echo "Incrementing version ..."
+    Version=$(expr $Version + 1)
+    echo "Incrementing version ... done."
 fi
 
 # Incrementing version and update version dependent vars
@@ -95,11 +95,12 @@ ARCHIVE_NAME="MyBot.v$Version.zip"
 # if we're cleaning up, the do it + exit
 #
 if [ "$cleanup_version" != "" ]; then
-	rm -fv $BOT_DIR/$MyBot_VFileName
-	rm -fv $ARCHIVE_DIR/$ARCHIVE_NAME
-	./manager.py -D MyBot.v$Version
-	echo "Don't forget to manually update version.txt"
-	exit 0
+    rm -fv $BOT_DIR/$MyBot_VFileName
+    rm -frv $BOT_DIR/v$Version
+    rm -fv $ARCHIVE_DIR/$ARCHIVE_NAME
+    ./manager.py -D MyBot.v$Version
+    echo "Don't forget to manually update version.txt"
+    exit 0
 fi
 
 #
@@ -109,16 +110,16 @@ fi
 echo "Zipping ..."
 
 if [ -z $ARCHIVE_DIR/$ARCHIVE_NAME ]; then
-	echo "Archive $ARCHIVE_DIR/$ARCHIVE_NAME already exists"
-	exit 4
+    echo "Archive $ARCHIVE_DIR/$ARCHIVE_NAME already exists"
+    exit 4
 fi
 
-/usr/bin/zip -r $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE install.sh $HLT_DIR $UTIL_DIR -x $EXCLUDES
+/usr/bin/zip -r $ARCHIVE_NAME $MYBOT_FILE $VERSION_FILE install.sh $HLT_DIR $UTIL_DIR -x hlt/__pycache__/\* myutils/__pycache__/\*
 Retval=$?
 
 if [ $Retval != 0 ]; then
-	echo "Error - zip failed with error $Retval"
-	exit 5
+    echo "Error - zip failed with error $Retval"
+    exit 5
 fi
 
 echo "Zipping ... done."
@@ -126,15 +127,15 @@ echo "Zipping ... done."
 echo "Uploading ..."
 
 if [ "$SUBMIT" == "1" ]; then
-	python3 -m hlt_client bot -b $ARCHIVE_NAME upload
-	Retval=$?
+    python3 -m hlt_client bot -b $ARCHIVE_NAME upload
+    Retval=$?
 
-	if [ $Retval != 0 ]; then
-		echo "Error - submit failed with error $Retval"
-		exit 5
-	fi
+    if [ $Retval != 0 ]; then
+        echo "Error - submit failed with error $Retval"
+        exit 5
+    fi
 else
-	echo "Skipping upload SUBMIT=$SUBMIT."
+    echo "Skipping upload SUBMIT=$SUBMIT."
 fi
 
 echo "Uploading ... done."
@@ -144,40 +145,40 @@ echo "Uploading ... done."
 #
 
 if [ -e $BOT_DIR/v$Version ]; then
-	echo "Saved bot directory $BOT_DIR/v$Version already exists"
-	exit 6
+    echo "Saved bot directory $BOT_DIR/v$Version already exists"
+    exit 6
 fi
 
-mdkir -p $BOT_DIR/v$Version
+mkdir -p $BOT_DIR/v$Version
 
 Retval=$?
 if [ $Retval != 0 ]; then
-	echo "Error - mkdir for bot failed with error $Retval"
-	exit 7
+    echo "Error - mkdir for bot failed with error $Retval"
+    exit 7
 fi
 
 if [ -f $BOT_DIR/v$Version/$MyBot_VFileName ]; then
-	echo "Saved bot file $BOT_DIR/v$Version/$MyBot_VFileName already exists"
-	exit 8
+    echo "Saved bot file $BOT_DIR/v$Version/$MyBot_VFileName already exists"
+    exit 8
 fi
 
-cp -f $MYBOT_FILE $BOT_DIR/v13/$MyBot_VFileName
+cp -f $MYBOT_FILE $BOT_DIR/v$Version/$MyBot_VFileName
 Retval=$?
 if [ $Retval != 0 ]; then
-	echo "Error - Copy of current bot failed with error $Retval"
-	exit 9
+    echo "Error - Copy of current bot failed with error $Retval"
+    exit 9
 fi
 
-cp -f hlt $BOT_DIR/v$Version
+cp -rf hlt $BOT_DIR/v$Version
 if [ $Retval != 0 ]; then
-	echo "Error - Saving hlt directory failed with error $Retval"
-	exit 10
+    echo "Error - Saving hlt directory failed with error $Retval"
+    exit 10
 fi
 
-cp -f myutils $BOT_DIR/v$Version
+cp -rf myutils $BOT_DIR/v$Version
 if [ $Retval != 0 ]; then
-	echo "Error - Saving myutils directory failed with error $Retval"
-	exit 11
+    echo "Error - Saving myutils directory failed with error $Retval"
+    exit 11
 fi
 
 #
@@ -185,13 +186,13 @@ fi
 #
 
 if [ -f manager.py ]; then
-	if [ -f $BOT_DIR/v$Version/$MyBot_VFileName ]; then
-		# use relative path ... easier to read
-		./manager.py -A MyBot.v$Version -p "python3 bots/v$Version/$MyBot_VFileName"
-		./manager.py -a MyBot.v$Version
-	else
-		echo "Couldn't find $BOT_DIR/v$Version/$MyBot_VFileName."
-	fi
+    if [ -f $BOT_DIR/v$Version/$MyBot_VFileName ]; then
+        # use relative path ... easier to read
+        ./manager.py -A MyBot.v$Version -p "python3 bots/v$Version/$MyBot_VFileName"
+        ./manager.py -a MyBot.v$Version
+    else
+        echo "Couldn't find $BOT_DIR/v$Version/$MyBot_VFileName."
+    fi
 fi
 
 #
@@ -200,7 +201,7 @@ fi
 mv -f $ARCHIVE_NAME $ARCHIVE_DIR
 Retval=$?
 if [ $Retval != 0 ]; then
-	echo "WARNING - Move of the archive failed with error $Retval"
+    echo "WARNING - Move of the archive failed with error $Retval"
 fi
 
 
