@@ -60,6 +60,22 @@ class Direction:
         else:
             raise IndexError
 
+    @staticmethod
+    def laterals(direction):
+        """
+        Returns a list of the lateral (left & right) cardinal directions given a direction,
+        Still returns Still
+        :param direction: The input direction
+        :return: The lateral directions
+        """
+        if direction == Direction.North or direction == Direction.South:
+            return [Direction.East, Direction.West]
+        elif direction == Direction.East or direction == Direction.West:
+            return [Direction.North, Direction.South]
+        elif direction == Direction.Still:
+            return Direction.Still
+        else:
+            raise IndexError
 
 class Position:
     def __init__(self, x, y):
@@ -94,6 +110,14 @@ class Position:
     def __isub__(self, other):
         self.x -= other.x
         self.y -= other.y
+        return self
+
+    def __mul__(self, other):
+        return Position(self.x * other, self.y * other)
+
+    def __imult__(self, other):
+        self.x *= other
+        self.y *= other
         return self
 
     def __abs__(self):
