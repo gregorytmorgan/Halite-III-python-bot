@@ -17,6 +17,7 @@ import numpy as np
 
 # mybot utils
 from myutils.constants import *
+from myutils.cell_block import *
 
 #
 #
@@ -27,7 +28,7 @@ def get_mining_rate(game):
     if len(game.game_metrics["mined"]) == 0:
         return 0
 
-    trailing_turn = 1 if game.turn_number < 50 else 50
+    trailing_turn = 1 if game.turn_number < 25 else 25
     i = len(game.game_metrics["mined"]) - 1
     while i >= 0 and game.game_metrics["mined"][i][0] > trailing_turn:
         mined.append(game.game_metrics["mined"][i][2])
@@ -169,6 +170,29 @@ def get_move(game, ship, type="random", collision_resolution="random"):
     return move
 
 #
+# returns a dict indexed on 'n', 's', 'e', 'w' of 3x3 lists of cells
+#
+def get_surrounding_cell_blocks(game, ship, w, h):
+    t = CellBlock.get_corner_offset("n", w, h)
+    north_corner = Position(ship.position.x + t[0], ship.position.y + t[0])
+
+    t = CellBlock.get_corner_offset("s", w, h)
+    south_corner = Position(ship.position.x + t[0], ship.position.y + t[0])
+
+    t = CellBlock.get_corner_offset("e", w, h)
+    east_corner = Position(ship.position.x + t[0], ship.position.y + t[0])
+
+    t = CellBlock.get_corner_offset("w", w, h)
+    west_corner = Position(ship.position.x + t[0], ship.position.y + t[0])
+
+    return [
+        (Direction.North, CellBlock(game, north_corner, w, h)),
+        (Direction.South, CellBlock(game, south_corner, w, h)),
+        (Direction.East, CellBlock(game, east_corner, w, h)),
+        (Direction.West, CellBlock(game, west_corner, w, h))
+    ]
+
+#
 # nav moves resolv first by density, then randomly
 #
 def get_density_move(game, ship):
@@ -181,46 +205,72 @@ def get_density_move(game, ship):
         return move
 
     moves = []
-    for d in ship.position.get_surrounding_cardinals():
-        if game.game_map[d].halite_amount > constants.MAX_HALITE/10:
-            moves.append((d.x, d.y, game.game_map[d].halite_amount))
+    for quadrant in get_surrounding_cell_blocks(game, ship, 3, 3):
+        logging.info("DEBUG - quadrant: {}".format(quadrant))
+        directional_offset = quadrant[0]
+        block = quadrant[1]
 
-    sorted_moves = sorted(moves, key=lambda item: item[2], reverse=True)
+        if block.get_max() > constants.MAX_HALITE / 10:
+            moves.append((directional_offset, block, block.get_mean()))
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} sorted_moves: {}".format(ship.id, sorted_moves))
+    sorted_blocks = sorted(moves, key=lambda item: item[2], reverse=True)
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} sorted_blocks: {}".format(ship.id, sorted_blocks))
 
-    if len(sorted_moves) != 0:
-        for i in range(0, len(sorted_moves)):
-            move_offset = (sorted_moves[i][0] - ship.position.x, sorted_moves[i][1] - ship.position.y)
-            if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} moveOffset: {}".format(ship.id, move_offset))
+    if len(sorted_blocks) == 0:
+        return get_random_move(game, ship) # FIX ME FIX ME FIX ME FIX ME FIX ME FIX ME would be better to try a large search radius ???
 
-            new_position = game.game_map.normalize(Position(sorted_moves[i][0], sorted_moves[i][1]))
-            if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} new_position: {}".format(ship.id, new_position))
+    best_bloc_data = sorted_blocks[0]
 
-            normalized_position = game.game_map.normalize(new_position)
-            if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} normalized_position: {}".format(ship.id, normalized_position))
+    max_cell = best_bloc_data[1].get_max()
 
-            cell = game.game_map[normalized_position]
+    bc = best_bloc_data[1].get_cells()
+    logging.info("DEBUG - bc: {}".format(bc))
 
-            if not cell.is_occupied:
-                move = Direction.convert(move_offset)
-                cell.mark_unsafe(ship)
-                break
+    for best_cell in bc:
+        logging.info("DEBUG - cell: {}".format(best_cell))
+        if best_cell.halite_amount == max_cell:
+            break
+
+    move_offset = best_bloc_data[0]
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} moveOffset: {}".format(ship.id, move_offset))
+
+    new_position = game.game_map.normalize(ship.position.directional_offset(move_offset))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} new_position: {}".format(ship.id, new_position))
+
+    normalized_position = game.game_map.normalize(new_position)
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} normalized_position: {}".format(ship.id, normalized_position))
+
+    cell = game.game_map[normalized_position]
+
+    if not cell.is_occupied:
+        move = Direction.convert(move_offset)
+        cell.mark_unsafe(ship)
 
     # if we were not able to find a usable dense cell, try to find a random one
     if move == "o":
         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} Collision, trying to find a random move".format(ship.id))
-        move = get_random_move(game, ship)
+
+        lateral_offsets = Direction.laterals(move_offset)
+        logging.info("DEBUG - lateral_offsets: {}".format(lateral_offsets))
+
+        lateral_moves = list(map(lambda direction_offset: Direction.convert(direction_offset), lateral_offsets))
+        logging.info("DEBUG - lateral_moves: {}".format(lateral_moves))
+
+        move = get_random_move(game, ship, lateral_moves)
 
     if move == "o":
         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} Collision, unable to find a move".format(ship.id))
+
+    move_plus_one = Position(best_cell.position.x, best_cell.position.y) # go one more move in the same direction
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a move_plus_one of {}".format(ship.id, move_plus_one))
+    ship.path.append(move_plus_one)
 
     return move
 
 #
 # nav moves resolv randomly
 #
-def get_random_move(game, ship):
+def get_random_move(game, ship, moves = ["n", "s", "e", "w"]):
 
     move = "o"
 
@@ -229,12 +279,10 @@ def get_random_move(game, ship):
     if not check_fuel_cost(game, ship):
         return move
 
-    moves = ["n", "s", "e", "w"]
-
     moveIdx = random.randint(0, 3)
 
     for idx in range(moveIdx, moveIdx + 4):
-        moveChoice = moves[idx % 4]
+        moveChoice = moves[idx % len(moves)]
         if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
 
         new_position = ship.position.directional_offset(DIRECTIONS[moveChoice])

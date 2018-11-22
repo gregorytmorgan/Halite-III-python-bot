@@ -42,7 +42,7 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-botName = "MyBot.v13"
+botName = "MyBot.dev"
 
 #
 # game start
@@ -222,12 +222,12 @@ while True:
                 ship.path.pop()
 
             if len(ship.path) == 0:
-                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is exploring(density)".format(ship.id))
                 move = get_move(game, ship, "density")
+                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is exploring to the {}".format(ship.id, move))
             else:
-                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is transiting".format(ship.id))
                 # here, the path scheme specifies the algo to use if we have an incomplete path
                 move = get_ship_nav_move(game, ship, "astar", {"move_cost": "turns"})
+                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is transiting {}".format(ship.id, move))
 
             command_queue.append(ship.move(move))
         else:
