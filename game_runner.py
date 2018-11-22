@@ -9,11 +9,11 @@ arg_verbosity = "-vvv"
 arg_width = "--width 40"
 arg_height = "--height 40"
 bot1_args = "python3 MyBot.py"
-bot2_args = "python3 bots/v12/MyBot.v12.py"
+bot2_args = "python3 bots/v14/MyBot.v14.py"
 bot3_args = "python3 bots/MyBot.v10.py"
 bot4_args = "python3 bots/MyBot.v9.py"
 #arg_strict = "--strict"
-arg_seed = "--seed 1542497313"
+arg_seed = "--seed 1542845465"
 
 # base jam: 64x64, Map seed is 1541367798
 # base jam: 64x64, Map seed is 1541450737 ???
@@ -21,7 +21,7 @@ arg_seed = "--seed 1542497313"
 # 64x64, 4 player, 1541460138, opponent collision at turn 422
 # , bot3_args, bot4_args
 # , arg_width, arg_height
-args = ["./halite", arg_replay, arg_verbosity, bot1_args, bot2_args]
+args = ["./halite",  arg_replay, arg_verbosity, bot1_args, bot2_args]
 
 # run is only available in python 3.5+, prior use subprocess.call
 retval = subprocess.run(args, stdout=subprocess.PIPE, stderr=sys.stderr)
