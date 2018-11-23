@@ -23,13 +23,11 @@ class Game:
             "mined": [],
             "gathered": [(0, 0, 5000)],
             "time": [],
-            "burned": []
-        }
-
-        self.debug_metrics = {
+            "burned": [],
             "loiter_multiples": [],
             "loiter_offsets": [],
-            "loiter_distances": []
+            "loiter_distances": [],
+            "return_duration": []
         }
 
         self.ship_christenings = {}
