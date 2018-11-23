@@ -8,6 +8,8 @@ from .common import read_input
 import logging
 import time
 
+from myutils.constants import DEBUG, DEBUG_NAV
+
 class MapCell:
     """A cell on the game map."""
     def __init__(self, position, halite_amount):
@@ -71,7 +73,6 @@ class GameMap:
     """
 
     DEBUG = False
-    DEBUG_TIMING = True
 
     def __init__(self, cells, width, height):
         self.width = width
@@ -250,7 +251,6 @@ class GameMap:
     #
     def astar(self, ship, destination, move_cost_type="turns"):
         astar_start_time = time.time()
-        if self.DEBUG_TIMING: logging.info("astar start time: {}".format(round(astar_start_time, 4)))
 
         G = {} #Actual movement cost to each position from the start position
         F = {} #Estimated movement cost of start to end going via this position
@@ -297,7 +297,7 @@ class GameMap:
 
                 path.pop() # remove the start point
 
-                if self.DEBUG_TIMING: logging.info("Total A* elapsed time {}".format(round(time.time() - astar_start_time, 4))) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                if DEBUG & (DEBUG_NAV): logging.info("Total A* elapsed time {}".format(round(time.time() - astar_start_time, 4))) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
 
                 return path, F[end] # Done!
 
