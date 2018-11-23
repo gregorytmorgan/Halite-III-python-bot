@@ -12,6 +12,7 @@ class Player:
         self.halite_amount = halite
         self._ships = {}
         self._dropoffs = {}
+        self.ship_count = 0
 
     def get_ship(self, ship_id):
         """
