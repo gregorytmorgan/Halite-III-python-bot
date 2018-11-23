@@ -50,12 +50,18 @@ class Ship(Entity):
     """
     Ship class to house ship entities
     """
+    count = 0
+
     def __init__(self, owner, id, position, halite_amount):
         super().__init__(owner, id, position)
         self.halite_amount = halite_amount
         self.status = "uninitialized"
         self.path = []
         self.last_seen = 0
+        self.last_dock = 0
+        self.christening = 0
+
+        Ship.count += 1
 
     @property
     def is_full(self):
