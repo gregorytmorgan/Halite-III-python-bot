@@ -297,7 +297,7 @@ class GameMap:
 
                 path.pop() # remove the start point
 
-                if DEBUG & (DEBUG_NAV): logging.info("Total A* elapsed time {}".format(round(time.time() - astar_start_time, 4))) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                if DEBUG & (DEBUG_NAV): logging.info("Nav - Total A* elapsed time {}".format(round(time.time() - astar_start_time, 4))) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
 
                 return path, F[end] # Done!
 
