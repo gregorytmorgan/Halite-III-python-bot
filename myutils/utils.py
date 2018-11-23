@@ -7,6 +7,7 @@ from hlt import constants
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Position
+from hlt.entity import Ship
 
 import os
 import time
@@ -19,75 +20,87 @@ import numpy as np
 from myutils.constants import *
 from myutils.cell_block import *
 
-#
-#
-#
-def get_mining_rate(game):
-    mined = []
+def get_mining_rate(game, turns = None, ship_id = None):
+    '''
+    Returns the mining rate for the game or a specific ship. Always returns
+    a rate of at least 1.
+    '''
 
     if len(game.game_metrics["mined"]) == 0:
-        return 0
+        return 1
 
-    trailing_turn = 1 if game.turn_number < 25 else 25
+    if turns == None:
+        turns = game.turn_number
+
+    oldest_turn = 1 if game.turn_number < turns else (game.turn_number - turns)
     i = len(game.game_metrics["mined"]) - 1
-    while i >= 0 and game.game_metrics["mined"][i][0] > trailing_turn:
-        mined.append(game.game_metrics["mined"][i][2])
+
+    mined = []
+    mined_by_ship = {}
+
+    # turn, ship.id, mined
+    while i >= 0 and game.game_metrics["mined"][i][0] > oldest_turn:
+        s_id = game.game_metrics["mined"][i][1]
+        halite = game.game_metrics["mined"][i][2]
+        mined_by_ship[s_id] = mined_by_ship[s_id] + halite if s_id in mined_by_ship else halite
         i -= 1
 
-    return np.average(mined)
+    if ship_id == None:
+        for s_id, halite in mined_by_ship.items():
+            mined.append(halite / (game.turn_number - game.ship_christenings[s_id] - 1))
 
+        rate = np.average(mined)
+    else:
+        rate = mined_by_ship.items[ship_id] / (game.turn_number - game.ship_christenings[ship_id] - 1)
+
+    return rate
 
 #
 #
 #
 def ships_are_spawnable(game):
-    safety_margin = 2.0
-    ship_cost = constants.SHIP_COST
-    ship_count = len(game.me.get_ships())
+    me = game.me
+    shipyard = game.game_map[me.shipyard]
+
+    #if not ships_are_spawnable(game):
+    #    return False
+
+    # % turns above mining rate to dropoff the halite, will typically be about 2?
+    mining_over_head = 2
+    ship_count = len(me.get_ships())
+
+    #
+    # absolute constraints
+    #
+
+    if me.halite_amount < constants.SHIP_COST:
+        return False
+
+    if me.ship_count < MIN_SHIPS:
+        return True
 
     if ship_count >= MAX_SHIPS:
         return False
 
-    if ship_count == 0:
-        return True
+    #
+    # conditional constraints
+    #
 
-    mining_rate = get_mining_rate(game) / ship_count
-
-    if mining_rate == 0:
-        return True
-
-    payback = ship_cost / mining_rate
-
-    remaining_turns = constants.MAX_TURNS - game.turn_number
-
-    return (payback * safety_margin) < remaining_turns
-
-
-#
-#
-#
-def spawn_ship(game):
-
-    if not ships_are_spawnable(game):
-        return False
-
-    if game.me.halite_amount < constants.SHIP_COST:
-        return False
-
-    if game.game_map[game.me.shipyard].is_occupied:
-        return False
-
-    entryexit_cells = game.me.shipyard.position.get_surrounding_cardinals()
-
-    occupied_cells = 0
-    for pos in entryexit_cells:
+    # watch for collisions with owner only, note this will be 1 turn behind
+    occupied_cells = 1 if (shipyard.is_occupied and shipyard.ship.owner == me.id) else 0
+    for pos in shipyard.position.get_surrounding_cardinals():
         if game.game_map[pos].is_occupied:
-            occupied_cells = occupied_cells + 1
+            occupied_cells += 1
 
+    # need to keep track of ships docking instead, a ship in an adjacent cell could be leaving
     if occupied_cells > 0:
         return False
 
-    return True
+    # primary constraint
+    payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
+    remaining_turns = constants.MAX_TURNS - game.turn_number
+
+    return round(payback_turns * mining_over_head) < remaining_turns
 
 #
 #
@@ -206,7 +219,6 @@ def get_density_move(game, ship):
 
     moves = []
     for quadrant in get_surrounding_cell_blocks(game, ship, 3, 3):
-        logging.info("DEBUG - quadrant: {}".format(quadrant))
         directional_offset = quadrant[0]
         block = quadrant[1]
 
@@ -214,7 +226,6 @@ def get_density_move(game, ship):
             moves.append((directional_offset, block, block.get_mean()))
 
     sorted_blocks = sorted(moves, key=lambda item: item[2], reverse=True)
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} sorted_blocks: {}".format(ship.id, sorted_blocks))
 
     if len(sorted_blocks) == 0:
         return get_random_move(game, ship) # FIX ME FIX ME FIX ME FIX ME FIX ME FIX ME would be better to try a large search radius ???
@@ -224,10 +235,8 @@ def get_density_move(game, ship):
     max_cell = best_bloc_data[1].get_max()
 
     bc = best_bloc_data[1].get_cells()
-    logging.info("DEBUG - bc: {}".format(bc))
 
     for best_cell in bc:
-        logging.info("DEBUG - cell: {}".format(best_cell))
         if best_cell.halite_amount == max_cell:
             break
 
@@ -249,13 +258,8 @@ def get_density_move(game, ship):
     # if we were not able to find a usable dense cell, try to find a random one
     if move == "o":
         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} Collision, trying to find a random move".format(ship.id))
-
         lateral_offsets = Direction.laterals(move_offset)
-        logging.info("DEBUG - lateral_offsets: {}".format(lateral_offsets))
-
         lateral_moves = list(map(lambda direction_offset: Direction.convert(direction_offset), lateral_offsets))
-        logging.info("DEBUG - lateral_moves: {}".format(lateral_moves))
-
         move = get_random_move(game, ship, lateral_moves)
 
     if move == "o":
@@ -458,14 +462,50 @@ def should_move(game, ship):
         return True
 
 #    cargo_threshold = .95 * constants.MAX_HALITE
-#    logging.info("DEBUG cargo {} > cargo threshold {} === {}".format(ship.halite_amount, cargo_threshold, ship.halite_amount > cargo_threshold))
+#    logging.debug("DEBUG cargo {} > cargo threshold {} === {}".format(ship.halite_amount, cargo_threshold, ship.halite_amount > cargo_threshold))
 #    if ship.halite_amount > cargo_threshold and ship.status == "returning":
 #        return True
 
 #    remaining_cargo_capacity = constants.MAX_HALITE - ship.halite_amount
 #    mining_yield = cell_halite * .25
-#    logging.info("DEBUG {} >= {} === {}".format(mining_yield, remaining_cargo_capacity, mining_yield < remaining_cargo_capacity))
+#    logging.debug("DEBUG {} >= {} === {}".format(mining_yield, remaining_cargo_capacity, mining_yield < remaining_cargo_capacity))
 #    if mining_yield < remaining_cargo_capacity and ship.status == "returning":
 #        return True
 
     return False
+
+def get_loiter_point(game, ship, hint = None):
+    """
+    After a ship complets a dropoff, assign it a new destination whose distance is
+    based on game number and direction is random
+
+    1. get the loiter distance (multiplier)
+    2. get a random point on a circle an mult by the loiter multiple
+    3. extend the circle x,y by the loiter distance to create an offset
+    4. Add the offset to the current position to get the loiter point
+    5. Calc a nav path to the loiter point
+    """
+    loiter_distance = get_loiter_multiple(game)
+
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} loiter_distance: {}".format(ship.id, loiter_distance))
+    if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_multiples"].append((game.turn_number, round(loiter_distance, 2)))
+
+    # get a random point on a cicle in radians
+    if hint == None:
+        pt = random.uniform(0, math.pi * 2)
+    elif hint == "n":
+        pt = random.uniform(3*math.pi/4, math.pi/4)
+    elif hint == "s":
+        pt = random.uniform(7*math.pi/4, 5*math.pi/4)
+    elif hint == "e":
+        pt = random.uniform(math.pi/4, 7*math.pi/4)
+    elif hint == "w":
+        pt = random.uniform(5*math.pi/4, 3*math.pi/4)
+
+    raw_loiter_point = (math.cos(pt), math.sin(pt))
+    loiterOffset = Position(round(raw_loiter_point[0] * loiter_distance), round(raw_loiter_point[1] * loiter_distance))
+
+    if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_offsets"].append((loiterOffset.x, loiterOffset.y))
+    if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_distances"].append((game.turn_number, round(math.sqrt(loiterOffset.x ** 2 + loiterOffset.y ** 2), 2)))
+
+    return ship.position + loiterOffset

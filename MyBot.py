@@ -10,6 +10,7 @@ from hlt import constants
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Direction
 from hlt.positionals import Position
+from hlt.entity import Ship
 
 # This library allows you to generate random numbers.
 import random
@@ -81,9 +82,6 @@ while True:
     #
     for ship in my_ships:
         if ship.id in ship_states:
-            ship.status = ship_states[ship.id]["status"]
-            ship.path = ship_states[ship.id]["path"]
-            ship.last_seen = game.turn_number
 
             # we calc mined amount and fuel cost based on the diff of what we had
             # last turn and what the server says we have now
@@ -99,20 +97,40 @@ while True:
                 else:
                     mined = ship.halite_amount - ship_states[ship.id]["prior_halite_amount"]
                     game_metrics["mined"].append((game.turn_number, ship.id, mined))
+
         else:
             if DEBUG & (DEBUG_GAME): logging.info("Game - New ship with ID {}".format(ship.id))
+            me.ship_count += 1
+
+            turn_spent = constants.SHIP_COST
+            game_metrics["spent"].append((game.turn_number, turn_spent))
 
             ship_states[ship.id] = {
                 "last_seen": game.turn_number,
                 "prior_position": None,
                 "prior_halite_amount": None,
                 "status": "returning",
+                "last_dock": game.turn_number,
+                "christening": game.turn_number,
                 "path": []
             }
 
-            ship.status = ship_states[ship.id]["status"]
-            ship.path = ship_states[ship.id]["path"]
-            ship.last_seen = game.turn_number
+            # we can't attach a christening attrib to the acutal ship obj because we'll lose
+            # the info once the ship is destroyed. We're interested in destroyed ship info when
+            # we calc stats such as mining rate
+            game.ship_christenings[ship.id] = game.turn_number
+
+        # attribs not dependent on save state
+        ship.last_seen = game.turn_number
+
+        # update the current ship based on saved state
+        ship.status = ship_states[ship.id]["status"]
+        ship.path = ship_states[ship.id]["path"]
+        ship.christening = ship_states[ship.id]["christening"]
+        ship.last_dock = ship_states[ship.id]["last_dock"]
+
+        # note, some ship state attribs are not stored on the actual ship object:
+        # prior_position, prior_halite_amount
 
     #
     # handle each ship for this turn
@@ -130,42 +148,27 @@ while True:
             # Returning - in transit
             #
             if ship.position == dropoff_position:
-                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} completed Dropoff of {} halite at {}".format(ship.id, ship_states[ship.id]["prior_halite_amount"], dropoff_position))
+                if ship.halite_amount != None:
+                    if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} completed dropoff of {} halite at {}. Return took {} turns".format(ship.id, ship_states[ship.id]["prior_halite_amount"], dropoff_position, game.turn_number - ship.last_dock))
 
-                # Returning - at dropoff:
-                #
-                # 1. get the loiter distance (multiplier)
-                # 2. get a random point on a circle an mult by the loiter multiple
-                # 3. extend the circle x,y by the loiter distance to create an offset
-                # 4. Add the offset to the current position to get the loiter point
-                # 5. Calc a nav path to the loiter point
+                #ship.path.clear()
 
-                loiter_distance = get_loiter_multiple(game)
+                if me.ship_count <= 4:
+                    cardinals = ["n", "s", "e", "w"]
+                    hint = cardinals[me.ship_count % 4]
+                else:
+                    hint = None
 
-                if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} loiter_distance: {}".format(ship.id, loiter_distance))
-
-                if DEBUG & (DEBUG_NAV_METRICS): debug_metrics["loiter_multiples"].append((game.turn_number, round(loiter_distance, 2)))
-
-                # get a random point on a cicle
-                randPi = random.random() * math.pi * 2
-                raw_loiter_point = (math.cos(randPi), math.sin(randPi))
-                loiterOffset = Position(round(raw_loiter_point[0] * loiter_distance), round(raw_loiter_point[1] * loiter_distance))
-
-                if DEBUG & (DEBUG_NAV_METRICS): debug_metrics["loiter_offsets"].append((loiterOffset.x, loiterOffset.y))
-                if DEBUG & (DEBUG_NAV_METRICS): debug_metrics["loiter_distances"].append((game.turn_number, round(math.sqrt(loiterOffset.x ** 2 + loiterOffset.y ** 2), 2)))
-
-                loiterPoint = ship.position + loiterOffset
-
-                ship.path.clear()
-                path, cost = game_map.navigate(ship, loiterPoint, "astar", {"move_cost": "turns"}) # heading out to loiter point
+                loiter_point = get_loiter_point(game, ship, hint)
+                path, cost = game_map.navigate(ship, loiter_point, "astar", {"move_cost": "turns"}) # heading out to loiter point
 
                 if path == None:
                     if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
                     ship.path = []
-                    logging.warning("Ship {} Error, navigate failed for loiter point {}".format(ship.id, loiterPoint))
+                    logging.warning("Ship {} Error, navigate failed for loiter point {}".format(ship.id, loiter_point))
                 else:
                     ship.path = path
-                    if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is heading out to {}, ETA {} turns ({}).".format(ship.id, loiterPoint, len(ship.path), round(cost)))
+                    if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is heading out to {}, ETA {} turns ({}).".format(ship.id, loiter_point, len(ship.path), round(cost)))
 
                 ship.status = "exploring"
             else:
@@ -196,6 +199,10 @@ while True:
         #
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
+
+            if ship.halite_amount != None:
+                game_metrics["return_duration"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock))
+
             path, cost = game_map.navigate(ship, dropoff_position, "astar", {"move_cost": "turns"}) # returning to shipyard/dropoff
 
             if path == None:
@@ -245,50 +252,95 @@ while True:
         ship_states[ship.id]["prior_position"] = ship.position
         ship_states[ship.id]["prior_halite_amount"] = ship.halite_amount
         ship_states[ship.id]["last_seen"] = ship.last_seen
+        ship_states[ship.id]["christening"] = ship.christening
+        ship_states[ship.id]["last_dock"] = ship.last_dock
+
+    # check if we can spawn a ship
+    if ships_are_spawnable(game):
+        command_queue.append(me.shipyard.spawn())
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn request")
+
+    #
+    # collenct game metrics
+    #
+    game_metrics["profit"].append((game.turn_number, turn_gathered - turn_spent))
+    game_metrics["time"].append((game.turn_number, round(time.time() - turn_start_time, 4)))
+
+    #
+    # debug info for each turn
+    #
 
     # check of lost ships
     for ship_id in ship_states:
         if not me.has_ship(ship_id):
             if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen on turn {}".format(ship_id, ship_states[ship_id]["last_seen"]))
 
-    # check if we can spawn a ship
-    if spawn_ship(game):
-        command_queue.append(me.shipyard.spawn())
-        turn_spent = constants.SHIP_COST
-        game_metrics["spent"].append((game.turn_number, turn_spent))
-        if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn")
-
     if DEBUG & (DEBUG_COMMANDS): logging.info("Game - command queue: {}".format(command_queue))
 
-    if DEBUG & (DEBUG_STATES): logging.info("Game - end ship_states: {}".format(ship_states))
+    if DEBUG & (DEBUG_SHIP_STATES): logging.info("Game - end ship_states: {}".format(ship_states))
 
-    game_metrics["profit"].append((game.turn_number, turn_gathered - turn_spent))
+    if DEBUG & (DEBUG_GAME_METRICS):
+        mined_this_turn = sum(map(lambda i: i[2] if i[0] == game.turn_number else 0, game_metrics["mined"]))
+        logging.info("Game - Mined this turn: {}".format(mined_this_turn))
+        logging.info("Game - Mining rate: {}".format(round(get_mining_rate(game, 25), 2)))
 
-    # dump metrics on last turn, if we do this after the game loop it'll never happen since
-    # the game shuts down immediately after the last turn
+    if DEBUG & (DEBUG_GAME_METRICS):
+        logging.info("Game - Min turn time: {}".format(min(game_metrics["time"], key = lambda t: t[1])))
+        logging.info("Game - Max turn time: {}".format(max(game_metrics["time"], key = lambda t: t[1])))
+        logging.info("Game - Avg turn time: {:.4f}".format(np.mean(game_metrics["time"], axis=0)[1]))
+
+        #logging.info("Game - Mined: {}".format(game_metrics["mined"]))
+        logging.info("Game - Total mined: {}".format(sum(x[2] for x in game_metrics["mined"])))
+
+        #logging.info("Game - Gathered: {}".format(game_metrics["gathered"]))
+        logging.info("Game - Total gathered: {}".format(sum(x[2] for x in game_metrics["gathered"])))
+
+        #logging.info("Game - Burned: {}".format(game_metrics["burned"]))
+        logging.info("Game - Total burned: {}".format(sum(x[2] for x in game_metrics["burned"])))
+
+        # profit = gathered - spent
+        logging.info("Game - Profit: {}".format(sum(x[1] for x in game_metrics["profit"])))
+
+    if DEBUG & (DEBUG_GAME_METRICS):
+        mined_by_ship= {}
+        avg_mined_by_ship = {}
+        oldest_turn = 1 if game.turn_number < MINING_RATE_LOOKBACK else (game.turn_number - MINING_RATE_LOOKBACK)
+        i = len(game.game_metrics["mined"]) - 1
+        while i >= 0 and game.game_metrics["mined"][i][0] >= oldest_turn:
+            s_id = game.game_metrics["mined"][i][1]
+            halite = game.game_metrics["mined"][i][2]
+            mined_by_ship[s_id] = (mined_by_ship[s_id] + halite) if s_id in mined_by_ship else halite
+            i -= 1
+
+        for s_id, halite in mined_by_ship.items():
+            avg_mined_by_ship[s_id] = halite / (game.turn_number - game.ship_christenings[s_id] - 1)
+
+        logging.info("Game - Ship mining rate averages (Last {} turns):".format(MINING_RATE_LOOKBACK))
+        for s_id in avg_mined_by_ship:
+            logging.info("Game - {:4d}: {}".format(s_id, round(avg_mined_by_ship[s_id], 2)))
+
+        logging.info("Game - Ship yields (Last {} turns):".format(MINING_RATE_LOOKBACK))
+        for s_id, halite in mined_by_ship.items():
+            logging.info("Game - {:4d}: {}".format(s_id, halite))
+
+    if DEBUG: logging.info("Game - Turn time: {}".format(round(time.time() - turn_start_time, 4)))
+
+    #
+    # last turn output
+    #
     if game.turn_number == constants.MAX_TURNS:
+        if DEBUG & (DEBUG_NAV_METRICS):
+            logging.info("Nav - Loiter multiples: {}".format(game_metrics["loiter_multiples"]))
+            logging.info("Nav - Loiter offsets: {}".format(game_metrics["loiter_offsets"]))
+            logging.info("Nav - Loiter distances: {}".format(game_metrics["loiter_distances"]))
+
+            avg_duration = np.mean(game_metrics["return_duration"], axis=0)[1]
+            logging.info("Game - Avg. ship return duration: {}".format(round(avg_duration, 2)))
+
         if DEBUG & (DEBUG_GAME_METRICS):
-            #logging.info("Game - Time: {}".format(game_metrics["time"]))
             logging.info("Game - Min turn time: {}".format(min(game_metrics["time"], key = lambda t: t[1])))
             logging.info("Game - Max turn time: {}".format(max(game_metrics["time"], key = lambda t: t[1])))
             logging.info("Game - Avg turn time: {:.4f}".format(np.mean(game_metrics["time"], axis=0)[1]))
-
-            #logging.info("Game - Mined: {}".format(game_metrics["mined"]))
-            logging.info("Game - Total mined: {}".format(sum(x[2] for x in game_metrics["mined"])))
-
-            #logging.info("Game - Gathered: {}".format(game_metrics["gathered"]))
-            logging.info("Game - Total gathered: {}".format(sum(x[2] for x in game_metrics["gathered"])))
-
-            #logging.info("Game - Burned: {}".format(game_metrics["burned"]))
-            logging.info("Game - Total burned: {}".format(sum(x[2] for x in game_metrics["burned"])))
-
-            # profit = gathered - spent
-            logging.info("Game - Profit: {}".format(sum(x[1] for x in game_metrics["profit"])))
-
-        if DEBUG & (DEBUG_NAV_METRICS):
-            logging.info("Nav - Loiter multiples: {}".format(debug_metrics["loiter_multiples"]))
-            logging.info("Nav - Loiter offsets: {}".format(debug_metrics["loiter_offsets"]))
-            logging.info("Nav - Loiter distances: {}".format(debug_metrics["loiter_distances"]))
 
         if DEBUG & (DEBUG_OUTPUT_GAME_METRICS):
             dump_stats(game, game_metrics, "all")
@@ -296,4 +348,4 @@ while True:
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(command_queue)
 
-    if DEBUG & (DEBUG_GAME_METRICS): game_metrics["time"].append((game.turn_number, round(time.time() - turn_start_time, 4)))
+
