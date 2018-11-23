@@ -26,6 +26,14 @@ class Game:
             "burned": []
         }
 
+        self.debug_metrics = {
+            "loiter_multiples": [],
+            "loiter_offsets": [],
+            "loiter_distances": []
+        }
+
+        self.ship_christenings = {}
+
         # Grab constants JSON
         raw_constants = read_input()
         constants.load_constants(json.loads(raw_constants))
