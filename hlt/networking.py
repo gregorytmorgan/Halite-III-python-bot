@@ -24,6 +24,7 @@ class Game:
             "gathered": [(0, 0, 5000)],
             "time": [],
             "burned": [],
+            "raw_loiter_points": [],
             "loiter_multiples": [],
             "loiter_offsets": [],
             "loiter_distances": [],
