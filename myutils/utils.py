@@ -29,7 +29,7 @@ def get_mining_rate(game, turns = None, ship_id = None):
     if len(game.game_metrics["mined"]) == 0:
         return 1
 
-    if turns == None:
+    if turns is None:
         turns = game.turn_number
 
     oldest_turn = 1 if game.turn_number < turns else (game.turn_number - turns)
@@ -45,7 +45,7 @@ def get_mining_rate(game, turns = None, ship_id = None):
         mined_by_ship[s_id] = mined_by_ship[s_id] + halite if s_id in mined_by_ship else halite
         i -= 1
 
-    if ship_id == None:
+    if ship_id is None:
         for s_id, halite in mined_by_ship.items():
             mined.append(halite / (game.turn_number - game.ship_christenings[s_id] - 1))
 
@@ -70,17 +70,17 @@ def ships_are_spawnable(game):
     ship_count = len(me.get_ships())
 
     #
-    # absolute constraints
+    # absolute constraints (order can be important)
     #
+
+    if ship_count >= MAX_SHIPS:
+        return False
 
     if me.halite_amount < constants.SHIP_COST:
         return False
 
-    if me.ship_count < MIN_SHIPS:
+    if ship_count < MIN_SHIPS:
         return True
-
-    if ship_count >= MAX_SHIPS:
-        return False
 
     #
     # conditional constraints
@@ -254,6 +254,7 @@ def get_density_move(game, ship):
     if not cell.is_occupied:
         move = Direction.convert(move_offset)
         cell.mark_unsafe(ship)
+        #game.game_map[ship.position].mark_safe()
 
     # if we were not able to find a usable dense cell, try to find a random one
     if move == "o":
@@ -299,6 +300,7 @@ def get_random_move(game, ship, moves = ["n", "s", "e", "w"]):
 
         if not cell.is_occupied:
             cell.mark_unsafe(ship)
+            #game.game_map[ship.position].mark_safe()
             move = moveChoice
             break
 
@@ -382,9 +384,9 @@ def get_ship_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_co
         if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} found waypoint {} ({}), calulating complete path".format(ship.id, next_position, normalized_next_position))
 
         # calc a continous path
-        path, cost = game_map.navigate(ship, normalized_next_position, waypoint_algorithm, args)
+        path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_algorithm, args)
 
-        if path == None:
+        if path is None:
             if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Nav failed, can't reach {}".format(ship.id, normalized_next_position))
             return 'o'
         else:
@@ -411,6 +413,7 @@ def get_ship_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_co
             if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
     else:
         cell.mark_unsafe(ship)
+        #game_map[ship.position].mark_safe()
         ship.path.pop()
 
         # use get_unsafe_moves() to get a normalized directional offset. We should always get one soln.
@@ -487,25 +490,46 @@ def get_loiter_point(game, ship, hint = None):
     """
     loiter_distance = get_loiter_multiple(game)
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} loiter_distance: {}".format(ship.id, loiter_distance))
     if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_multiples"].append((game.turn_number, round(loiter_distance, 2)))
 
-    # get a random point on a cicle in radians
-    if hint == None:
+    # get a random point on a cicle in radians, note that +y is down
+    if hint is None:
         pt = random.uniform(0, math.pi * 2)
     elif hint == "n":
-        pt = random.uniform(3*math.pi/4, math.pi/4)
-    elif hint == "s":
         pt = random.uniform(7*math.pi/4, 5*math.pi/4)
+    elif hint == "s":
+        pt = random.uniform(3*math.pi/4, math.pi/4)
     elif hint == "e":
-        pt = random.uniform(math.pi/4, 7*math.pi/4)
+        pt = random.choice([random.uniform(7*math.pi/4, 2*math.pi), random.uniform(0, math.pi/4)])
     elif hint == "w":
         pt = random.uniform(5*math.pi/4, 3*math.pi/4)
+    else:
+        raise
 
     raw_loiter_point = (math.cos(pt), math.sin(pt))
+
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} raw_loiter_point: ({},{}), loiter_distance: {}, hint: {}".format(ship.id, round(raw_loiter_point[0], 4), round(raw_loiter_point[1], 4), loiter_distance, hint))
+
     loiterOffset = Position(round(raw_loiter_point[0] * loiter_distance), round(raw_loiter_point[1] * loiter_distance))
 
+    if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["raw_loiter_points"].append(raw_loiter_point)
     if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_offsets"].append((loiterOffset.x, loiterOffset.y))
     if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_distances"].append((game.turn_number, round(math.sqrt(loiterOffset.x ** 2 + loiterOffset.y ** 2), 2)))
 
     return ship.position + loiterOffset
+
+
+def get_departure_point(dropoff, destination, departure_lanes = "e-w"):
+    """
+
+    """
+    if departure_lanes == "e-w":
+        departure_x = dropoff.x + DEPARTURE_DISTANCE if destination.x > dropoff.x else dropoff.x - DEPARTURE_DISTANCE
+        departure_y = dropoff.y
+    elif departure_lanes == "n-s":
+        departure_x = dropoff.x
+        departure_y = dropoff.y + DEPARTURE_DISTANCE if destination.y > dropoff.y else dropoff.y - DEPARTURE_DISTANCE
+    else:
+        raise RuntimeError("Unknown departure_lanes: " + str(departure_lanes))
+
+    return Position(departure_x, departure_y)

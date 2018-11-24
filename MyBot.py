@@ -7,14 +7,6 @@ import hlt
 # This library contains constant values.
 from hlt import constants
 
-# This library contains direction metadata to better interface with the game.
-from hlt.positionals import Direction
-from hlt.positionals import Position
-from hlt.entity import Ship
-
-# This library allows you to generate random numbers.
-import random
-
 # Logging allows you to save messages for yourself. This is required because the regular STDOUT
 # (print statements) are reserved for the engine-bot communication.
 import logging
@@ -148,21 +140,31 @@ while True:
             # Returning - in transit
             #
             if ship.position == dropoff_position:
-                if ship.halite_amount != None:
-                    if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} completed dropoff of {} halite at {}. Return took {} turns".format(ship.id, ship_states[ship.id]["prior_halite_amount"], dropoff_position, game.turn_number - ship.last_dock))
+                dropoff_amount = ship_states[ship.id]["prior_halite_amount"]
+                if not (dropoff_amount is None):
+                    if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} completed dropoff of {} halite at {}. Return took {} turns".format(ship.id, dropoff_amount, dropoff_position, game.turn_number - ship.last_dock))
 
                 #ship.path.clear()
 
                 if me.ship_count <= 4:
-                    cardinals = ["n", "s", "e", "w"]
+                    cardinals = ["w", "n", "s", "e"]
                     hint = cardinals[me.ship_count % 4]
+                    loiter_point = get_loiter_point(game, ship, hint)
+                    departure_point = None
                 else:
                     hint = None
+                    loiter_point = get_loiter_point(game, ship, hint)
+                    departure_point = get_departure_point(dropoff_position, loiter_point)
 
-                loiter_point = get_loiter_point(game, ship, hint)
-                path, cost = game_map.navigate(ship, loiter_point, "astar", {"move_cost": "turns"}) # heading out to loiter point
+                if departure_point is None:
+                    path, cost = game_map.navigate(dropoff_position, loiter_point, "astar", {"move_cost": "turns"}) # heading out to loiter point
+                else:
+                    path, cost = game_map.navigate(departure_point, loiter_point, "astar", {"move_cost": "turns"}) # heading out to loiter point
+                    path.append(departure_point)
 
-                if path == None:
+                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a departure point of {} for loiter point {}. Hint: {}".format(ship.id, departure_point, loiter_point, hint))
+
+                if path is None:
                     if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
                     ship.path = []
                     logging.warning("Ship {} Error, navigate failed for loiter point {}".format(ship.id, loiter_point))
@@ -175,9 +177,10 @@ while True:
                 #
                 # Returning - in transit
                 #
+
                 # For a returning ship in transit, we don't need to do anything, the move
                 # code will grab the next position/point and create a move for it
-                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from dropoff ({}). ETA {} turns.".format(ship.id, len(ship.path), dropoff_position, len(ship.path)))
+                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from dropoff ({}). ETA {} turns.".format(ship.id, game_map.calculate_distance(ship.position, dropoff_position), dropoff_position, len(ship.path)))
 
         #
         # status - backing off
@@ -200,12 +203,12 @@ while True:
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
 
-            if ship.halite_amount != None:
+            if not (ship.halite_amount is None):
                 game_metrics["return_duration"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock))
 
-            path, cost = game_map.navigate(ship, dropoff_position, "astar", {"move_cost": "turns"}) # returning to shipyard/dropoff
+            path, cost = game_map.navigate(ship.position, dropoff_position, "dock") # returning to shipyard/dropoff
 
-            if path == None:
+            if path is None:
                 if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
                 ship.path = []
                 logging.warning("Ship {} Error, navigate failed for dropoff {}".format(ship.id, dropoff_position))
@@ -332,7 +335,8 @@ while True:
         if DEBUG & (DEBUG_NAV_METRICS):
             logging.info("Nav - Loiter multiples: {}".format(game_metrics["loiter_multiples"]))
             logging.info("Nav - Loiter offsets: {}".format(game_metrics["loiter_offsets"]))
-            logging.info("Nav - Loiter distances: {}".format(game_metrics["loiter_distances"]))
+            logging.info("Nav - Loiter distances: {}".format(game_metrics["loiter_distances"])) # raw_loiter_point
+            logging.info("Nav - Raw loiter points: {}".format(game_metrics["raw_loiter_points"]))
 
             avg_duration = np.mean(game_metrics["return_duration"], axis=0)[1]
             logging.info("Game - Avg. ship return duration: {}".format(round(avg_duration, 2)))

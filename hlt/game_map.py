@@ -54,6 +54,13 @@ class MapCell:
         """
         self.ship = ship
 
+    def mark_safe(self):
+        """
+        Mark this cell as safe (unoccupied) for navigation.
+
+        """
+        self.ship = None
+
     def __eq__(self, other):
         return self.position == other.position
 
@@ -194,17 +201,20 @@ class GameMap:
 
         return retval
 
-    #
-    #
-    # algorithm: 'astar', 'naive'
-    #   'astar' takes args: 'move_cost': 'turns'|'halite'
-    #   'naive' takes no args
-    def navigate(self, ship, destination, algorithm="astar", args={}):
+    def navigate(self, start, destination, algorithm="astar", args={}):
+        """
+        algorithm: 'astar', 'naive'
+          'astar' - takes args: 'move_cost': 'turns'|'halite'
+          'naive' - takes no args
+          'dock' - takes no args
+        """
         if algorithm == "astar":
             move_cost = args["move_cost"] if "move_cost" in args else None
-            path, cost = self.astar(ship, destination, move_cost)
+            path, cost = self.astar(start, destination, move_cost)
         elif algorithm == "naive":
-            path, cost = self.get_naive_path(ship, destination)
+            path, cost = self.get_naive_path(start, destination)
+        elif algorithm == "dock":
+            path, cost = self.get_docking_path(start, destination)
         else:
             logging.info("Error - Unknown navigate algorithm {}".format(algorithm))
             path, cost = None, None
@@ -215,27 +225,25 @@ class GameMap:
     # return None if no soln, returns empty list with zero cost if start == end,
     # otherwise returns a path list and a cumlative cost
     #
-    def get_naive_path(self, ship, destination):
+    def get_naive_path(self, start, destination):
 
-        if ship.position == destination:
+        if start == destination:
             return [], 0
 
-        umoves = self.get_unsafe_moves(ship.position, destination)
+        umoves = self.get_unsafe_moves(start, destination)
         first_move = umoves[0]
 
-        first_position =  Position(ship.position.x + first_move[0], ship.position.y + first_move[1])
+        first_position =  Position(start.x + first_move[0], start.y + first_move[1])
         path = [first_position]
 
-        logging.info("DEBUG - unsafe_moves {} {} -> {} first_position: {}".format(umoves, ship.position, destination, first_position))
-
-        step = 1 if destination.x >= ship.position.x else -1
+        step = 1 if destination.x >= start.x else -1
         x = first_position.x
         for i in range(first_position.x + step,  destination.x + step, step):
             x = i
             path.append(Position(x, first_position.y))
 
-        step = 1 if destination.y > ship.position.y else -1
-        if destination.y != ship.position.y:
+        step = 1 if destination.y > start.y else -1
+        if destination.y != start.y:
             for y in range(first_position.y,  destination.y + step, step):
                 path.append(Position(x, y))
 
@@ -243,19 +251,32 @@ class GameMap:
 
         return path, len(path)
 
+    def get_docking_path(self, start, dropoff):
+        """
+        dock paths are north and south
+
+        """
+        if start.y == dropoff.y:
+            path = [dropoff, Position(dropoff.x, dropoff.y - 1), Position(start.x, start.y - 1) ] # dock to the North
+            cost = 2
+        else:
+            path, cost = self.get_naive_path(start, Position(dropoff.x, start.y))
+            path.insert(0, dropoff)
+        return path, cost
+
     #
     # Get a path using a-star search, cost function can use 'halite' or 'turns'
     #
     # return None if no soln, returns empty list with zero cost if start == end,
     # otherwise returns a path list and a cumlative cost
     #
-    def astar(self, ship, destination, move_cost_type="turns"):
+    def astar(self, start, destination, move_cost_type="turns"):
         astar_start_time = time.time()
 
         G = {} #Actual movement cost to each position from the start position
         F = {} #Estimated movement cost of start to end going via this position
 
-        start = self.normalize(ship.position)
+        start = self.normalize(start)
         end = self.normalize(destination)
 
         if start == end:
