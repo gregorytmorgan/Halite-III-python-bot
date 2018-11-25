@@ -36,6 +36,7 @@ game = hlt.Game()
 ship_states = {}
 
 botName = "MyBot.dev"
+cumulative_profit = 5000
 
 #
 # game start
@@ -52,6 +53,7 @@ if DEBUG & (DEBUG_GAME): logging.info("Game - Successfully created bot! My Playe
 while True:
     turn_spent = 0
     turn_gathered = 0
+    turn_profit = 0
     turn_start_time = time.time()
 
     # This loop handles each turn of the game. The game object changes every turn, and you refresh that state by
@@ -251,7 +253,9 @@ while True:
     #
     # collenct game metrics
     #
-    game_metrics["profit"].append((game.turn_number, turn_gathered - turn_spent))
+    turn_profit = turn_gathered - turn_spent
+    cumulative_profit += (turn_gathered - turn_spent)
+    game_metrics["profit"].append((game.turn_number, turn_profit))
     game_metrics["time"].append((game.turn_number, round(time.time() - turn_start_time, 4)))
 
     #
@@ -287,7 +291,7 @@ while True:
         logging.info("Game - Total burned: {}".format(sum(x[2] for x in game_metrics["burned"])))
 
         # profit = gathered - spent
-        logging.info("Game - Profit: {}".format(sum(x[1] for x in game_metrics["profit"])))
+        logging.info("Game - Profit: {} {}".format(turn_profit, cumulative_profit))
 
     if DEBUG & (DEBUG_GAME_METRICS):
         mined_by_ship= {}
