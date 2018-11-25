@@ -183,21 +183,6 @@ while True:
                 if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from dropoff ({}). ETA {} turns.".format(ship.id, game_map.calculate_distance(ship.position, dropoff_position), dropoff_position, len(ship.path)))
 
         #
-        # status - backing off
-        #
-        elif ship.status == "backingoff":
-
-            # a ship is backing off when collides during return.  Backoff involves reversing direction
-            # for a random number of moves toword a backoff point. Once the backoff point is reached, the
-            # ship will return to a 'returning' status
-            if len(ship.path) == 0:
-                ship.status = "returning"
-                ship.path.append(dropoff_position) # complet path will be calc'd by get_move if the distance to dropoff_position is > 1
-                if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} backoff is complete to {}".format(ship.id, ship.position))
-            else:
-                if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} is backing off to {}".format(ship.id, ship.path[0]))
-
-        #
         # status - ship full
         #
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
