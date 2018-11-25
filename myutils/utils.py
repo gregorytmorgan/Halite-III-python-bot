@@ -221,7 +221,7 @@ def get_density_move(game, ship):
         directional_offset = quadrant[0]
         block = quadrant[1]
 
-        if block.get_max() > constants.MAX_HALITE / 10:
+        if block.get_max() > constants.MAX_HALITE * MINING_THRESHOLD_MULT:
             moves.append((directional_offset, block, block.get_mean()))
 
     sorted_blocks = sorted(moves, key=lambda item: item[2], reverse=True)
@@ -460,7 +460,7 @@ def should_move(game, ship):
     if ship.is_full:
         return True
 
-    if cell_halite < constants.MAX_HALITE / 10:
+    if cell_halite < constants.MAX_HALITE * MINING_THRESHOLD_MULT:
         return True
 
 #    cargo_threshold = .95 * constants.MAX_HALITE
