@@ -7,7 +7,6 @@ from hlt import constants
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Position
-from hlt.entity import Ship
 
 import os
 import time
