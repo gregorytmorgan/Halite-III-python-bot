@@ -20,3 +20,11 @@
 . Tag the version in the repo
 
 . Update game_runner.sh to run MyBot against vXX 
+
+. A. Push version branch to dev
+  B. checkout dev
+  C. merge master into dev
+  D. checkout master
+  E. merge dev into master
+  F. push master
+  G. delete version branch (optional)
