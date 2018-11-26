@@ -1,5 +1,6 @@
 from . import commands
 
+from myutils.constants import DIRECTIONS
 
 class Direction:
     """
@@ -68,6 +69,9 @@ class Direction:
         :param direction: The input direction
         :return: The lateral directions
         """
+        if isinstance(direction,  str):
+            direction = DIRECTIONS[direction]
+
         if direction == Direction.North or direction == Direction.South:
             return [Direction.East, Direction.West]
         elif direction == Direction.East or direction == Direction.West:
