@@ -2,9 +2,6 @@
 #
 #
 
-# This library contains direction metadata to better interface with the game.
-from hlt.positionals import Direction
-
 DEBUG_NONE = 0
 DEBUG_GAME = 1
 DEBUG_SHIP = 2
@@ -21,11 +18,11 @@ DEBUG = DEBUG_GAME | DEBUG_GAME_METRICS | DEBUG_SHIP_STATES | DEBUG_NAV | DEBUG_
 
 # convert a Direction obj back to a string
 DIRECTIONS = {
-    "n": Direction.North,
-    "s": Direction.South,
-    "e": Direction.East,
-    "w": Direction.West,
-    "o": Direction.Still
+    "n": (0, -1),
+    "s": (0, 1),
+    "e": (1, 0),
+    "w": (-1, 0),
+    "o": (0, 0)
 }
 
 MIN_LOITER = 4
