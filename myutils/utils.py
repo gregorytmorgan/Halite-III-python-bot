@@ -7,6 +7,7 @@ from hlt import constants
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Position
+from hlt.entity import Shipyard
 
 import os
 import time
@@ -362,7 +363,7 @@ def get_dropoff_position(game, ship):
 #
 # waypoint_algorithm: if a point is not continous, then calc path using waypoint_algorithm
 #
-def get_ship_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": "turns"}):
+def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": "turns"}):
     game_map = game.game_map
 
     if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting nav move for path {}".format(ship.id, ship.path))
@@ -405,24 +406,27 @@ def get_ship_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_co
 
     cell = game_map[normalized_new_position]
 
+    # use get_unsafe_moves() to get a normalized directional offset. We should always get one soln.
+    offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
+    move = Direction.convert(offset)
+
     # once we have the move, handle collisions
     if cell.is_occupied:
-        move = get_random_move(game, ship)
-        if move == "o":
-            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
+        if cell.structure_type is Shipyard and cell.ship != game.me:
+            cell.mark_unsafe(ship)
+            ship.path.pop()
+        else:
+            move = get_random_move(game, ship)
+            if move == "o":
+                if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
     else:
         cell.mark_unsafe(ship)
-        #game_map[ship.position].mark_safe()
         ship.path.pop()
-
-        # use get_unsafe_moves() to get a normalized directional offset. We should always get one soln.
-        offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
-        move = Direction.convert(offset)
 
     return move
 
 #
-#
+# Returns True if ship has enough fuel to move
 #
 def check_fuel_cost(game, ship):
     fuelCost = game.game_map[ship.position].halite_amount * .1

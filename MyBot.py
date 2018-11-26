@@ -6,6 +6,7 @@ import hlt
 
 # This library contains constant values.
 from hlt import constants
+from hlt.entity import Shipyard
 
 # Logging allows you to save messages for yourself. This is required because the regular STDOUT
 # (print statements) are reserved for the engine-bot communication.
@@ -223,7 +224,7 @@ while True:
                 if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is exploring to the {}".format(ship.id, move))
             else:
                 # here, the path scheme specifies the algo to use if we have an incomplete path
-                move = get_ship_nav_move(game, ship, "astar", {"move_cost": "turns"})
+                move = get_nav_move(game, ship, "astar", {"move_cost": "turns"})
                 if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is transiting {}".format(ship.id, move))
 
             command_queue.append(ship.move(move))
