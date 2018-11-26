@@ -7,6 +7,8 @@ from hlt import constants
 
 # This library contains direction metadata to better interface with the game.
 from hlt.positionals import Position
+from hlt.positionals import Direction
+
 from hlt.entity import Shipyard
 
 import os
@@ -381,7 +383,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
     if game_map.calculate_distance(ship.position, next_position) > 1:
         normalized_next_position = game_map.normalize(next_position)
 
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} found waypoint {} ({}), calulating complete path".format(ship.id, next_position, normalized_next_position))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} found waypoint {}, calulating complete path".format(ship.id, next_position))
 
         # calc a continous path
         path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_algorithm, args)
@@ -395,11 +397,12 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
             ship.path = ship.path + path
 
     new_position = ship.path[len(ship.path) - 1]
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} new_position1 {}".format(ship.id, new_position))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} new_position: {}".format(ship.id, new_position))
 
     normalized_new_position = game_map.normalize(new_position)
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} normalized_new_position1 {}".format(ship.id, normalized_new_position))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} normalized_new_position: {}".format(ship.id, normalized_new_position))
 
+    # why?
     if normalized_new_position == ship.position:
         ship.path.pop()
         return 'o'
@@ -410,11 +413,29 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
     offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
     move = Direction.convert(offset)
 
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} has potential move: {}".format(ship.id, move))
+
     # once we have the move, handle collisions
     if cell.is_occupied:
-        if cell.structure_type is Shipyard and cell.ship != game.me:
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a collision at {} while moving {}".format(ship.id, normalized_new_position, move))
+        # don't let enemy ships block the dropoff
+        if cell.structure_type is Shipyard and cell.ship.owner != game.me.id:
             cell.mark_unsafe(ship)
             ship.path.pop()
+        # when arriving at a droppoff, wait from entry rather than making a random
+		# this probably will not work as well if not using entry/exit lanes
+        elif normalized_new_position == game.me.shipyard.position:
+            move = "o"
+        # when departing a shipyard, try not to head the wrong direction
+        elif ship.position == game.me.shipyard.position:
+            alternate_moves = Direction.laterals(move)
+            move = "o"
+            for alternate_move_offset in alternate_moves:
+                alternate_pos = ship.position.directional_offset(alternate_move_offset)
+                alternate_cell = game_map[alternate_pos]
+                if not alternate_cell.is_occupied:
+                    alternate_cell.mark_unsafe(ship)
+                    move = Direction.convert(alternate_move_offset)
         else:
             move = get_random_move(game, ship)
             if move == "o":

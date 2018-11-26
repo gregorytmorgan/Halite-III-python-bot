@@ -36,7 +36,7 @@ game = hlt.Game()
 # keep ship state inbetween turns
 ship_states = {}
 
-botName = "MyBot.dev"
+botName = "MyBot.v16"
 cumulative_profit = 5000
 
 #
@@ -94,7 +94,7 @@ while True:
                     game_metrics["mined"].append((game.turn_number, ship.id, mined))
 
         else:
-            if DEBUG & (DEBUG_GAME): logging.info("Game - New ship with ID {}".format(ship.id))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is a new ship".format(ship.id))
             me.ship_count += 1
 
             turn_spent = constants.SHIP_COST
@@ -138,7 +138,7 @@ while True:
         #
         # status - returning
         #
-        if ship.status == "returning":
+        if ship.status == "returning" or ship.position == dropoff_position:
             #
             # Returning - in transit
             #
@@ -186,7 +186,7 @@ while True:
                 if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from dropoff ({}). ETA {} turns.".format(ship.id, game_map.calculate_distance(ship.position, dropoff_position), dropoff_position, len(ship.path)))
 
         #
-        # status - ship full
+        # status exploring
         #
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
@@ -264,9 +264,14 @@ while True:
     #
 
     # check of lost ships
-    for ship_id in ship_states:
-        if not me.has_ship(ship_id):
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen on turn {}".format(ship_id, ship_states[ship_id]["last_seen"]))
+    lost_ships = []
+    for s_id in ship_states:
+        if not me.has_ship(s_id):
+            lost_ships.append(s_id)
+
+    for s_id in lost_ships:
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen on turn {}".format(s_id, ship_states[s_id]["last_seen"]))
+        ship_states.pop(s_id, None)
 
     if DEBUG & (DEBUG_COMMANDS): logging.info("Game - command queue: {}".format(command_queue))
 

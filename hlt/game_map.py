@@ -230,19 +230,25 @@ class GameMap:
         if start == destination:
             return [], 0
 
+        distance = abs(destination - start)
+        y_cardinality, x_cardinality = self._get_target_direction(start, destination)
+
+        x_direction = x_cardinality if distance.x < (self.width / 2) else Direction.invert(x_cardinality)
+        y_direction = y_cardinality if distance.y < (self.height / 2) else Direction.invert(y_cardinality)
+
         umoves = self.get_unsafe_moves(start, destination)
         first_move = umoves[0]
 
         first_position =  Position(start.x + first_move[0], start.y + first_move[1])
         path = [first_position]
 
-        step = 1 if destination.x >= start.x else -1
+        step = x_direction[0]
         x = first_position.x
         for i in range(first_position.x + step,  destination.x + step, step):
             x = i
             path.append(Position(x, first_position.y))
 
-        step = 1 if destination.y > start.y else -1
+        step = x_direction[1]
         if destination.y != start.y:
             for y in range(first_position.y,  destination.y + step, step):
                 path.append(Position(x, y))
