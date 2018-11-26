@@ -216,6 +216,6 @@ echo $Version > $VERSION_FILE
 
 echo "Updating version file ... done."
 
-echo "Done."
+echo "Done (v$Version)."
 
 
