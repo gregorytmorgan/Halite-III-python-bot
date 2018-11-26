@@ -64,12 +64,13 @@ def ships_are_spawnable(game):
     me = game.me
     shipyard = game.game_map[me.shipyard]
 
-    #if not ships_are_spawnable(game):
-    #    return False
-
     # % turns above mining rate to dropoff the halite, will typically be about 2?
     mining_over_head = 2
     ship_count = len(me.get_ships())
+
+    # spawn 4 right away
+    if me.ship_count < 4:
+        return true
 
     #
     # absolute constraints (order can be important)
@@ -80,9 +81,6 @@ def ships_are_spawnable(game):
 
     if me.halite_amount < constants.SHIP_COST:
         return False
-
-    if ship_count < MIN_SHIPS:
-        return True
 
     #
     # conditional constraints
@@ -101,8 +99,10 @@ def ships_are_spawnable(game):
     # primary constraint
     payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
     remaining_turns = constants.MAX_TURNS - game.turn_number
+    if payback_turns * mining_over_head < remaining_turns:
+        return False
 
-    return round(payback_turns * mining_over_head) < remaining_turns
+    return true
 
 #
 #
@@ -423,7 +423,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
             cell.mark_unsafe(ship)
             ship.path.pop()
         # when arriving at a droppoff, wait from entry rather than making a random
-		# this probably will not work as well if not using entry/exit lanes
+        # this probably will not work as well if not using entry/exit lanes
         elif normalized_new_position == game.me.shipyard.position:
             move = "o"
         # when departing a shipyard, try not to head the wrong direction
