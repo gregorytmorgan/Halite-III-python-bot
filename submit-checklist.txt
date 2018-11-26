@@ -1,0 +1,22 @@
+
+. Update the bot name
+
+. Update DEBUG constant to NONE, check other constants for non debug values
+
+. Run match test - MyBot.dev against prev versions/other candidates.
+
+. Commit any/all code changes associated with version
+
+. Run submit.sh to create archive
+
+. Run final local server match tests
+
+. Submit to server
+
+. Commit the version.txt file
+
+. Commit archive/MyBot.vXX.zip and bots/vXX
+
+. Tag the version in the repo
+
+ 
