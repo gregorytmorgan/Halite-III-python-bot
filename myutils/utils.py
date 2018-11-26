@@ -475,7 +475,7 @@ def dump_stats(game, data, key = "all"):
         stats_dir = "."
 
     for k in keys:
-        with open(stats_dir + '/' + k + "-" + ts + "-bot-" + str(game.me.id) + ".txt", "w") as f:
+        with open(stats_dir + '/' + k + "-" + ts + "-bot-" + str(game.me.id) + ".log", "w") as f:
             for line in data[k]:
                 f.write(str(line) + "\n")
 
