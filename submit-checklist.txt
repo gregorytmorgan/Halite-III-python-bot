@@ -19,4 +19,4 @@
 
 . Tag the version in the repo
 
- 
+. Update game_runner.sh to run MyBot against vXX 
