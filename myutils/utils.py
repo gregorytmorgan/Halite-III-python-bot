@@ -70,7 +70,7 @@ def ships_are_spawnable(game):
 
     # spawn 4 right away
     if me.ship_count < 4:
-        return true
+        return True
 
     #
     # absolute constraints (order can be important)
@@ -102,7 +102,7 @@ def ships_are_spawnable(game):
     if payback_turns * mining_over_head < remaining_turns:
         return False
 
-    return true
+    return True
 
 #
 #
