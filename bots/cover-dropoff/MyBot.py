@@ -104,7 +104,7 @@ while True:
             if ship.status == "returning":
                 if ship.position == me.shipyard.position:
                     ship.status = "exploring"
-                    move = random.choice([Direction.North, Direction.South, Direction.East, Direction.West])
+                    move = get_move(game, ship, "random", "random")
                 else:
                     move = game_map.naive_navigate(ship, me.shipyard.position)
 
@@ -112,7 +112,7 @@ while True:
                 ship.status = "returning"
                 move = game_map.naive_navigate(ship, me.shipyard.position)
             else:
-                move = random.choice([Direction.North, Direction.South, Direction.East, Direction.West])
+                move = get_move(game, ship, "random", "random")
 
         # move
         if check_fuel_cost(game, ship) and (game_map[ship.position].halite_amount < constants.MAX_HALITE / 10 or ship.is_full):
