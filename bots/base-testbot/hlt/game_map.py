@@ -387,6 +387,18 @@ class GameMap:
             cell_x, cell_y, cell_energy = map(int, read_input().split())
             self[Position(cell_x, cell_y)].halite_amount = cell_energy
 
+    def to_array(self):
+        """
+        Return the game map as a 2d array, suitable for np.array(...game_map.to_array())
+        """
+        map = []
+        for y in range(self.height):
+            map.append([])
+            for x in range(self.width):
+                map[y].append(self[Position(x, y)].halite_amount)
+
+        return map
+
     def __repr__(self):
         map = ""
         for y in range(self.height):

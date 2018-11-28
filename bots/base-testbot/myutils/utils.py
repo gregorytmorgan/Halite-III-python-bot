@@ -275,7 +275,6 @@ def get_density_move(game, ship):
 # nav moves resolv randomly
 #
 def get_random_move(game, ship, moves = ["n", "s", "e", "w"]):
-
     move = "o"
 
     if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting random move".format(ship.id))
@@ -299,9 +298,13 @@ def get_random_move(game, ship, moves = ["n", "s", "e", "w"]):
 
         if not cell.is_occupied:
             cell.mark_unsafe(ship)
-            #game.game_map[ship.position].mark_safe()
             move = moveChoice
             break
+        else:
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} collided with {} at {}".format(ship.id, cell.ship.id, cell.position))
+
+    if move == "o":
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} unable to find a random move, returning {}".format(ship.id, move))
 
     return move
 
