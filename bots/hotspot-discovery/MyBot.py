@@ -198,24 +198,19 @@ while True:
                     # if a ship still doesn't have a path, just make a random move
                     if len(ship.path) == 0:
                         move = get_move(game, ship, "density")
-                        logging.info("3")
                         logging.info("GAME - Ship {} is making a density move {}".format(ship.id, move))
                     else:
-                        logging.info("4")
                         move = get_nav_move(game, ship, "astar", {"move_cost": "turns"})
                         logging.info("GAME - Ship {} is making a nav move {}".format(ship.id, move))
                 else:
-                    logging.info("5")
                     move = game_map.naive_navigate(ship, me.shipyard.position)
                     logging.info("GAME - Ship {} is heading home {}".format(ship.id, move))
 
             elif ship.halite_amount >= constants.MAX_HALITE:
                 ship.status = "returning"
-                logging.info("6")
                 move = game_map.naive_navigate(ship, me.shipyard.position)
                 logging.info("GAME - Ship {} is heading home {}".format(ship.id, move))
             else:
-                logging.info("8")
                 if len(ship.path) == 0:
                     move = get_move(game, ship, "density")
                     logging.info("GAME - Ship {} is making a density move {} at {}".format(ship.id, move, ship.position))
