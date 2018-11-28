@@ -7,6 +7,8 @@ from .positionals import Direction, Position
 from .common import read_input
 import logging
 import time
+import numpy as np
+import copy
 
 from myutils.constants import DEBUG, DEBUG_NAV
 
@@ -85,6 +87,20 @@ class GameMap:
         self.width = width
         self.height = height
         self._cells = cells
+
+        # init the coord map
+        self._coord_map = np.empty((self.width, self.height), dtype=object)
+
+        for y in np.arange(self.height):
+            for x in np.arange(self.width):
+                self._coord_map[x][y] = Position(y, x)
+
+        # init the halite map
+        self._halite_map = np.empty((self.width, self.height), dtype="float32")
+
+        for y in range(self.height):
+            for x in range(self.width):
+                self._halite_map[y][x] = self._cells[y][x].halite_amount
 
     def __getitem__(self, location):
         """
@@ -236,6 +252,8 @@ class GameMap:
         x_direction = x_cardinality if distance.x < (self.width / 2) else Direction.invert(x_cardinality)
         y_direction = y_cardinality if distance.y < (self.height / 2) else Direction.invert(y_cardinality)
 
+        logging.debug("x_direction:{}, y_direction:{}".format(x_direction, y_direction))
+
         umoves = self.get_unsafe_moves(start, destination)
         first_move = umoves[0]
 
@@ -363,6 +381,50 @@ class GameMap:
 
         return None, None
 
+    def get_dense_areas():
+        """
+            NOT IMPLEMENTED - BROKEN
+        """
+
+        threshold = self.get_cell_value_map().max() * .8
+        hottest_areas = np.ma.MaskedArray(cell_value_map, mask= [cell_value_map < threshold], fill_value = 0)
+
+        #logging.debug("\n{}".format(hottest_areas.filled())) # std display with masked vals set to 0
+
+        row, col = hottest_areas.nonzero()
+
+        hotspots = []
+        for y, x in zip(row, col):
+            hotspots.append((x, y))
+            #logging.debug("Position({},{}) = {}".format(x, y, hottest_areas[y][x]))
+
+        peaks = []
+
+        closed_points = set()
+
+        for high_points in hotspots:
+            peak = []
+            open_points = set()
+            open_points.add(high_points)
+            current_val = None
+
+            for pt in open_points:
+                val = cell_value_map[pt[0]][pt[1]]
+
+                logging.debug("val: {}".format(val))
+
+                if current_val is None or (val <= current_val or val > .8 * current_val):
+                    peak.append(pt)
+#                    for n in get_adjacent(pt):
+#                        open_points.add(n)
+
+#                open_points.remove(pt)
+#                closed_points.add(pt)
+
+            peaks.append(peak)
+
+        return []
+
     @staticmethod
     def _generate():
         """
@@ -392,6 +454,82 @@ class GameMap:
         for _ in range(int(read_input())):
             cell_x, cell_y, cell_energy = map(int, read_input().split())
             self[Position(cell_x, cell_y)].halite_amount = cell_energy
+
+    def get_halite_map(self):
+        """
+        Return the 2d map of halite amounts
+        """
+        return self._halite_map
+
+    def get_coord_map(self):
+        """
+        Return the 2d map of positions - used by other calcs
+        """
+        return self._coord_map
+
+    def get_distance_map(self, p):
+        """
+        Return the 2d map of distance beteen p and all map positions
+        """
+        v_calc_distance = np.vectorize(self.calculate_distance)
+
+        return v_calc_distance(p, self._coord_map)
+
+    def get_cell_value(self, p1, p2):
+        """
+        Get the value of a cell p2 given is halite amount and distance from p1
+        """
+
+        if (p2.y - p1.y) > 0:
+            row_start = p1.y
+            row_end = p2.y + 1
+        else:
+            row_start = p2.y
+            row_end = p1.y + 1
+
+        if (p2.x - p1.x) > 0:
+            col_start = p1.x
+            col_end = p2.x + 1
+        else:
+            col_start = p2.x
+            col_end = p1.x + 1
+
+        # use pre-computed values if shipyard or dropoff?
+        distance = self.calculate_distance(p1, p2)
+        halite = self[p2].halite_amount
+        halite_map = self.get_halite_map() # used to get slice for avg cost. Not worth the cost?
+
+        # need to copy since we're going to modify the slice with NaN. How expensive?
+        avg_halite_map = copy.deepcopy(halite_map[row_start:row_end, col_start:col_end])
+
+        #ignore start/end cells
+        avg_halite_map[0][0] = np.nan
+        avg_halite_map[-1][-1] = np.nan
+
+        avg_halite_map = halite_map[row_start:row_end, col_start:col_end]
+
+        if avg_halite_map.size == 0 : logging.error("Error - point {} has a avg halite map size of 0".format(p2))
+
+        avg_halite = np.nanmean(avg_halite_map)
+
+        fuel_cost = 0 if np.isnan(avg_halite) else round(distance * avg_halite * .1)
+
+        # debug
+        if False and (p2.y == 12 and p2.x == 4):
+            logging.debug("Avg slice {}:".format(p2))
+            logging.debug("\n{}".format(avg_halite_map))
+            logging.debug("{} v:{} = h:{} - (d:{} * ah:{} * .1) [{}:{},{}:{}] {}".format(p2, round(halite - fuel_cost), halite, distance, round(avg_halite), row_start, row_end, col_start, col_end, avg_halite_map.shape))
+
+        return halite - fuel_cost
+
+    def get_cell_value_map(self, p):
+        """
+        Return the 2d map the value of a cell p and all other cells given it's halite amount and distance from p
+        """
+        value_map = np.empty((self.width, self.height), dtype=object)
+        v_cell_value_map = np.vectorize(self.get_cell_value)
+
+        return v_cell_value_map(p, self._coord_map)
 
     def __repr__(self):
         map = ""

@@ -404,6 +404,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
 
     # why?
     if normalized_new_position == ship.position:
+        if DEBUG & (DEBUG_NAV): logging.warn("NAV - ship {} popped move {}. Why?".format(ship.id, ship.path[-1]))
         ship.path.pop()
         return 'o'
 
@@ -424,7 +425,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
             ship.path.pop()
         # when arriving at a droppoff, wait from entry rather than making a random
         # this probably will not work as well if not using entry/exit lanes
-        elif normalized_new_position == game.me.shipyard.position:
+        elif game_map.calculate_distance(normalized_new_position, game.me.shipyard.position) <=1:
             move = "o"
         # when departing a shipyard, try not to head the wrong direction
         elif ship.position == game.me.shipyard.position:
@@ -442,6 +443,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
                 if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
     else:
         cell.mark_unsafe(ship)
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} popped path {}".format(ship.id, ship.path[-1]))
         ship.path.pop()
 
     return move
@@ -478,6 +480,28 @@ def dump_stats(game, data, key = "all"):
         with open(stats_dir + '/' + k + "-" + ts + "-bot-" + str(game.me.id) + ".log", "w") as f:
             for line in data[k]:
                 f.write(str(line) + "\n")
+
+def dump_data_file(game, data, file_basename):
+    """
+    Dump random data for debugging/analysis
+
+    file_basename - no extension
+    data - numpy array
+    """
+
+    ts = time.strftime("%Y%m%d-%s", time.gmtime())
+
+    if os.path.exists(STATS_DIR):
+        stats_dir = STATS_DIR
+    else:
+        stats_dir = "."
+
+    np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
+
+    data_str = np.array2string(data.astype(np.int64), separator=",")
+
+    with open(stats_dir + '/' + file_basename + "-" + ts + "-bot-" + str(game.me.id) + ".log", "w") as f:
+        f.write(data_str)
 
 def should_move(game, ship):
     cell_halite = game.game_map[ship.position].halite_amount
