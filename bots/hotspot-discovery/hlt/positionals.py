@@ -77,6 +77,22 @@ class Direction:
         else:
             raise IndexError
 
+    @staticmethod
+    def get_adjacent(p):
+        """
+
+        """
+        return [
+            (p.x, p.y - 1),        # n   0,-1
+            (p.x, + 1, p.y - 1),   # ne  1,-1
+            (p.x + 1, p.y),        # e   1, 0
+            (p.x + 1, p.y + 1),    # se  1, 1
+            (p.x, p.y + 1),        # s      0, 1
+            (p.x - 1, p.y + 1),    # sw -1, 1
+            (p.x - 1, p.y),        # w  -1, 0
+            (p.x - 1, p.y - 1)     # nw -1,-1
+        ]
+
 class Position:
     def __init__(self, x, y):
         self.x = x

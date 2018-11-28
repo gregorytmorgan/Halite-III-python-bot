@@ -61,8 +61,7 @@ def ships_are_spawnable(game):
     me = game.me
     shipyard = game.game_map[me.shipyard]
 
-    #if not ships_are_spawnable(game):
-    #    return False
+    logging.debug("spawn request 0")
 
     # % turns above mining rate to dropoff the halite, will typically be about 2?
     mining_over_head = 2
@@ -78,8 +77,7 @@ def ships_are_spawnable(game):
     if me.halite_amount < constants.SHIP_COST:
         return False
 
-    if ship_count < MIN_SHIPS:
-        return True
+    logging.debug("spawn request 4")
 
     #
     # conditional constraints
@@ -96,10 +94,15 @@ def ships_are_spawnable(game):
         return False
 
     # primary constraint
-    payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
-    remaining_turns = constants.MAX_TURNS - game.turn_number
+    if me.ship_count >= 4:
+        payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
+        remaining_turns = constants.MAX_TURNS - game.turn_number
+        if payback_turns * mining_over_head < remaining_turns:
+            return False
 
-    return round(payback_turns * mining_over_head) < remaining_turns
+    logging.debug("spawn request 8")
+
+    return True
 
 #
 #
