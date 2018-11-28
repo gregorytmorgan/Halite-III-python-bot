@@ -28,3 +28,5 @@
   E. merge dev into master
   F. push master
   G. delete version branch (optional)
+
+. Update bots/readme.gtm.txt with summary of change for this version
