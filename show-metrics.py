@@ -79,7 +79,7 @@ def main():
             print("Processing {}".format(fname))
 
         metrics = "burned|mined|gathered|profit|spent|loiter_distances|return_duration"
-        m = re.search(r"^(" + metrics + ")-(.)+-(.)+-bot-([0-9])", os.path.basename(fname))
+        m = re.search(r"^(" + metrics + ")-([0-9]+)-([0-9]+)-bot-([0-9])", os.path.basename(fname))
 
         if m is None:
             metric = "Unknown"
@@ -138,7 +138,7 @@ def main():
     handles, labels = ax.get_legend_handles_labels()
     labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0])) # sort both labels and handles by labels
     plt.legend(handles, labels, loc='upper left')
-
+    plt.gca().set_title("{}-{}".format(m.group(2), m.group(3)))
     plt.show()
 
 if __name__ == "__main__":
