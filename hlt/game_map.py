@@ -10,7 +10,7 @@ import time
 import numpy as np
 import copy
 
-from myutils.constants import DEBUG, DEBUG_NAV
+from myutils.constants import DEBUG, DEBUG_NAV, USE_CELL_VALUE_MAP
 
 class MapCell:
     """A cell on the game map."""
@@ -87,20 +87,20 @@ class GameMap:
         self.width = width
         self.height = height
         self._cells = cells
+        self._cell_value_map = None
+        self._halite_map = None
+        self._coord_map = np.empty((self.width, self.height), dtype=object)
+        self._cell_value_maps = {}
+        self.v_cell_value_map = np.vectorize(self.get_cell_value)
 
         # init the coord map
-        self._coord_map = np.empty((self.width, self.height), dtype=object)
-
         for y in np.arange(self.height):
             for x in np.arange(self.width):
                 self._coord_map[x][y] = Position(y, x)
 
-        # init the halite map
-        self._halite_map = np.empty((self.width, self.height), dtype="float32")
+        # init the dynamic maps
+        self._update_halite_map()
 
-        for y in range(self.height):
-            for x in range(self.width):
-                self._halite_map[y][x] = self._cells[y][x].halite_amount
 
     def __getitem__(self, location):
         """
@@ -242,50 +242,67 @@ class GameMap:
     # otherwise returns a path list and a cumlative cost
     #
     def get_naive_path(self, start, destination):
+        path = []
+
+#        logging.debug("start: {} dest:{}".format(start, destination))
 
         if start == destination:
-            return [], 0
+            return path, 0
 
         distance = abs(destination - start)
-        y_cardinality, x_cardinality = self._get_target_direction(start, destination)
 
-        x_direction = x_cardinality if distance.x < (self.width / 2) else Direction.invert(x_cardinality)
-        y_direction = y_cardinality if distance.y < (self.height / 2) else Direction.invert(y_cardinality)
+        shortcut_x = True if distance.x > (self.width / 2) else False
+        shortcut_y = True if distance.y > (self.height / 2) else False
 
-        logging.debug("x_direction:{}, y_direction:{}".format(x_direction, y_direction))
+#        logging.debug("shortcut_x: {}".format(shortcut_x))
+#        logging.debug("shortcut_y: {}".format(shortcut_y))
 
-        umoves = self.get_unsafe_moves(start, destination)
-        first_move = umoves[0]
+        xstep = 1 if destination.x > start.x else -1
+        if shortcut_x:
+            xstep = -xstep
 
-        first_position =  Position(start.x + first_move[0], start.y + first_move[1])
-        path = [first_position]
+        ystep = 1 if destination.y > start.y else -1
+        if shortcut_y:
+            ystep = -ystep
 
-        step = x_direction[0]
-        x = first_position.x
-        for i in range(first_position.x + step,  destination.x + step, step):
-            x = i
-            path.append(Position(x, first_position.y))
+        x = start.x
+        y = start.y
 
-        step = x_direction[1]
-        if destination.y != start.y:
-            for y in range(first_position.y,  destination.y + step, step):
-                path.append(Position(x, y))
+#        logging.debug("xstep: {}".format(xstep))
+#        logging.debug("ystep: {}".format(ystep))
+
+        while (x % self.width) != (destination.x % self.width):
+            x += xstep
+            path.append(Position(x % self.width, y))
+
+        while (y % self.height) != (destination.y % self.height):
+            y += ystep
+            path.append(Position(x, y % self.height))
 
         path.reverse()
+
+#        logging.debug("naive_path: {}".format(path))
 
         return path, len(path)
 
     def get_docking_path(self, start, dropoff):
         """
-        dock paths are north and south
-
+        dock paths are north and south for now
         """
-        if start.y == dropoff.y:
-            path = [dropoff, Position(dropoff.x, dropoff.y - 1), Position(start.x, start.y - 1) ] # dock to the North
-            cost = 2
+#        logging.debug("start: {} dest:{}".format(start, dropoff))
+
+        offset = start.y - dropoff.y
+
+        if offset <= 2 and offset >= 0:
+            path = [dropoff, Position(dropoff.x, dropoff.y + (3 - offset)), Position(start.x, start.y + (3 - offset))]
+            cost = 123 # dummy val
+        elif offset >= -2 and offset < 0:
+            path = [dropoff, Position(dropoff.x, dropoff.y - (3 + offset)), Position(start.x, start.y - (3 + offset))]
+            cost = 123 # dummy val
         else:
             path, cost = self.get_naive_path(start, Position(dropoff.x, start.y))
             path.insert(0, dropoff)
+
         return path, cost
 
     #
@@ -381,7 +398,7 @@ class GameMap:
 
         return None, None
 
-    def get_dense_areas():
+    def get_dense_areas(self):
         """
             NOT IMPLEMENTED - BROKEN
         """
@@ -400,7 +417,7 @@ class GameMap:
 
         peaks = []
 
-        closed_points = set()
+        #closed_points = set()
 
         for high_points in hotspots:
             peak = []
@@ -455,6 +472,27 @@ class GameMap:
             cell_x, cell_y, cell_energy = map(int, read_input().split())
             self[Position(cell_x, cell_y)].halite_amount = cell_energy
 
+        self._update_halite_map() # update the halite map before cell values
+
+        if USE_CELL_VALUE_MAP:
+            self._update_cell_value_map()
+
+    def _update_halite_map(self):
+        """
+
+        """
+        self._halite_map = np.empty((self.width, self.height), dtype="float32")
+        for y in range(self.height):
+            for x in range(self.width):
+                self._halite_map[y][x] = self._cells[y][x].halite_amount
+
+    def _update_cell_value_map(self):
+        """
+
+        """
+        for p in self._cell_value_maps:
+            self._cell_value_maps[p] = self.v_cell_value_map(p, self._coord_map)
+
     def get_halite_map(self):
         """
         Return the 2d map of halite amounts
@@ -469,11 +507,20 @@ class GameMap:
 
     def get_distance_map(self, p):
         """
-        Return the 2d map of distance beteen p and all map positions
+        Return the 2d map of distance beteen p and all map positions. Probably
+        should build/cache one of these for each dropoff
         """
         v_calc_distance = np.vectorize(self.calculate_distance)
-
         return v_calc_distance(p, self._coord_map)
+
+    def get_cell_value_map(self, p):
+        """
+        Return the 2d map the value of a cell p and all other cells given it's halite amount and distance from p
+        """
+        if p in self._cell_value_maps:
+            return self._cell_value_maps[p]
+        else:
+            self._cell_value_maps[p] = self.v_cell_value_map(p, self._coord_map)
 
     def get_cell_value(self, p1, p2):
         """
@@ -514,22 +561,7 @@ class GameMap:
 
         fuel_cost = 0 if np.isnan(avg_halite) else round(distance * avg_halite * .1)
 
-        # debug
-        if False and (p2.y == 12 and p2.x == 4):
-            logging.debug("Avg slice {}:".format(p2))
-            logging.debug("\n{}".format(avg_halite_map))
-            logging.debug("{} v:{} = h:{} - (d:{} * ah:{} * .1) [{}:{},{}:{}] {}".format(p2, round(halite - fuel_cost), halite, distance, round(avg_halite), row_start, row_end, col_start, col_end, avg_halite_map.shape))
-
         return halite - fuel_cost
-
-    def get_cell_value_map(self, p):
-        """
-        Return the 2d map the value of a cell p and all other cells given it's halite amount and distance from p
-        """
-        value_map = np.empty((self.width, self.height), dtype=object)
-        v_cell_value_map = np.vectorize(self.get_cell_value)
-
-        return v_cell_value_map(p, self._coord_map)
 
     def __repr__(self):
         map = ""

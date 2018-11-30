@@ -11,6 +11,7 @@ import datetime
 import math
 import time
 import numpy as np
+from scipy import stats
 
 from myutils.utils import *
 from myutils.constants import *
@@ -27,7 +28,7 @@ game = hlt.Game()
 
 # keep ship state inbetween turns
 ship_states = {}
-botName = "MyBot.dev"
+botName = "MyBot.v17"
 cumulative_profit = 5000
 loiter_assignments = {}
 
@@ -63,41 +64,65 @@ while True:
 
     command_queue = []
 
+    cell_values = game_map.get_halite_map()
+    cell_values_flat = cell_values.flatten()
+
+#    if game.turn_number < 10 or game.turn_number > constants.MAX_TURNS - 4:
+#        np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
+#        logging.debug("cell_values:\n{}".format(cell_values.astype(np.int)))
+#    else:
+#        np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=25)
+#
+#    logging.debug("cell_values shape: {}".format(cell_values_flat.shape))
+#    logging.debug("cell_values amax: {}".format(np.amax(cell_values_flat)))
+#    logging.debug("cell_values mean: {}".format(cell_values_flat.mean()))
+#    logging.debug("cell_values mode: {}".format(stats.mode(cell_values_flat)[0][0]))
+
+    cell_values_flat.sort()
+
+    cnt = cell_values_flat.shape[0]
+
+    # when mean == mode, then evenly distributed
+#    logging.debug("1/5:{} 4/5:{}".format(cell_values_flat[round(cnt/5.0)], cell_values_flat[round(cnt*4.0/5.0)]))
+
     #
     # Calc hotspots (loiter assignments) and dense areas
     #
-    cell_value_map = game_map.get_cell_value_map(me.shipyard.position)
+    if USE_CELL_VALUE_MAP:
+        cell_value_map = game_map.get_cell_value_map(me.shipyard.position)
 
-    if game.turn_number == 1:
-		logging.debug("game {}".format(game))
-        dump_data_file(game, cell_value_map, "cell_value_map")
+#        if game.turn_number < 10 or game.turn_number > constants.MAX_TURNS - 4:
+#            np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
+#            logging.debug("cell_values:\n{}".format(cell_value_map.astype(np.int)))
+#        else:
+#            np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=25)
 
-    threshold = cell_value_map.max() * .5
-    hottest_areas = np.ma.MaskedArray(cell_value_map, mask= [cell_value_map < threshold], fill_value = 0)
+        if game.turn_number == 1 or game.turn_number == round(constants.MAX_TURNS/2) or game.turn_number == constants.MAX_TURNS:
+            dump_data_file(game, cell_value_map, "cell_value_map_turn_" + str(game.turn_number))
 
-    row, col = hottest_areas.nonzero()
+        threshold = cell_value_map.max() * .5
 
-    #################### in later game esp. need to adjust mining threshold based on remaining halite
+        hottest_areas = np.ma.MaskedArray(cell_value_map, mask= [cell_value_map < threshold], fill_value = 0)
 
-    hotspots = []
-    for y, x in zip(row, col):
-        p = Position(x, y)
-        logging.debug("Hotspot: {}".format(p))
-        hotspots.append((p, game_map[p].halite_amount))
+        y_vals, x_vals = hottest_areas.nonzero()
 
-    logging.debug("Pre-Hotspots: {}".format(hotspots))
+        # late game we need to adjust mining threshold based on remaining halite to pickup cells
+        # less halite than the existing threshold
 
-    # remove the hotspots previosly assigned, but not reached
-    hotspots[:] = [x for x in hotspots if x[0] not in loiter_assignments]
+        hotspots = []
+        for x, y in zip(x_vals, y_vals):
+            p = Position(x, y)
+            hotspots.append((p, cell_value_map[y][x], game_map[p].halite_amount)) # (position, value, halite)
 
-    logging.debug("Post-Hotspots: {}".format(hotspots))
+        # remove the hotspots previosly assigned, but not reached
+        hotspots[:] = [x for x in hotspots if x[0] not in loiter_assignments]
 
-    # sorted_blocks = sorted(moves, key=lambda item: item[2], reverse=True)
-    targets = sorted(hotspots, key=lambda item: item[1])
+        targets = sorted(hotspots, key=lambda item: item[1])
+    else:
+        targets = []
 
-    logging.debug("Targets: {}".format(targets))
-
-    logging.debug("Loiter assignments: {}".format(loiter_assignments))
+#    logging.debug("Targets: {}".format(targets))
+#    logging.debug("Loiter assignments: {}".format(loiter_assignments))
 
     if DEBUG & (DEBUG_GAME): logging.info("Game - Turn setup elapsed time: {}".format(round(time.time() - turn_start_time, 2)))
 
@@ -106,6 +131,10 @@ while True:
     #
 
     my_ships = me.get_ships()
+
+    # sort the ships by halite, this helps give returning ships priority/helps with
+    # traffic issues around dropoffs until better collision mgmt is in place
+    my_ships.sort(key = lambda s: s.halite_amount, reverse = True)
 
     for ship in my_ships:
         if ship.id in ship_states:
@@ -171,41 +200,37 @@ while True:
         # status - returning
         #
         if ship.status == "returning" or ship.position == dropoff_position:
-            #
-            # Returning
-            #
+            # Returning - arrived
             if ship.position == dropoff_position:
                 dropoff_amount = ship_states[ship.id]["prior_halite_amount"]
                 if not (dropoff_amount is None):
                     if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} completed dropoff of {} halite at {}. Return took {} turns".format(ship.id, dropoff_amount, dropoff_position, game.turn_number - ship.last_dock))
 
-                #ship.path.clear()
+                ship.path.clear() # may not have completed the previous path
 
                 # takes 6 turns to get the first 4 ships out, make this a special state/status?
-                if game.turn_number <= 6:
+                if EXPEDITED_DEPARTURE and game.turn_number <= 6:
                     cardinals = ["w", "n", "s", "e"]
                     hint = cardinals[me.ship_count % 4]
                     loiter_point = get_loiter_point(game, ship, hint)
-                    departure_point = None
+                    departure_point = ship.position.directional_offset(DIRECTIONS[hint])
                 else:
                     hint = None
 
                     if len(targets) != 0:
                         loiter_point = targets.pop()[0]
                         loiter_assignments[loiter_point] = ship.id
-                        logging.info("GAME - Ship {} assigned loiter point {} off target list. {} targets remain".format(ship.id, loiter_point, len(targets)))
+                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} assigned loiter point {} off target list. {} targets remain".format(ship.id, loiter_point, len(targets)))
                     else:
                         loiter_point = get_loiter_point(game, ship, hint)
-                        logging.info("GAME - Ship {} No targets remain, using random loiter point {}".format(ship.id, loiter_point))
+                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} No targets remain, using random loiter point {}".format(ship.id, loiter_point))
 
-                    departure_point = get_departure_point(dropoff_position, loiter_point)
+                    departure_point = get_departure_point(game, dropoff_position, loiter_point)
 
-                if departure_point is None:
-                    path, cost = game_map.navigate(dropoff_position, loiter_point, "astar", {"move_cost": "turns"}) # heading out to loiter point
-                else:
-                    path, cost = game_map.navigate(departure_point, loiter_point, "astar", {"move_cost": "turns"}) # heading out to loiter point
-                    path.append(departure_point)
+                path, cost = game_map.navigate(departure_point, loiter_point, "astar", {"move_cost": "turns"}) # heading out to loiter point
+                path.append(departure_point)
 
+                if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_distances"].append((game.turn_number, round(math.sqrt(abs(ship.position.x - loiter_point.x) ** 2 + abs(ship.position.y - loiter_point.y) ** 2), 2)))
                 if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a departure point of {} for loiter point {}. Hint: {}".format(ship.id, departure_point, loiter_point, hint))
 
                 if path is None:
@@ -215,12 +240,10 @@ while True:
                 else:
                     ship.path = path
                     ship.status = "transiting"
-                    if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is heading out to {}, ETA {} turns ({}).".format(ship.id, loiter_point, len(ship.path), round(cost)))
+                    if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is heading out to {}, ETA {} turns ({}).".format(ship.id, loiter_point, game_map.calculate_distance(ship.position, dropoff_position), round(cost)))
             else:
+                # status Returning - in transit
                 #
-                # Returning
-                #
-
                 # For a returning ship in transit, we don't need to do anything, the move
                 # code will grab the next position/point and create a move for it
                 if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from dropoff ({}). ETA {} turns.".format(ship.id, game_map.calculate_distance(ship.position, dropoff_position), dropoff_position, len(ship.path)))
@@ -231,31 +254,42 @@ while True:
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             ship.status = "returning"
 
+            unassigned_pt = False
+            for p, s in loiter_assignments.items():
+                if s == ship.id:
+                    unassigned_pt = p
+                    if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} didn't make it to loiter assignment {}, popped assignment".format(ship.id, p))
+                    break
+
+            if unassigned_pt:
+                loiter_assignments.pop(unassigned_pt, None)
+
             if not (ship.halite_amount is None):
                 game_metrics["return_duration"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock))
 
             path, cost = game_map.navigate(ship.position, dropoff_position, "dock") # returning to shipyard/dropoff
 
             if path is None:
-                if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} Error, navigate return None")
+                if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} Error, navigate return None")
                 ship.path = []
                 logging.error("Ship {} Error, navigate failed for dropoff {}".format(ship.id, dropoff_position))
             else:
                 ship.path = path
-                if DEBUG & (DEBUG_SHIP): logging.info("Ship - Ship {} is now returning to {} at a cost of {} ({} turns)".format(ship.id, dropoff_position, round(cost, 1), len(ship.path)))
+                if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} is now returning to {} at a cost of {} ({} turns)".format(ship.id, dropoff_position, round(cost, 1), len(ship.path)))
 
         #
-        # status exploring|transiting
+        # status exploring|transiting (exploring when ship.path != 0)
         #
         else:
             if len(ship.path) == 0:
                 ship.status = "exploring"
                 if ship.position in loiter_assignments:
                     loiter_assignments.pop(ship.position, None)
+                    if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} reached loiter assignment {}, popped assignment".format(ship.id, ship.position))
 
                 if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is now exploring".format(ship.id))
             else:
-                ship.status = "transiting" # is this necessary ???
+                ship.status = "transiting"
 
 
         #
@@ -277,9 +311,12 @@ while True:
             if ship.status == "exploring":
                 move = get_move(game, ship, "density")
                 if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is exploring to the {}".format(ship.id, move))
-            elif ship.status == "transiting" or ship.status == "returning":
-                move = get_nav_move(game, ship, "astar", {"move_cost": "turns"}) # here the path scheme specifies the algo to use if we have an incomplete path
-                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is transiting {}".format(ship.id, move))
+            elif ship.status == "transiting":
+               move = get_nav_move(game, ship, "astar", {"move_cost": "turns"}) # path scheme = algo for incomplete path
+               if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is {} {}".format(ship.id, ship.status, move))
+            elif ship.status == "returning":
+                move = get_nav_move(game, ship, "naive") # path scheme = algo for incomplete path
+                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is {} {}".format(ship.id, ship.status, move))
             else:
                 move = get_move(game, ship, "density", "density")
                 logging.error("Error - Ship {} should move, but has an unexpected status {}, falling back to density move {}".format(ship.id, ship.status, move))

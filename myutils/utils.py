@@ -68,41 +68,68 @@ def ships_are_spawnable(game):
     mining_over_head = 2
     ship_count = len(me.get_ships())
 
-    # spawn 4 right away
-    if me.ship_count < 4:
-        return True
-
     #
     # absolute constraints (order can be important)
     #
 
     if ship_count >= MAX_SHIPS:
+        if DEBUG & (DEBUG_GAME): logging.info("GAME - Spawn denied. MAX ships reached".format())
         return False
 
     if me.halite_amount < constants.SHIP_COST:
+        if DEBUG & (DEBUG_GAME): logging.info("GAME - Spawn denied. Insufficient halite".format())
         return False
 
     #
     # conditional constraints
     #
 
+    # spawn 4 right away
+    if EXPEDITED_DEPARTURE:
+        if me.ship_count < EXPEDITED_SHIP_COUNT:
+            if DEBUG & (DEBUG_GAME): logging.info("GAME - Spawn expedited due to ship count {} < {}".format(me.ship_count, EXPEDITED_SHIP_COUNT))
+            return True
+
     # watch for collisions with owner only, note this will be 1 turn behind
-    occupied_cells = 1 if (shipyard.is_occupied and shipyard.ship.owner == me.id) else 0
-    for pos in shipyard.position.get_surrounding_cardinals():
+    occupied_cells = []
+    if shipyard.is_occupied and shipyard.ship.owner == me.id:
+        occupied_cells.append(shipyard.position)
+
+    # entry lane are N/S  #shipyard.position.get_surrounding_cardinals():
+    for pos in [shipyard.position.directional_offset(Direction.North), shipyard.position.directional_offset(Direction.North)]:
         if game.game_map[pos].is_occupied:
-            occupied_cells += 1
+            occupied_cells.append(pos)
 
     # need to keep track of ships docking instead, a ship in an adjacent cell could be leaving
-    if occupied_cells > 0:
+    if len(occupied_cells) > 0:
+        if DEBUG & (DEBUG_GAME): logging.info("GAME - Spawn denied. Occupied cells: {}".format(occupied_cells))
         return False
 
     # primary constraint
-    payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
-    remaining_turns = constants.MAX_TURNS - game.turn_number
-    if payback_turns * mining_over_head < remaining_turns:
-        return False
+    #
+    # New code
+    #
+    #payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
+    #remaining_turns = constants.MAX_TURNS - game.turn_number
+    #if payback_turns * mining_over_head < remaining_turns:
+	#	 if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}".format(retval))
+    #    return False
+    #
+    #return True
 
-    return True
+    ###
+    ### v6 old code
+    ###
+    if me.ship_count > 0:
+        payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
+        remaining_turns = constants.MAX_TURNS - game.turn_number
+
+        retval = round(payback_turns * mining_over_head) < remaining_turns
+        if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}".format(retval))
+
+        return retval
+    else:
+        return True
 
 #
 #
@@ -256,7 +283,7 @@ def get_density_move(game, ship):
     if not cell.is_occupied:
         move = Direction.convert(move_offset)
         cell.mark_unsafe(ship)
-        #game.game_map[ship.position].mark_safe()
+        game.game_map[ship.position].mark_safe()
 
     # if we were not able to find a usable dense cell, try to find a random one
     if move == "o":
@@ -302,7 +329,7 @@ def get_random_move(game, ship, moves = ["n", "s", "e", "w"]):
 
         if not cell.is_occupied:
             cell.mark_unsafe(ship)
-            #game.game_map[ship.position].mark_safe()
+            game.game_map[ship.position].mark_safe()
             move = moveChoice
             break
 
@@ -388,11 +415,11 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
         # calc a continous path
         path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_algorithm, args)
 
-        if path is None:
-            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Nav failed, can't reach {}".format(ship.id, normalized_next_position))
+        if path is None or len(path) == 0:
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Nav failed, can't reach {} from {}".format(ship.id, normalized_next_position, ship.position))
             return 'o'
         else:
-            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} path to waypoint found with a cost of {} ({} turns)".format(ship.id, round(cost), len(path)))
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} path to waypoint {} found with a cost of {} ({} turns)".format(ship.id, next_position, next_position, round(cost), len(path)))
             ship.path.pop()
             ship.path = ship.path + path
 
@@ -422,6 +449,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
         # don't let enemy ships block the dropoff
         if cell.structure_type is Shipyard and cell.ship.owner != game.me.id:
             cell.mark_unsafe(ship)
+            game.game_map[ship.position].mark_safe()
             ship.path.pop()
         # when arriving at a droppoff, wait from entry rather than making a random
         # this probably will not work as well if not using entry/exit lanes
@@ -436,6 +464,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
                 alternate_cell = game_map[alternate_pos]
                 if not alternate_cell.is_occupied:
                     alternate_cell.mark_unsafe(ship)
+                    game.game_map[ship.position].mark_safe()
                     move = Direction.convert(alternate_move_offset)
         else:
             move = get_random_move(game, ship)
@@ -443,6 +472,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
                 if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
     else:
         cell.mark_unsafe(ship)
+        game.game_map[ship.position].mark_safe()
         if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} popped path {}".format(ship.id, ship.path[-1]))
         ship.path.pop()
 
@@ -563,21 +593,27 @@ def get_loiter_point(game, ship, hint = None):
 
     if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["raw_loiter_points"].append(raw_loiter_point)
     if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_offsets"].append((loiterOffset.x, loiterOffset.y))
-    if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_distances"].append((game.turn_number, round(math.sqrt(loiterOffset.x ** 2 + loiterOffset.y ** 2), 2)))
 
     return ship.position + loiterOffset
 
 
-def get_departure_point(dropoff, destination, departure_lanes = "e-w"):
-    """
+def get_departure_point(game, dropoff, destination, departure_lanes = "e-w"):
+    distance = abs(destination - dropoff)
 
-    """
+    shortcut_x = True if distance.x >= (game.game_map.width / 2) else False
+    shortcut_y = True if distance.y >= (game.game_map.height / 2) else False
+
+#    logging.debug("shortcut_x: {}".format(shortcut_x))
+#    logging.debug("shortcut_y: {}".format(shortcut_y))
+
     if departure_lanes == "e-w":
-        departure_x = dropoff.x + DEPARTURE_DISTANCE if destination.x > dropoff.x else dropoff.x - DEPARTURE_DISTANCE
+        departure_distance = -DEPARTURE_DISTANCE if shortcut_x else DEPARTURE_DISTANCE
+        departure_x = dropoff.x + departure_distance if destination.x > dropoff.x else dropoff.x - departure_distance
         departure_y = dropoff.y
     elif departure_lanes == "n-s":
+        departure_distance = -DEPARTURE_DISTANCE if shortcut_y else DEPARTURE_DISTANCE
         departure_x = dropoff.x
-        departure_y = dropoff.y + DEPARTURE_DISTANCE if destination.y > dropoff.y else dropoff.y - DEPARTURE_DISTANCE
+        departure_y = dropoff.y + departure_distance if destination.y > dropoff.y else dropoff.y - departure_distance
     else:
         raise RuntimeError("Unknown departure_lanes: " + str(departure_lanes))
 
