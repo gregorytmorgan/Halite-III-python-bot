@@ -78,7 +78,7 @@ def main():
         if verbose:
             print("Processing {}".format(fname))
 
-        metrics = "burned|mined|gathered|profit|spent|loiter_distances"
+        metrics = "burned|mined|gathered|profit|spent|loiter_distances|return_duration"
         m = re.search(r"^(" + metrics + ")-(.)+-(.)+-bot-([0-9])", os.path.basename(fname))
 
         if m is None:
@@ -105,6 +105,9 @@ def main():
             symbol = '.'
         elif metric == "spent":
             step = 5
+            symbol = '.'
+        elif metric == "return_duration":
+            step = 1
             symbol = '.'
         elif metric == "loiter_distances":
             step = 1
