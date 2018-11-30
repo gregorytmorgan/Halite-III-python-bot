@@ -48,6 +48,8 @@ if [ "$2" != "" ]; then
 	echo $2 > $Candidate/readme.txt
 fi
 
+./manager.py -A candidate.$n -p "python3 candidate.$n/MyBot.py"
+
 echo "$Candidate done."
 
 
