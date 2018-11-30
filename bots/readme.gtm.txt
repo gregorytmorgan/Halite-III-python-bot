@@ -22,5 +22,7 @@ v16		Add better collision handling.  Prevent enemy from blocking shipyard, on
 		blocked entry wait vs random, on blocked exit try laterals moves. Plus when
 		an exploring ship randomly enters the shipyard re-loiter it.
 
-v17
+v17		Add hotspot bot assignment, fix a fair number of nav bugs, esp around entry/exit lanes.
+
+
 
