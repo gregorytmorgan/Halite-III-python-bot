@@ -50,7 +50,9 @@ fi
 
 ./manager.py -A candidate.$n -p "python3 candidate.$n/MyBot.py"
 
-sed -i '/botName = /c\botName = \"candidate.'$n\" $Candidate/MyBot.py
+sed -r -i '/botName\s+=/c\botName = \"candidate.'$n\" $Candidate/MyBot.py
+
+sed -r -i '/DEBUG\s+=/c\DEBUG = DEBUG_NONE' $Candidate/myutils/constants.py
 
 echo "$Candidate done."
 
