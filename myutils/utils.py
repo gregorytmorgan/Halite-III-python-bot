@@ -60,7 +60,7 @@ def get_mining_rate(game, turns = None, ship_id = None):
 #
 #
 #
-def ships_are_spawnable(game):
+def spawn_ok(game):
     me = game.me
     shipyard = game.game_map[me.shipyard]
 
@@ -112,7 +112,7 @@ def ships_are_spawnable(game):
     #payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
     #remaining_turns = constants.MAX_TURNS - game.turn_number
     #if payback_turns * mining_over_head < remaining_turns:
-	#	 if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}".format(retval))
+    #     if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}".format(retval))
     #    return False
     #
     #return True
@@ -201,11 +201,19 @@ def get_loiter_multiple(game):
 # type: 'random', 'density'
 # collision_resolution: 'random', 'density', 'navigate'
 #
-def get_move(game, ship, type="random", collision_resolution="random"):
+#  waypoint_algorithm = "astar", args
+#
+def get_move(game, ship, type="random", args = None):
+
+    if not fuel_ok(game, ship):
+        return "o"
+
     if type == "random":
-        move = get_random_move(game, ship)
+        move = get_random_move(game, ship, args)    # (game, ship, moves (optional))
     elif type == "density":
-        move = get_density_move(game, ship)
+        move = get_halite_move(game, ship, args)    # (game, ship)
+    elif type == "nav":
+        move = get_nav_move(game, ship, args)       # (game, ship, {"waypoint_algorithm":"astar", "move_cost":"turns"}
     else:
         raise RuntimeError("Unknown move type: " + str(type))
 
@@ -237,14 +245,19 @@ def get_surrounding_cell_blocks(game, ship, w, h):
 #
 # nav moves resolv first by density, then randomly
 #
-def get_density_move(game, ship):
+def get_halite_move(game, ship, args = None):
+    """
+    Get a move based on the surrounding cell with the most halite
+
+    :param args None ... for now. Add collision_resolution later
+    """
+
+    if args is None:
+        args = {}
 
     move = "o"
 
     if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} is getting a density based move".format(ship.id))
-
-    if not check_fuel_cost(game, ship):
-        return move
 
     moves = []
     for quadrant in get_surrounding_cell_blocks(game, ship, 3, 3):
@@ -257,7 +270,11 @@ def get_density_move(game, ship):
     sorted_blocks = sorted(moves, key=lambda item: item[2], reverse=True)
 
     if len(sorted_blocks) == 0:
-        return get_random_move(game, ship) # FIX ME FIX ME FIX ME FIX ME FIX ME FIX ME would be better to try a large search radius ???
+        move = get_move(game, ship, "random") # ToDo: would be better to try a large search radius?
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surround have halite < {} . Making random move to the {}".format(ship.id, constants.MAX_HALITE * MINING_THRESHOLD_MULT, move))
+        return move
+
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} found {} valid halite cells".format(ship.id, len(sorted_blocks)))
 
     best_bloc_data = sorted_blocks[0]
 
@@ -270,13 +287,13 @@ def get_density_move(game, ship):
             break
 
     move_offset = best_bloc_data[0]
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} moveOffset: {}".format(ship.id, move_offset))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} best cell moveOffset: {}".format(ship.id, move_offset))
 
     new_position = game.game_map.normalize(ship.position.directional_offset(move_offset))
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} new_position: {}".format(ship.id, new_position))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} best cell new_position: {}".format(ship.id, new_position))
 
     normalized_position = game.game_map.normalize(new_position)
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} normalized_position: {}".format(ship.id, normalized_position))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} best cell normalized_position: {}".format(ship.id, normalized_position))
 
     cell = game.game_map[normalized_position]
 
@@ -285,16 +302,17 @@ def get_density_move(game, ship):
         cell.mark_unsafe(ship)
         game.game_map[ship.position].mark_safe()
 
-    # if we were not able to find a usable dense cell, try to find a random one
+    # if we were not able to find a usable dense cell, try to find a random lateral one else still
     if move == "o":
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} Collision, trying to find a random move".format(ship.id))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} best cell Collision A {}, trying to find a lateral move".format(ship.id, normalized_position))
         lateral_offsets = Direction.laterals(move_offset)
         lateral_moves = list(map(lambda direction_offset: Direction.convert(direction_offset), lateral_offsets))
-        move = get_random_move(game, ship, lateral_moves)
+        move = get_move(game, ship, "random", {"moves": lateral_moves})
 
     if move == "o":
         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} Collision, unable to find a move".format(ship.id))
 
+    # do this if move == "o" ?
     move_plus_one = Position(best_cell.position.x, best_cell.position.y) # go one more move in the same direction
     if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a move_plus_one of {}".format(ship.id, move_plus_one))
     ship.path.append(move_plus_one)
@@ -304,18 +322,23 @@ def get_density_move(game, ship):
 #
 # nav moves resolv randomly
 #
-def get_random_move(game, ship, moves = ["n", "s", "e", "w"]):
+def get_random_move(game, ship, args = None):
+    """
+    Get a random move.
 
-    move = "o"
+    :param args
+        moves Array of moves to try. Default = ["n", "s", "e", "w"]
+    :return Randomly tries to return a move from moves, if all produce collisions returns 'o'
+    """
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting random move".format(ship.id))
+    if args is None:
+        args = {}
 
-    if not check_fuel_cost(game, ship):
-        return move
+    moves = args["moves"] if "moves" in args else ["n", "s", "e", "w"]
 
-    moveIdx = random.randint(0, 3)
+    moveIdx = random.randint(1, len(moves))
 
-    for idx in range(moveIdx, moveIdx + 4):
+    for idx in range(moveIdx, moveIdx + len(moves)):
         moveChoice = moves[idx % len(moves)]
         if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
 
@@ -332,6 +355,8 @@ def get_random_move(game, ship, moves = ["n", "s", "e", "w"]):
             game.game_map[ship.position].mark_safe()
             move = moveChoice
             break
+
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting random move {}".format(ship.id, move))
 
     return move
 
@@ -392,13 +417,17 @@ def get_dropoff_position(game, ship):
 #
 # waypoint_algorithm: if a point is not continous, then calc path using waypoint_algorithm
 #
-def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": "turns"}):
+def get_nav_move(game, ship, args = None):
+
+    if args is None:
+        args = {}
+
+    waypoint_resolution = args["waypoint_resolution"] if "waypoint_resolution" in args else "astar"
+    move_cost = args["move_cost"] if "move_cost" in args else "turns"
+
     game_map = game.game_map
 
     if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting nav move for path {}".format(ship.id, ship.path))
-
-    if not check_fuel_cost(game, ship):
-        return 'o'
 
     if len(ship.path) == 0:
         if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} empty path".format(ship.id))
@@ -413,7 +442,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
         if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} found waypoint {}, calulating complete path".format(ship.id, next_position))
 
         # calc a continous path
-        path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_algorithm, args)
+        path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_resolution, {"move_costs": move_cost})
 
         if path is None or len(path) == 0:
             if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Nav failed, can't reach {} from {}".format(ship.id, normalized_next_position, ship.position))
@@ -467,7 +496,7 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
                     game.game_map[ship.position].mark_safe()
                     move = Direction.convert(alternate_move_offset)
         else:
-            move = get_random_move(game, ship)
+            move = get_move(game, ship, "random")
             if move == "o":
                 if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
     else:
@@ -481,11 +510,11 @@ def get_nav_move(game, ship, waypoint_algorithm = "astar", args = {"move_cost": 
 #
 # Returns True if ship has enough fuel to move
 #
-def check_fuel_cost(game, ship):
+def fuel_ok(game, ship):
     fuelCost = game.game_map[ship.position].halite_amount * .1
 
     if round(fuelCost) > ship.halite_amount:
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} has insuffient fuel. Have {}, need {}".format(ship.id, ship.halite_amount, round(fuelCost, 2)))
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} has insuffient fuel. Have {}, need {}".format(ship.id, ship.halite_amount, round(fuelCost, 2)))
         return False
 
     return True
@@ -526,7 +555,7 @@ def dump_data_file(game, data, file_basename):
     else:
         stats_dir = "."
 
-    np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
+    np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
 
     data_str = np.array2string(data.astype(np.int64), separator=",")
 

@@ -201,16 +201,17 @@ class GameMap:
         :param b End position
         :move_cost_type Most cost type can be 'halite' or 'turns'
         """
-        # ignore 'a' since the cost is only a function of the current cell
+        if move_cost_type is None:
+            move_cost_type = "turns"
 
         if move_cost_type == "turns":
             return 1
         elif move_cost_type == "halite":
             return self[a].halite_amount * .1
         else:
-            raise RuntimeError("Unknown nav move_cost_type: " + str(move_cost_type))
+            raise RuntimeError("Unknown nav move_cost_type: ".format(move_cost_type))
 
-    def heuristic(self, start, current, goal, move_cost_type = "turns"):
+    def heuristic(self, start, current, goal, move_cost_type = None):
         """
         Get the cost heuristic for moving from position a -> b. Used by A*
 
@@ -219,6 +220,9 @@ class GameMap:
         :param b End position
         :move_cost_type Most cost type can be 'halite' or 'turns'
         """
+
+        if move_cost_type is None:
+            move_cost_type = "turns"
 
         manhatten = self.calculate_distance(current, goal)
 
@@ -231,6 +235,8 @@ class GameMap:
             retval = manhatten + cross * 0.001
         elif move_cost_type == "halite":
             retval = manhatten * constants.MAX_HALITE
+        else:
+            raise RuntimeError("Unknown move_cost_type: {}".format(move_cost_type))
 
         return retval
 
@@ -245,7 +251,7 @@ class GameMap:
         """
         if algorithm == "astar":
             move_cost = args["move_cost"] if "move_cost" in args else None
-            path, cost = self.astar(start, destination, move_cost)
+            path, cost = self.get_astar_path(start, destination, move_cost)
         elif algorithm == "naive":
             path, cost = self.get_naive_path(start, destination)
         elif algorithm == "dock":
@@ -322,7 +328,7 @@ class GameMap:
 
         return path, cost
 
-    def astar(self, start, destination, move_cost_type="turns"):
+    def get_astar_path(self, start, destination, move_cost_type="turns"):
         """
         Get a path using a-star search
 

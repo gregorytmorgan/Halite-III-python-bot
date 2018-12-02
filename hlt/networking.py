@@ -22,7 +22,7 @@ class Game:
             'profit': [],
             "mined": [],
             "gathered": [(0, 0, 5000)],
-            "time": [],
+            "turn_time": [],
             "burned": [],
             "raw_loiter_points": [],
             "loiter_multiples": [],
