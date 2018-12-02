@@ -17,3 +17,5 @@ hlt_client/
 __pycache__
 stats/
 test-bots/
+pypy3-v6.0.0-linux64/
+candidate.*/
