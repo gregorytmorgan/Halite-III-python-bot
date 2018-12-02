@@ -75,16 +75,15 @@ while True:
 
     cell_values_flat.sort()
 
-    cnt = cell_values_flat.shape[0]
-
     # when mean == mode, then evenly distributed
+#    cnt = cell_values_flat.shape[0]
 #    logging.debug("1/5:{} 4/5:{}".format(cell_values_flat[round(cnt/5.0)], cell_values_flat[round(cnt*4.0/5.0)]))
 
     #
     # Calc hotspots (loiter assignments) and dense areas
     #
     if USE_CELL_VALUE_MAP:
-        cell_value_map = game_map.get_cell_value_map(me.shipyard.position)
+        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, game.get_mining_rate(MINING_RATE_LOOKBACK))
 
 #        if game.turn_number < 10 or game.turn_number > constants.MAX_TURNS - 4:
 #            np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
@@ -372,7 +371,7 @@ while True:
     if DEBUG & (DEBUG_GAME_METRICS):
         mined_this_turn = sum(map(lambda i: i[2] if i[0] == game.turn_number else 0, game_metrics["mined"]))
         logging.info("Game - Mined this turn: {}".format(mined_this_turn))
-        logging.info("Game - Mining rate: {}".format(round(get_mining_rate(game, 25), 2)))
+        logging.info("Game - Mining rate: {}".format(round(game.get_mining_rate(MINING_RATE_LOOKBACK), 2)))
 
     if DEBUG & (DEBUG_TIMING):
         logging.info("Game - Min turn time: {}".format(min(game_metrics["turn_time"], key = lambda t: t[1])))
