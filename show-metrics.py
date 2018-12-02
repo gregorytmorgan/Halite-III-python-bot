@@ -32,14 +32,16 @@ def usage():
     print("-h\tHelp.")
     print("-v\tVerbose.")
     print("\nExamples:")
-    print("4 most recent stats for bot 0:")
-    print("./graph-game-metrics.py $(ls -tr -1 stats/*-bot-0.txt | tail -n 4)")
+    print("4 most recent stats for bot 0 [1]:")
+    print("./show-metrics.py $(ls -tr -1 stats/*-bot-0.log | tail -n 4)")
     print("")
-    print("Profit stats for both bot-0 and bot-1")
-    print("./graph-game-metrics.py $(ls -rt -1 stats/profit-*-bot-?.txt | tail -n 2)")
+    print("Profit stats for both bot-0 and bot-1 [1]:")
+    print("./show-metrics.py $(ls -rt -1 stats/profit-*-bot-?.log | tail -n 2)")
     print("")
-    print("Two stats for both bot-0 and bot-1")
-    print("./graph-game-metrics.py $(ls -rt -1 stats/{mined,profit}-*-bot-?.txt | tail -n 4)")
+    print("Two stats for both bot-0 and bot-1 [1]:")
+    print("./show-metrics.py $(ls -rt -1 stats/{mined,profit}-*-bot-?.log | tail -n 4)")
+    print("")
+    print("[1] Make sure the tail count = number of players * number of stats")
 
 def main():
     X = []
