@@ -338,6 +338,8 @@ def get_random_move(game, ship, args = None):
 
     moveIdx = random.randint(1, len(moves))
 
+    move = "o"
+
     for idx in range(moveIdx, moveIdx + len(moves)):
         moveChoice = moves[idx % len(moves)]
         if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
