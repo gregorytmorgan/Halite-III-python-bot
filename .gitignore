@@ -1,5 +1,6 @@
 *.log
 *.zip
+*.swp
 
 version.txt
 archive
@@ -9,12 +10,13 @@ nbproject
 node_modules
 api-key.txt
 db.sqlite3
-halite3-match-manager
+f.txt
 
+halite3-match-manager/
 fluorine/
 docs/
 hlt_client/
-__pycache__
+__pycache__/
 stats/
 test-bots/
 pypy3-v6.0.0-linux64/
