@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import numpy as np
 
 from .common import read_input
 from . import constants
@@ -80,6 +81,41 @@ class Game:
             self.game_map[player.shipyard.position].structure = player.shipyard
             for dropoff in player.get_dropoffs():
                 self.game_map[dropoff.position].structure = dropoff
+
+    def get_mining_rate(self, turns = None, ship_id = None):
+        '''
+        Returns the mining rate for the game or a specific ship. Always returns
+        a rate of at least 1.
+        '''
+
+        if len(self.game_metrics["mined"]) == 0:
+            return 1
+
+        if turns is None:
+            turns = self.turn_number
+
+        oldest_turn = 1 if self.turn_number < turns else (self.turn_number - turns)
+        i = len(self.game_metrics["mined"]) - 1
+
+        mined = []
+        mined_by_ship = {}
+
+        # turn, ship.id, mined
+        while i >= 0 and self.game_metrics["mined"][i][0] > oldest_turn:
+            s_id = self.game_metrics["mined"][i][1]
+            halite = self.game_metrics["mined"][i][2]
+            mined_by_ship[s_id] = mined_by_ship[s_id] + halite if s_id in mined_by_ship else halite
+            i -= 1
+
+        if ship_id is None:
+            for s_id, halite in mined_by_ship.items():
+                mined.append(halite / (self.turn_number - self.ship_christenings[s_id] - 1))
+
+            rate = np.average(mined)
+        else:
+            rate = mined_by_ship.items[ship_id] / (self.turn_number - self.ship_christenings[ship_id] - 1)
+
+        return rate
 
     @staticmethod
     def end_turn(commands):
