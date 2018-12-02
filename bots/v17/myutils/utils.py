@@ -526,7 +526,7 @@ def dump_data_file(game, data, file_basename):
     else:
         stats_dir = "."
 
-    np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
+    np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
 
     data_str = np.array2string(data.astype(np.int64), separator=",")
 
