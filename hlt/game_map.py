@@ -1,14 +1,15 @@
 import queue
+import logging
+import time
+import numpy as np
+from scipy.spatial.distance import cdist
+import copy
 
 from . import constants
 from .entity import Entity, Shipyard, Ship, Dropoff
 from .player import Player
 from .positionals import Direction, Position
 from .common import read_input
-import logging
-import time
-import numpy as np
-import copy
 
 from myutils.constants import DEBUG, DEBUG_NAV, USE_CELL_VALUE_MAP, DEBUG_TIMING
 from myutils.cell_block import CellBlock
@@ -117,19 +118,33 @@ class GameMap:
             return self._cells[location.position.y][location.position.x]
         return None
 
-    def calculate_distance(self, source, target):
+    def calculate_distance(self, source, destination, algorithm = "manhatten"):
         """
         Compute the Manhattan distance between two locations.
         Accounts for wrap-around.
         :param source: The source from where to calculate
-        :param target: The target to where calculate
+        :param destination: The destination to where calculate
         :return: The distance between these items
         """
         source = self.normalize(source)
-        target = self.normalize(target)
-        resulting_position = abs(source - target)
-        return min(resulting_position.x, self.width - resulting_position.x) + \
-            min(resulting_position.y, self.height - resulting_position.y)
+        destination = self.normalize(destination)
+
+        if algorithm == "manhatten":
+            resulting_position = abs(source - destination)
+            retval = min(resulting_position.x, self.width - resulting_position.x) + \
+                min(resulting_position.y, self.height - resulting_position.y)
+
+            #sx = min(resulting_position.x, self.width - resulting_position.x)
+            #sy = min(resulting_position.y, self.height - resulting_position.y)
+            #s = np.array([sx, sd])
+            #d = np.array([destination.x, destination.y])
+            #retval = cdist(s, d, metric='cityblock')
+        elif algo == "euclidean":
+            retval = cdist(np.array([source.x, source.y]), np.array([destination.x, destination.y]), metric='euclidean')
+        else:
+            raise RuntimeError("Unknown distance algorithm: ".format(algorithm))
+
+        return retval
 
     def normalize(self, position):
         """
@@ -233,6 +248,7 @@ class GameMap:
             dx2 = start.x - goal.x
             dy2 = start.y - goal.y
             cross = abs(dx1 * dy2 - dx2 * dy1)
+            #cross = np.cross([start.x, start.y], [current.x, current.y])
             retval = manhatten + cross * 0.001
         elif move_cost_type == "halite":
             retval = manhatten * constants.MAX_HALITE
@@ -571,7 +587,7 @@ class GameMap:
         v_calc_distance = np.vectorize(self.calculate_distance)
         return v_calc_distance(p, self._coord_map)
 
-    def get_cell_value_map(self, p):
+    def get_cell_value_map(self, p, distance_constant = 1):
         """
         Return the 2d map the value of a cell p and all other cells given it's halite
         amount and distance from p.
@@ -582,9 +598,9 @@ class GameMap:
         if p in self._cell_value_maps:
             return self._cell_value_maps[p]
         else:
-            self._cell_value_maps[p] = self.v_cell_value_map(p, self._coord_map)
+            self._cell_value_maps[p] = self.v_cell_value_map(p, self._coord_map, distance_constant)
 
-    def get_cell_value(self, p1, p2):
+    def get_cell_value(self, p1, p2, distance_constant = 1):
         """
         Get the value of a cell p2 given is halite amount and distance from p1.
 
@@ -626,7 +642,7 @@ class GameMap:
 
         fuel_cost = 0 if np.isnan(avg_halite) else round(distance * avg_halite * .1)
 
-        return halite - fuel_cost
+        return halite - fuel_cost - (distance_constant * distance)
 
     def __repr__(self):
         map = ""
