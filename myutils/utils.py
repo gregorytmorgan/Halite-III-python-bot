@@ -20,47 +20,14 @@ import numpy as np
 
 # mybot utils
 from myutils.constants import *
-from myutils.cell_block import *
 
-def get_mining_rate(game, turns = None, ship_id = None):
-    '''
-    Returns the mining rate for the game or a specific ship. Always returns
-    a rate of at least 1.
-    '''
-
-    if len(game.game_metrics["mined"]) == 0:
-        return 1
-
-    if turns is None:
-        turns = game.turn_number
-
-    oldest_turn = 1 if game.turn_number < turns else (game.turn_number - turns)
-    i = len(game.game_metrics["mined"]) - 1
-
-    mined = []
-    mined_by_ship = {}
-
-    # turn, ship.id, mined
-    while i >= 0 and game.game_metrics["mined"][i][0] > oldest_turn:
-        s_id = game.game_metrics["mined"][i][1]
-        halite = game.game_metrics["mined"][i][2]
-        mined_by_ship[s_id] = mined_by_ship[s_id] + halite if s_id in mined_by_ship else halite
-        i -= 1
-
-    if ship_id is None:
-        for s_id, halite in mined_by_ship.items():
-            mined.append(halite / (game.turn_number - game.ship_christenings[s_id] - 1))
-
-        rate = np.average(mined)
-    else:
-        rate = mined_by_ship.items[ship_id] / (game.turn_number - game.ship_christenings[ship_id] - 1)
-
-    return rate
-
-#
-#
-#
 def spawn_ok(game):
+    """
+    Is is possible to spawn a ship now?  Checks cost, collisions, ...
+
+    :param game Game object
+    :returns Returns True if a ship is spawnable
+    """
     me = game.me
     shipyard = game.game_map[me.shipyard]
 
@@ -121,7 +88,7 @@ def spawn_ok(game):
     ### v6 old code
     ###
     if me.ship_count > 0:
-        payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
+        payback_turns = constants.SHIP_COST / game.get_mining_rate(MINING_RATE_LOOKBACK)
         remaining_turns = constants.MAX_TURNS - game.turn_number
 
         retval = round(payback_turns * mining_over_head) < remaining_turns
@@ -204,9 +171,18 @@ def get_loiter_multiple(game):
 #  waypoint_algorithm = "astar", args
 #
 def get_move(game, ship, type="random", args = None):
+    """
+
+    :param game
+    :param ship
+    :param type Type of move: 'nav'|'random'|'halite'
+    :param args    Args to accompany type
+    """
 
     if not fuel_ok(game, ship):
         return "o"
+
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} getting {} move ...".format(ship.id, type))
 
     if type == "random":
         move = get_random_move(game, ship, args)    # (game, ship, moves (optional))
@@ -217,34 +193,10 @@ def get_move(game, ship, type="random", args = None):
     else:
         raise RuntimeError("Unknown move type: " + str(type))
 
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} got {} move {}".format(ship.id, type, move))
+
     return move
 
-#
-# returns a dict indexed on 'n', 's', 'e', 'w' of 3x3 lists of cells
-#
-def get_surrounding_cell_blocks(game, ship, w, h):
-    t = CellBlock.get_corner_offset("n", w, h)
-    north_corner = Position(ship.position.x + t[0], ship.position.y + t[0])
-
-    t = CellBlock.get_corner_offset("s", w, h)
-    south_corner = Position(ship.position.x + t[0], ship.position.y + t[0])
-
-    t = CellBlock.get_corner_offset("e", w, h)
-    east_corner = Position(ship.position.x + t[0], ship.position.y + t[0])
-
-    t = CellBlock.get_corner_offset("w", w, h)
-    west_corner = Position(ship.position.x + t[0], ship.position.y + t[0])
-
-    return [
-        (Direction.North, CellBlock(game, north_corner, w, h)),
-        (Direction.South, CellBlock(game, south_corner, w, h)),
-        (Direction.East, CellBlock(game, east_corner, w, h)),
-        (Direction.West, CellBlock(game, west_corner, w, h))
-    ]
-
-#
-# nav moves resolv first by density, then randomly
-#
 def get_halite_move(game, ship, args = None):
     """
     Get a move based on the surrounding cell with the most halite
@@ -260,7 +212,7 @@ def get_halite_move(game, ship, args = None):
     if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} is getting a density based move".format(ship.id))
 
     moves = []
-    for quadrant in get_surrounding_cell_blocks(game, ship, 3, 3):
+    for quadrant in game.game_map.get_cell_block(ship.position, 3, 3):
         directional_offset = quadrant[0]
         block = quadrant[1]
 
@@ -336,6 +288,8 @@ def get_random_move(game, ship, args = None):
 
     moves = args["moves"] if "moves" in args else ["n", "s", "e", "w"]
 
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting random move with moves = {}".format(ship.id, moves))
+
     moveIdx = random.randint(1, len(moves))
 
     move = "o"
@@ -362,64 +316,16 @@ def get_random_move(game, ship, args = None):
 
     return move
 
-#
-# destination - The direction the ship is trying to go.  Backoff will be opposite
-#
-def get_backoff_point(game, ship, destination):
-    destinationMoves = game.game_map.get_unsafe_moves(ship.position, destination)
-
-    if len(destinationMoves) == 0:
-        return ship.position
-
-    choice = random.choice(destinationMoves)
-    backoffDirection = Direction.invert(choice)
-
-    # when there's a collion, we backoff between 1 and nShips/2 cells
-    mult = random.randint(1, max(1, round(len(game.me.get_ships()) / 2)))
-
-    backoffPoint = ship.position + Position(backoffDirection[0] * mult, backoffDirection[1] * mult)
-
-    # if the backup point wrap, truncate it to the edge to prevent simple nav from failing
-    if backoffPoint.x > game.game_map.width - 1:
-        backoffPoint.x = game.game_map.width - 1
-
-    if backoffPoint.x < 0:
-        backoffPoint.x = 0
-
-    if backoffPoint.y > game.game_map.height - 1:
-        backoffPoint.y = game.game_map.height - 1
-
-    if backoffPoint.y <    0:
-        backoffPoint.y = 0
-
-    if DEBUG & (DEBUG_NAV): logging.info("Nav.get_backoff_point() - ship {} has backoffPoint {}".format(ship.id, backoffPoint))
-
-    return backoffPoint
-
-#
-#
-#
-def get_dropoff_position(game, ship):
-    dropoffs = game.me.get_dropoffs()
-    destinations = list(dropoffs) + [game.me.shipyard.position]
-
-    minDistance = False
-    movePosition = False
-
-    for dest in destinations:
-        distance = game.game_map.calculate_distance(ship.position, dest)
-        if minDistance == False or distance < minDistance:
-            minDistance = distance
-            movePosition = dest
-
-    return movePosition
-
-#
-# nav moves resolv randomly
-#
-# waypoint_algorithm: if a point is not continous, then calc path using waypoint_algorithm
-#
 def get_nav_move(game, ship, args = None):
+    """
+    Get a move based on the exist ship.path
+
+
+    :param game
+    :param ship
+    :param args
+    :return Returns a move letter
+    """
 
     if args is None:
         args = {}
@@ -429,10 +335,10 @@ def get_nav_move(game, ship, args = None):
 
     game_map = game.game_map
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting nav move for path {}".format(ship.id, ship.path))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting nav move for path {} with waypoint res {} and move_cost {}".format(ship.id, ship.path, waypoint_resolution, move_cost))
 
     if len(ship.path) == 0:
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} empty path".format(ship.id))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting nav path. Empty path. Returning 'o'".format(ship.id))
         return 'o'
 
     next_position = ship.path[len(ship.path) - 1]
@@ -441,13 +347,13 @@ def get_nav_move(game, ship, args = None):
     if game_map.calculate_distance(ship.position, next_position) > 1:
         normalized_next_position = game_map.normalize(next_position)
 
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} found waypoint {}, calulating complete path".format(ship.id, next_position))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting nav path. Found waypoint {}, calulating complete path".format(ship.id, next_position))
 
         # calc a continous path
         path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_resolution, {"move_costs": move_cost})
 
         if path is None or len(path) == 0:
-            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Nav failed, can't reach {} from {}".format(ship.id, normalized_next_position, ship.position))
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Nav failed, can't reach waypoint {} from {}".format(ship.id, normalized_next_position, ship.position))
             return 'o'
         else:
             if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} path to waypoint {} found with a cost of {} ({} turns)".format(ship.id, next_position, next_position, round(cost), len(path)))
@@ -462,7 +368,7 @@ def get_nav_move(game, ship, args = None):
 
     # why?
     if normalized_new_position == ship.position:
-        if DEBUG & (DEBUG_NAV): logging.warn("NAV - ship {} popped move {}. Why?".format(ship.id, ship.path[-1]))
+        if DEBUG & (DEBUG_NAV): logging.warn("NAV - ship {} popped move {}. Returning 'o'.  Why?".format(ship.id, ship.path[-1]))
         ship.path.pop()
         return 'o'
 
@@ -472,11 +378,13 @@ def get_nav_move(game, ship, args = None):
     offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
     move = Direction.convert(offset)
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} has potential move: {}".format(ship.id, move))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} has potential nav move: {}".format(ship.id, move))
 
-    # once we have the move, handle collisions
+    #
+    # collision resolution
+    #
     if cell.is_occupied:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a collision at {} while moving {}".format(ship.id, normalized_new_position, move))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a collision at {} while making nav moving {}".format(ship.id, normalized_new_position, move))
         # don't let enemy ships block the dropoff
         if cell.structure_type is Shipyard and cell.ship.owner != game.me.id:
             cell.mark_unsafe(ship)
@@ -499,20 +407,23 @@ def get_nav_move(game, ship, args = None):
                     move = Direction.convert(alternate_move_offset)
         else:
             move = get_move(game, ship, "random")
-            if move == "o":
-                if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}, using {}".format(ship.id, normalized_new_position, cell.ship.id , move))
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship.id, normalized_new_position, cell.ship.id , move))
     else:
         cell.mark_unsafe(ship)
         game.game_map[ship.position].mark_safe()
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} popped path {}".format(ship.id, ship.path[-1]))
+        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} popped nav path {}".format(ship.id, ship.path[-1]))
         ship.path.pop()
 
     return move
 
-#
-# Returns True if ship has enough fuel to move
-#
 def fuel_ok(game, ship):
+    """
+    Does the ship have enough fuel to move from the current cell?
+
+    :param game
+    :param ship
+    :return Returns True if the ship has enough fuel to move, False otherwise.
+    """
     fuelCost = game.game_map[ship.position].halite_amount * .1
 
     if round(fuelCost) > ship.halite_amount:
@@ -525,6 +436,14 @@ def fuel_ok(game, ship):
 #
 #
 def dump_stats(game, data, key = "all"):
+    """
+    Dump game stats to disk for analysis.
+
+    :param game
+    :param data The game data
+    :param The data key
+    :return None
+    """
     if key == "all":
         keys = data.keys()
     else:
@@ -565,6 +484,13 @@ def dump_data_file(game, data, file_basename):
         f.write(data_str)
 
 def should_move(game, ship):
+    """
+    Should the ship explore or mine?
+
+    :param game
+    :param ship
+    :return Returns True is the ship should move/explore, False if the ship should mine.
+    """
     cell_halite = game.game_map[ship.position].halite_amount
 
     if ship.is_full:
@@ -596,6 +522,10 @@ def get_loiter_point(game, ship, hint = None):
     3. extend the circle x,y by the loiter distance to create an offset
     4. Add the offset to the current position to get the loiter point
     5. Calc a nav path to the loiter point
+
+    :param game
+    :param ship
+    :return Returns a position.
     """
     loiter_distance = get_loiter_multiple(game)
 
@@ -627,15 +557,19 @@ def get_loiter_point(game, ship, hint = None):
 
     return ship.position + loiterOffset
 
-
 def get_departure_point(game, dropoff, destination, departure_lanes = "e-w"):
+    """
+    Get the first position for a departing ship.
+
+    :param game
+    :param dropoff Position
+    :param destination Position
+    :param departure_lanes "n-s" | "e-w", default = "e-w"
+    """
     distance = abs(destination - dropoff)
 
     shortcut_x = True if distance.x >= (game.game_map.width / 2) else False
     shortcut_y = True if distance.y >= (game.game_map.height / 2) else False
-
-#    logging.debug("shortcut_x: {}".format(shortcut_x))
-#    logging.debug("shortcut_y: {}".format(shortcut_y))
 
     if departure_lanes == "e-w":
         departure_distance = -DEPARTURE_DISTANCE if shortcut_x else DEPARTURE_DISTANCE
@@ -649,3 +583,59 @@ def get_departure_point(game, dropoff, destination, departure_lanes = "e-w"):
         raise RuntimeError("Unknown departure_lanes: " + str(departure_lanes))
 
     return Position(departure_x, departure_y)
+
+def get_dropoff_position(game, ship):
+    """
+    Get the closest dropoff or shipyard to ship
+
+    :param game
+    :param ship
+    :return Returns a position
+    """
+    dropoffs = game.me.get_dropoffs()
+    destinations = list(dropoffs) + [game.me.shipyard.position]
+
+    minDistance = False
+    movePosition = False
+
+    for dest in destinations:
+        distance = game.game_map.calculate_distance(ship.position, dest)
+        if minDistance == False or distance < minDistance:
+            minDistance = distance
+            movePosition = dest
+
+    return movePosition
+
+#
+# destination - The direction the ship is trying to go.  Backoff will be opposite
+#
+def get_backoff_point(game, ship, destination):
+    destinationMoves = game.game_map.get_unsafe_moves(ship.position, destination)
+
+    if len(destinationMoves) == 0:
+        return ship.position
+
+    choice = random.choice(destinationMoves)
+    backoffDirection = Direction.invert(choice)
+
+    # when there's a collion, we backoff between 1 and nShips/2 cells
+    mult = random.randint(1, max(1, round(len(game.me.get_ships()) / 2)))
+
+    backoffPoint = ship.position + Position(backoffDirection[0] * mult, backoffDirection[1] * mult)
+
+    # if the backup point wrap, truncate it to the edge to prevent simple nav from failing
+    if backoffPoint.x > game.game_map.width - 1:
+        backoffPoint.x = game.game_map.width - 1
+
+    if backoffPoint.x < 0:
+        backoffPoint.x = 0
+
+    if backoffPoint.y > game.game_map.height - 1:
+        backoffPoint.y = game.game_map.height - 1
+
+    if backoffPoint.y <    0:
+        backoffPoint.y = 0
+
+    if DEBUG & (DEBUG_NAV): logging.info("Nav.get_backoff_point() - ship {} has backoffPoint {}".format(ship.id, backoffPoint))
+
+    return backoffPoint
