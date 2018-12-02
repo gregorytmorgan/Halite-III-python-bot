@@ -11,6 +11,7 @@ import numpy as np
 import copy
 
 from myutils.constants import DEBUG, DEBUG_NAV, USE_CELL_VALUE_MAP, DEBUG_TIMING
+from myutils.cell_block import CellBlock
 
 class MapCell:
     """A cell on the game map."""
@@ -424,6 +425,30 @@ class GameMap:
                 if self.DEBUG: logging.info("Neighbour elapsed time {}".format(round(time.time() - astar_start_time, 4)))
 
         return None, None
+
+    def get_cell_block(self, position, w, h):
+        """
+        :param position
+        :return Returns a dict indexed on 'n', 's', 'e', 'w' of 3x3 lists of cells
+        """
+        t = CellBlock.get_corner_offset("n", w, h)
+        north_corner = Position(position.x + t[0], position.y + t[0])
+
+        t = CellBlock.get_corner_offset("s", w, h)
+        south_corner = Position(position.x + t[0], position.y + t[0])
+
+        t = CellBlock.get_corner_offset("e", w, h)
+        east_corner = Position(position.x + t[0], position.y + t[0])
+
+        t = CellBlock.get_corner_offset("w", w, h)
+        west_corner = Position(position.x + t[0], position.y + t[0])
+
+        return [
+            (Direction.North, CellBlock(self, north_corner, w, h)),
+            (Direction.South, CellBlock(self, south_corner, w, h)),
+            (Direction.East, CellBlock(self, east_corner, w, h)),
+            (Direction.West, CellBlock(self, west_corner, w, h))
+        ]
 
     def get_dense_areas(self):
         """
