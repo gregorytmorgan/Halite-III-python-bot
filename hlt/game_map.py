@@ -10,7 +10,7 @@ import time
 import numpy as np
 import copy
 
-from myutils.constants import DEBUG, DEBUG_NAV, USE_CELL_VALUE_MAP
+from myutils.constants import DEBUG, DEBUG_NAV, USE_CELL_VALUE_MAP, DEBUG_TIMING
 
 class MapCell:
     """A cell on the game map."""
@@ -81,6 +81,7 @@ class GameMap:
     Coordinates start at 0. Coordinates are normalized for you
     """
 
+    # local debug flag
     DEBUG = False
 
     def __init__(self, cells, width, height):
@@ -193,6 +194,13 @@ class GameMap:
         return Direction.Still
 
     def move_cost(self, a, b, move_cost_type = "turns"):
+        """
+        Get the cost of moving from position a -> b.
+
+        :param a Start position
+        :param b End position
+        :move_cost_type Most cost type can be 'halite' or 'turns'
+        """
         # ignore 'a' since the cost is only a function of the current cell
 
         if move_cost_type == "turns":
@@ -203,6 +211,15 @@ class GameMap:
             raise RuntimeError("Unknown nav move_cost_type: " + str(move_cost_type))
 
     def heuristic(self, start, current, goal, move_cost_type = "turns"):
+        """
+        Get the cost heuristic for moving from position a -> b. Used by A*
+
+        :param a Start position
+        :current Current position
+        :param b End position
+        :move_cost_type Most cost type can be 'halite' or 'turns'
+        """
+
         manhatten = self.calculate_distance(current, goal)
 
         if move_cost_type == "turns":
@@ -219,7 +236,9 @@ class GameMap:
 
     def navigate(self, start, destination, algorithm="astar", args={}):
         """
-        algorithm: 'astar', 'naive'
+        :param start Starting Position
+        :param destination Ending position
+        :param algorithm: 'astar', 'naive'
           'astar' - takes args: 'move_cost': 'turns'|'halite'
           'naive' - takes no args
           'dock' - takes no args
@@ -237,14 +256,15 @@ class GameMap:
 
         return path, cost
 
-    #
-    # return None if no soln, returns empty list with zero cost if start == end,
-    # otherwise returns a path list and a cumlative cost
-    #
     def get_naive_path(self, start, destination):
-        path = []
+        """
+        Get a list of positions from start to distination.
 
-#        logging.debug("start: {} dest:{}".format(start, destination))
+        :param start Starting Position
+        :param destination Ending position
+        :return Returns a list of positions. Positions are ordered end to start.
+        """
+        path = []
 
         if start == destination:
             return path, 0
@@ -253,9 +273,6 @@ class GameMap:
 
         shortcut_x = True if distance.x > (self.width / 2) else False
         shortcut_y = True if distance.y > (self.height / 2) else False
-
-#        logging.debug("shortcut_x: {}".format(shortcut_x))
-#        logging.debug("shortcut_y: {}".format(shortcut_y))
 
         xstep = 1 if destination.x > start.x else -1
         if shortcut_x:
@@ -268,9 +285,6 @@ class GameMap:
         x = start.x
         y = start.y
 
-#        logging.debug("xstep: {}".format(xstep))
-#        logging.debug("ystep: {}".format(ystep))
-
         while (x % self.width) != (destination.x % self.width):
             x += xstep
             path.append(Position(x % self.width, y))
@@ -281,16 +295,19 @@ class GameMap:
 
         path.reverse()
 
-#        logging.debug("naive_path: {}".format(path))
-
         return path, len(path)
 
     def get_docking_path(self, start, dropoff):
         """
-        dock paths are north and south for now
-        """
-#        logging.debug("start: {} dest:{}".format(start, dropoff))
+        Get list of positions from start to dropoff where dropoff is the position of
+        the nearest shipyard or dropoff point.  The path will initally move E/W until
+        aligned with the dropoff, then move N/S (Assumes N/S entry lanes, E/W departure
+        lanes).
 
+        :param start Starting Position
+        :param destination Dropoff position
+        :return Returns a list of positions. Positions are ordered end to start
+        """
         offset = start.y - dropoff.y
 
         if offset <= 2 and offset >= 0:
@@ -305,13 +322,17 @@ class GameMap:
 
         return path, cost
 
-    #
-    # Get a path using a-star search, cost function can use 'halite' or 'turns'
-    #
-    # return None if no soln, returns empty list with zero cost if start == end,
-    # otherwise returns a path list and a cumlative cost
-    #
     def astar(self, start, destination, move_cost_type="turns"):
+        """
+        Get a path using a-star search
+
+        :param start Starting Position
+        :param destination Dropoff position
+        :move_cost_type Most cost type can be 'halite' or 'turns'
+        :return Returns a list of positions. Positions are ordered end to start.
+            returns None if no soln, returns empty list with zero cost if start == end,
+            otherwise returns a path list and a cumlative cost
+        """
         astar_start_time = time.time()
 
         G = {} #Actual movement cost to each position from the start position
@@ -323,7 +344,7 @@ class GameMap:
         if start == end:
             return [], 0 #Done!
 
-        if self.DEBUG: logging.info("{} -> {}".format(start, end)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+        if self.DEBUG: logging.info("{} -> {}".format(start, end))
 
         #Initialize starting values
         G[start] = 0
@@ -332,7 +353,7 @@ class GameMap:
         closedVertices = set()
         openVertices = set([start])
 
-        if self.DEBUG: logging.info("start: adding {} to openVertices".format(start)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+        if self.DEBUG: logging.info("start: adding {} to openVertices".format(start))
 
         cameFrom = {}
 
@@ -343,13 +364,13 @@ class GameMap:
 
             for pos in openVertices:
                 if current is None or F[pos] < currentFscore:
-                    if self.DEBUG: logging.info("updating current score with F score ({}) from {}".format(F[pos], pos)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    if self.DEBUG: logging.info("updating current score with F score ({}) from {}".format(F[pos], pos))
                     currentFscore = F[pos]
                     current = pos
 
             #Check if we have reached the goal
             if current == end:
-                if self.DEBUG: logging.info("reached goal: {}".format(end)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                if self.DEBUG: logging.debug("reached goal: {}".format(end))
 
                 #Retrace our route backward
                 path = [current]
@@ -359,34 +380,34 @@ class GameMap:
 
                 path.pop() # remove the start point
 
-                if DEBUG & (DEBUG_NAV): logging.info("Nav - Total A* elapsed time {}".format(round(time.time() - astar_start_time, 4))) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                if DEBUG & (DEBUG_TIMING): logging.info("Timing - Total A* elapsed time {}".format(round(time.time() - astar_start_time, 4)))
 
                 return path, F[end] # Done!
 
             #Mark the current vertex as closed
             openVertices.remove(current)
-            if self.DEBUG: logging.info("removing {} from openVertices".format(current)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+            if self.DEBUG: logging.info("removing {} from openVertices".format(current))
 
             closedVertices.add(current)
-            if self.DEBUG: logging.info("adding {} to closedVertices".format(current)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+            if self.DEBUG: logging.info("adding {} to closedVertices".format(current))
 
             #Update scores for vertices near the current position
             #for neighbour in graph.get_vertex_neighbours(current):
             for neighbour in current.get_surrounding_cardinals():
                 neighbour = self.normalize(neighbour)
-                if self.DEBUG: logging.info("neighbour: {}".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                if self.DEBUG: logging.info("neighbour: {}".format(neighbour))
 
                 if neighbour in closedVertices:
-                    if self.DEBUG: logging.info("skipping neighbour {}, already checked".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    if self.DEBUG: logging.info("skipping neighbour {}, already checked".format(neighbour))
                     continue #We have already processed this node exhaustively
 
                 candidateG = G[current] + self.move_cost(current, neighbour, move_cost_type)
 
                 if neighbour not in openVertices:
-                    if self.DEBUG: logging.info("Discovered a new cell {}, adding to  openVertices.".format(neighbour)) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    if self.DEBUG: logging.info("Discovered a new cell {}, adding to  openVertices.".format(neighbour))
                     openVertices.add(neighbour) #Discovered a new vertex
                 elif candidateG >= G[neighbour]:
-                    if self.DEBUG: logging.info("Ignoring candiate cell {}, cost is too high at {}".format(neighbour, round(candidateG, 4))) # DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG
+                    if self.DEBUG: logging.info("Ignoring candiate cell {}, cost is too high at {}".format(neighbour, round(candidateG, 4)))
                     continue #This G score is worse than previously found
 
                 #Adopt this G score
@@ -402,7 +423,6 @@ class GameMap:
         """
             NOT IMPLEMENTED - BROKEN
         """
-
         threshold = self.get_cell_value_map().max() * .8
         hottest_areas = np.ma.MaskedArray(cell_value_map, mask= [cell_value_map < threshold], fill_value = 0)
 
@@ -479,7 +499,7 @@ class GameMap:
 
     def _update_halite_map(self):
         """
-
+        Update the custom map halite amounts. . Typically called on every map update.
         """
         self._halite_map = np.empty((self.width, self.height), dtype="float32")
         for y in range(self.height):
@@ -488,34 +508,45 @@ class GameMap:
 
     def _update_cell_value_map(self):
         """
-
+        Update the custom cell value map. Typically called on every map update.
         """
         for p in self._cell_value_maps:
             self._cell_value_maps[p] = self.v_cell_value_map(p, self._coord_map)
 
     def get_halite_map(self):
         """
-        Return the 2d map of halite amounts
+        Get the 2d map of halite amounts.
+
+        :return Returns a WxH numpy array of halite values.
         """
         return self._halite_map
 
     def get_coord_map(self):
         """
-        Return the 2d map of positions - used by other calcs
+        Get a 2d map of positions. Used by other update methods.
+
+        :return Returns a WxH numpy array of Positions.
         """
         return self._coord_map
 
     def get_distance_map(self, p):
         """
         Return the 2d map of distance beteen p and all map positions. Probably
-        should build/cache one of these for each dropoff
+        should build/cache one of these for each dropoff.
+
+        param p Position
+        :return Returns WxH numpy array of distances to p.
         """
         v_calc_distance = np.vectorize(self.calculate_distance)
         return v_calc_distance(p, self._coord_map)
 
     def get_cell_value_map(self, p):
         """
-        Return the 2d map the value of a cell p and all other cells given it's halite amount and distance from p
+        Return the 2d map the value of a cell p and all other cells given it's halite
+        amount and distance from p.
+
+        :param p Posistion
+        :return Returns a WxH numpy array of cell values.
         """
         if p in self._cell_value_maps:
             return self._cell_value_maps[p]
@@ -524,9 +555,12 @@ class GameMap:
 
     def get_cell_value(self, p1, p2):
         """
-        Get the value of a cell p2 given is halite amount and distance from p1
-        """
+        Get the value of a cell p2 given is halite amount and distance from p1.
 
+        :param p1 Posistion
+        :param p2 Posistion
+        :return Return the value of the cell in regard to game strategy.
+        """
         if (p2.y - p1.y) > 0:
             row_start = p1.y
             row_end = p2.y + 1
