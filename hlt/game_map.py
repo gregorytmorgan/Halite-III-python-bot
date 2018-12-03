@@ -595,10 +595,10 @@ class GameMap:
         :param p Posistion
         :return Returns a WxH numpy array of cell values.
         """
-        if p in self._cell_value_maps:
-            return self._cell_value_maps[p]
-        else:
+        if not (p in self._cell_value_maps):
             self._cell_value_maps[p] = self.v_cell_value_map(p, self._coord_map, distance_constant)
+
+        return self._cell_value_maps[p]
 
     def get_cell_value(self, p1, p2, distance_constant = 1):
         """
