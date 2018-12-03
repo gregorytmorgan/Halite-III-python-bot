@@ -7,6 +7,7 @@ from .common import read_input
 from . import constants
 from .game_map import GameMap, Player
 
+from myutils.constants import DEBUG, DEBUG_NONE
 
 class Game:
     """
@@ -40,11 +41,12 @@ class Game:
 
         num_players, self.my_id = map(int, read_input().split())
 
-        logging.basicConfig(
-            filename="bot-{}.log".format(self.my_id),
-            filemode="w",
-            level=logging.DEBUG,
-        )
+        if DEBUG != DEBUG_NONE:
+            logging.basicConfig(
+                filename="bot-{}.log".format(self.my_id),
+                filemode="w",
+                level=logging.DEBUG
+            )
 
         self.players = {}
         for player in range(num_players):
