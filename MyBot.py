@@ -187,7 +187,8 @@ while True:
     for ship in my_ships:
         dropoff_position = get_dropoff_position(game, ship)
 
-        if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} at {} has {} halite and is {}".format(ship.id, ship.position, ship.halite_amount, ship.status))
+        suffix = "to {}".format(ship.path[0]) if DEBUG & (DEBUG_GAME) and (ship.path and ship.status == "transiting") else ""
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} at {} has {} halite and is {} {}".format(ship.id, ship.position, ship.halite_amount, ship.status, suffix))
 
         #
         # status - returning
@@ -274,15 +275,15 @@ while True:
         # status exploring|transiting (exploring when ship.path != 0)
         #
         else:
-            if len(ship.path) == 0:
+            if ship.path:
+                ship.status = "transiting"
+            else:
                 ship.status = "exploring"
                 if ship.position in loiter_assignments:
                     loiter_assignments.pop(ship.position, None)
                     if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} reached loiter assignment {}, popped assignment".format(ship.id, ship.position))
 
                 if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is now exploring".format(ship.id))
-            else:
-                ship.status = "transiting"
 
         #
         # Move
@@ -296,8 +297,8 @@ while True:
             # exploring (not mining)
             #
             # if we're already at out next position, pop it off we don't waste the turn - why is this happening?
-            if len(ship.path) and ship.position == ship.path[len(ship.path) - 1]:
-                logging.warning("Ship {} popped a useless point {}".format(ship.id, ship.path[len(ship.path) - 1]))
+            if ship.path and ship.position == ship.path[-1]:
+                logging.warning("Ship {} popped a useless point {}".format(ship.id, ship.path[-1]))
                 ship.path.pop()
 
             if ship.status == "exploring":

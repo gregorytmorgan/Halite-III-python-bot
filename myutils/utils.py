@@ -175,14 +175,14 @@ def get_move(game, ship, type="random", args = None):
 
     :param game
     :param ship
-    :param type Type of move: 'nav'|'random'|'halite'
+    :param type Type of move: 'nav'|'random'|'halite (density)'
     :param args    Args to accompany type
     """
 
     if not fuel_ok(game, ship):
         return "o"
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} getting {} move ...".format(ship.id, type))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Getting {} move ...".format(ship.id, type))
 
     if type == "random":
         move = get_random_move(game, ship, args)    # (game, ship, moves (optional))
@@ -193,7 +193,7 @@ def get_move(game, ship, type="random", args = None):
     else:
         raise RuntimeError("Unknown move type: " + str(type))
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} got {} move {}".format(ship.id, type, move))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Using {} move {}".format(ship.id, type, move))
 
     return move
 
@@ -307,9 +307,9 @@ def get_random_move(game, ship, args = None):
 
         cell = game.game_map[normalized_position]
 
-		#
-		# collision resolution
-		#
+        #
+        # collision resolution
+        #
         if not cell.is_occupied:
             cell.mark_unsafe(ship)
             game.game_map[ship.position].mark_safe()
@@ -326,7 +326,6 @@ def get_nav_move(game, ship, args = None):
     """
     Get a move based on the exist ship.path
 
-
     :param game
     :param ship
     :param args
@@ -341,13 +340,13 @@ def get_nav_move(game, ship, args = None):
 
     game_map = game.game_map
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting nav move for path {} with waypoint res {} and move_cost {}".format(ship.id, ship.path, waypoint_resolution, move_cost))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting nav move for path {} with waypoint resolution: {} and move_cost: {}".format(ship.id, ship.path, waypoint_resolution, move_cost))
 
-    if len(ship.path) == 0:
+    if not ship.path:
         if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting nav path. Empty path. Returning 'o'".format(ship.id))
         return 'o'
 
-    next_position = ship.path[len(ship.path) - 1]
+    next_position = ship.path[-1]
 
      # check to see if we have a waypoint, not a continous path
     if game_map.calculate_distance(ship.position, next_position) > 1:
@@ -366,7 +365,7 @@ def get_nav_move(game, ship, args = None):
             ship.path.pop()
             ship.path = ship.path + path
 
-    new_position = ship.path[len(ship.path) - 1]
+    new_position = ship.path[-1]
     if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} new_position: {}".format(ship.id, new_position))
 
     normalized_new_position = game_map.normalize(new_position)
@@ -422,7 +421,7 @@ def get_nav_move(game, ship, args = None):
 #                    game.game_map[ship.position].mark_safe()
 #                    move = Direction.convert(alternate_move_offset)
         else:
-            move = get_move(game, ship, "random")
+            move = get_move(game, ship, "random") # closest?
             if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship.id, normalized_new_position, cell.ship.id , move))
 
     return move
