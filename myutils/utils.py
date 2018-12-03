@@ -62,7 +62,7 @@ def spawn_ok(game):
     if shipyard.is_occupied and shipyard.ship.owner == me.id:
         occupied_cells.append(shipyard.position)
 
-    # entry lane are N/S  #shipyard.position.get_surrounding_cardinals():
+    # entry lane are N/S
     for pos in [shipyard.position.directional_offset(Direction.North), shipyard.position.directional_offset(Direction.North)]:
         if game.game_map[pos].is_occupied:
             occupied_cells.append(pos)
@@ -203,7 +203,6 @@ def get_halite_move(game, ship, args = None):
 
     :param args None ... for now. Add collision_resolution later
     """
-
     if args is None:
         args = {}
 
@@ -223,18 +222,15 @@ def get_halite_move(game, ship, args = None):
 
     if len(sorted_blocks) == 0:
         move = get_move(game, ship, "random") # ToDo: would be better to try a large search radius?
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surround have halite < {} . Making random move to the {}".format(ship.id, constants.MAX_HALITE * MINING_THRESHOLD_MULT, move))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surround have halite < {} . Returning random move: {}".format(ship.id, constants.MAX_HALITE * MINING_THRESHOLD_MULT, move))
         return move
 
     if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} found {} valid halite cells".format(ship.id, len(sorted_blocks)))
 
-    best_bloc_data = sorted_blocks[0]
-
+    best_bloc_data = sorted_blocks[0] # (directional_offset, block, block mean value)
     max_cell = best_bloc_data[1].get_max()
 
-    bc = best_bloc_data[1].get_cells()
-
-    for best_cell in bc:
+    for best_cell in best_bloc_data[1].get_cells():
         if best_cell.halite_amount == max_cell:
             break
 
@@ -249,10 +245,15 @@ def get_halite_move(game, ship, args = None):
 
     cell = game.game_map[normalized_position]
 
+    #
+    # collision resolution
+    #
     if not cell.is_occupied:
-        move = Direction.convert(move_offset)
         cell.mark_unsafe(ship)
         game.game_map[ship.position].mark_safe()
+        move = Direction.convert(move_offset)
+    else:
+        logging.debug("ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_position, Direction.convert(move_offset)))
 
     # if we were not able to find a usable dense cell, try to find a random lateral one else still
     if move == "o":
@@ -306,11 +307,16 @@ def get_random_move(game, ship, args = None):
 
         cell = game.game_map[normalized_position]
 
+		#
+		# collision resolution
+		#
         if not cell.is_occupied:
             cell.mark_unsafe(ship)
             game.game_map[ship.position].mark_safe()
             move = moveChoice
             break
+        else:
+            if DEBUG & (DEBUG_NAV): logging.info("ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_position, moveChoice))
 
     if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting random move {}".format(ship.id, move))
 
@@ -383,36 +389,41 @@ def get_nav_move(game, ship, args = None):
     #
     # collision resolution
     #
-    if cell.is_occupied:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a collision at {} while making nav moving {}".format(ship.id, normalized_new_position, move))
-        # don't let enemy ships block the dropoff
-        if cell.structure_type is Shipyard and cell.ship.owner != game.me.id:
-            cell.mark_unsafe(ship)
-            game.game_map[ship.position].mark_safe()
-            ship.path.pop()
-        # when arriving at a droppoff, wait from entry rather than making a random
-        # this probably will not work as well if not using entry/exit lanes
-        elif game_map.calculate_distance(normalized_new_position, game.me.shipyard.position) <=1:
-            move = "o"
-        # when departing a shipyard, try not to head the wrong direction
-        elif ship.position == game.me.shipyard.position:
-            alternate_moves = Direction.laterals(move)
-            move = "o"
-            for alternate_move_offset in alternate_moves:
-                alternate_pos = ship.position.directional_offset(alternate_move_offset)
-                alternate_cell = game_map[alternate_pos]
-                if not alternate_cell.is_occupied:
-                    alternate_cell.mark_unsafe(ship)
-                    game.game_map[ship.position].mark_safe()
-                    move = Direction.convert(alternate_move_offset)
-        else:
-            move = get_move(game, ship, "random")
-            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship.id, normalized_new_position, cell.ship.id , move))
-    else:
+    if not cell.is_occupied:
         cell.mark_unsafe(ship)
         game.game_map[ship.position].mark_safe()
         if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} popped nav path {}".format(ship.id, ship.path[-1]))
         ship.path.pop()
+    else:
+        # don't let enemy ships block the dropoff
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collision with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_new_position, move))
+        if cell.structure_type is Shipyard and cell.ship.owner != game.me.id:
+            cell.mark_unsafe(ship)
+            game.game_map[ship.position].mark_safe()
+            ship.path.pop()
+
+        # when arriving at a droppoff, wait from entry rather than making a random move
+        # this probably will not work as well without entry/exit lanes
+        elif game_map.calculate_distance(normalized_new_position, game.me.shipyard.position) == 1:
+            move = "o"
+
+        # when departing a shipyard, wait to leave
+        elif ship.position == game.me.shipyard.position:
+            move = "o"
+
+#        elif ship.position == game.me.shipyard.position:
+#            alternate_moves = Direction.laterals(move)
+#            move = "o"
+#            for alternate_move_offset in alternate_moves:
+#                alternate_pos = ship.position.directional_offset(alternate_move_offset)
+#                alternate_cell = game_map[alternate_pos]
+#                if not alternate_cell.is_occupied:
+#                    alternate_cell.mark_unsafe(ship)
+#                    game.game_map[ship.position].mark_safe()
+#                    move = Direction.convert(alternate_move_offset)
+        else:
+            move = get_move(game, ship, "random")
+            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship.id, normalized_new_position, cell.ship.id , move))
 
     return move
 
