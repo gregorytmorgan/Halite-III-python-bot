@@ -27,12 +27,6 @@ botName = "MyBot.dev"
 cumulative_profit = 5000
 loiter_assignments = {}
 
-#
-#  value map
-#
-
-cell_value_map = game.game_map.get_cell_value_map(game.me.shipyard.position)
-
 if DEBUG & (DEBUG_TIMING): logging.info("Game - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
 
 #
@@ -83,18 +77,21 @@ while True:
     # Calc hotspots (loiter assignments) and dense areas
     #
     if USE_CELL_VALUE_MAP:
-        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, game.get_mining_rate(MINING_RATE_LOOKBACK))
+        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, 0) # 2 * game.get_mining_rate(MINING_RATE_LOOKBACK)
+
+        if cell_value_map is None:
+            raise RuntimeError("cv map is None")
 
 #        if game.turn_number < 10 or game.turn_number > constants.MAX_TURNS - 4:
-#            np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
+#            np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
 #            logging.debug("cell_values:\n{}".format(cell_value_map.astype(np.int)))
 #        else:
-#            np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=25)
+#            np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=25)
 
-        if game.turn_number == 1 or game.turn_number == round(constants.MAX_TURNS/2) or game.turn_number == constants.MAX_TURNS:
+        if game.turn_number in [1, round(constants.MAX_TURNS/2), constants.MAX_TURNS, 5, 10]:
             dump_data_file(game, cell_value_map, "cell_value_map_turn_" + str(game.turn_number))
 
-        threshold = cell_value_map.max() * .5
+        threshold = constants.MAX_HALITE * MINING_THRESHOLD_MULT
 
         hottest_areas = np.ma.MaskedArray(cell_value_map, mask= [cell_value_map < threshold], fill_value = 0)
 
@@ -115,8 +112,10 @@ while True:
     else:
         targets = []
 
-#    logging.debug("Targets: {}".format(targets))
-#    logging.debug("Loiter assignments: {}".format(loiter_assignments))
+    if DEBUG & (DEBUG_GAME): logging.info("Game - Found {} targets".format(len(targets)))
+
+    logging.debug("Targets: {}".format(targets))
+    logging.debug("Loiter assignments: {}".format(loiter_assignments))
 
     if DEBUG & (DEBUG_TIMING): logging.info("Game - Turn setup elapsed time: {}".format(round(time.time() - turn_start_time, 2)))
 
