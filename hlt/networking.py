@@ -19,6 +19,7 @@ class Game:
         Also sets up basic logging.
         """
         self.turn_number = 0
+        self.collisions = []
         self.game_metrics = {
             "spent": [],
             'profit': [],

@@ -29,7 +29,7 @@ def spawn_ok(game):
     :returns Returns True if a ship is spawnable
     """
     me = game.me
-    shipyard = game.game_map[me.shipyard]
+    shipyard_cell = game.game_map[me.shipyard]
 
     # % turns above mining rate to dropoff the halite, will typically be about 2?
     mining_over_head = 2
@@ -59,16 +59,16 @@ def spawn_ok(game):
 
     # watch for collisions with owner only, note this will be 1 turn behind
     occupied_cells = []
-    if shipyard.is_occupied and shipyard.ship.owner == me.id:
-        occupied_cells.append(shipyard.position)
+    if shipyard_cell.is_occupied and shipyard_cell.ship.owner == me.id:
+        occupied_cells.append(shipyard_cell.position)
 
     # entry lane are N/S
-    for pos in [shipyard.position.directional_offset(Direction.North), shipyard.position.directional_offset(Direction.North)]:
+    for pos in [shipyard_cell.position.directional_offset(Direction.North), shipyard_cell.position.directional_offset(Direction.South)]:
         if game.game_map[pos].is_occupied:
             occupied_cells.append(pos)
 
     # need to keep track of ships docking instead, a ship in an adjacent cell could be leaving
-    if len(occupied_cells) > 0:
+    if occupied_cells:
         if DEBUG & (DEBUG_GAME): logging.info("GAME - Spawn denied. Occupied cells: {}".format(occupied_cells))
         return False
 
@@ -253,6 +253,7 @@ def get_halite_move(game, ship, args = None):
         game.game_map[ship.position].mark_safe()
         move = Direction.convert(move_offset)
     else:
+        game.collisions.append((ship, cell.ship, Direction.convert(move_offset), normalized_position, ship.path[0] if ship.path else None, 'halite'))
         logging.debug("ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_position, Direction.convert(move_offset)))
 
     # if we were not able to find a usable dense cell, try to find a random lateral one else still
@@ -289,7 +290,7 @@ def get_random_move(game, ship, args = None):
 
     moves = args["moves"] if "moves" in args else ["n", "s", "e", "w"]
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting random move with moves = {}".format(ship.id, moves))
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting random move with moves = {} ... ".format(ship.id, moves))
 
     moveIdx = random.randint(1, len(moves))
 
@@ -315,10 +316,12 @@ def get_random_move(game, ship, args = None):
             game.game_map[ship.position].mark_safe()
             move = moveChoice
             break
-        else:
-            if DEBUG & (DEBUG_NAV): logging.info("ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_position, moveChoice))
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} getting random move {}".format(ship.id, move))
+    if move == "o":
+        if DEBUG & (DEBUG_NAV): logging.info("ship {} collided with ship {} at {} while moving {}".format(ship, cell.ship, normalized_position, moveChoice))
+        game.collisions.append((ship, cell.ship, moveChoice, normalized_position, ship.path[0] if ship.path else None, "still"))
+
+    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting random move {}".format(ship.id, move))
 
     return move
 
@@ -395,8 +398,10 @@ def get_nav_move(game, ship, args = None):
         ship.path.pop()
     else:
         # don't let enemy ships block the dropoff
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collision with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_new_position, move))
+        game.collisions.append((ship, cell.ship, move, normalized_new_position, ship.path[0] if ship.path else None, "nav_move_func"))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_new_position, move))
         if cell.structure_type is Shipyard and cell.ship.owner != game.me.id:
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with enemy ship {} ({}) at shipyard. Crashing".format(ship.id, cell.ship.id, cell.ship.halite_amount))
             cell.mark_unsafe(ship)
             game.game_map[ship.position].mark_safe()
             ship.path.pop()
@@ -615,6 +620,74 @@ def get_dropoff_position(game, ship):
             movePosition = dest
 
     return movePosition
+
+def resolve_collsions(game, collisions, command_queue):
+    """
+    Resolve collision where possible
+
+    :param game
+    :param collisions A list of collisions: (ship1, ship2, move, position, res_method)
+    :return None
+    """
+
+	# reverse to list of collisions to 'unwind' existing resolitions.  Will not need
+	# this once all collision resolution takes place here using 'res_method'
+    collisions.reverse()
+
+    collision_idx = 0
+    n_collisions = len(collisions)
+
+    while collision_idx < n_collisions:
+        collision = collisions[collision_idx]
+        #logging.debug("resolving collision: {}".format(collision))
+
+        ship1 = collision[0]
+        ship2 = collision[1]
+        direction = collision[2]
+        collision_cell = game.game_map[collision[3]]
+
+        # 0:ship1 1:ship2 2:move 3:dest1 4:dest2 5:res type|func 6:ordinal
+
+        swap_collision = False
+        for c_idx  in range(collision_idx + 1, len(collisions)):
+            if collisions[c_idx][0].id == ship1.id and collisions[c_idx][3] == ship1.position:
+                swap_collision = collisions[c_idx]
+                break
+
+        if not (swap_collision is False):
+            if DEBUG & (DEBUG_NAV): logging.info("Collision resolved - swapped: ship {} moving {} to {} collided with ship {}".format(collision[0].id, collision[2], collision[3], collision[1].id))
+
+            ship2 = swap_collision[0]
+
+            command_queue[ship1.id] = ship1.move(direction)
+            game.game_map[ship1].mark_unsafe(ship2)
+            resolved.append(collision)
+            del collisions[collision_idx]
+            collision_idx -= 1
+            n_collisions -= 1
+
+            command_queue[ship2.id] = ship2.move(swap_collision[2]) # index 2 == direction
+            game.game_map[ship2].mark_unsafe(ship1)
+            del collisions[c_idx]
+            n_collisions -= 1
+
+        elif not collision_cell.is_occupied:
+            if DEBUG & (DEBUG_NAV): logging.info("Collision resolved - not occupied: ship {} moving {} to {} collided with ship {}".format(collision[0].id, collision[2], collision[3], collision[1].id))
+            command_queue[ship1.id] = ship1.move(direction)
+            collision_cell.mark_unsafe(ship1)
+            game.game_map[ship1].mark_safe()
+            del collisions[collision_idx]
+            collision_idx -= 1
+            n_collisions -= 1
+        else:
+            if DEBUG & (DEBUG_NAV): logging.info("Collision unresolved: ship {} moving {} to {} collided with ship {}".format(collision[0].id, collision[2], collision[3], collision[1].id))
+            # do nothing
+
+        collision_idx += 1
+
+    if DEBUG & (DEBUG_NAV): logging.info("{} collisions unresolved: {}".format(len(collisions), collisions))
+
+    return command_queue
 
 #
 # destination - The direction the ship is trying to go.  Backoff will be opposite

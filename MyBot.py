@@ -40,6 +40,7 @@ if DEBUG & (DEBUG_TIMING): logging.info("Game - Successfully created bot! My Pla
 """ <<<Game Loop>>> """
 
 while True:
+    game.collisions.clear()
     turn_spent = 0
     turn_gathered = 0
     turn_profit = 0
@@ -51,7 +52,7 @@ while True:
     game_map = game.game_map
     game_metrics = game.game_metrics
 
-    command_queue = []
+    command_queue = {}
 
     cell_values = game_map.get_halite_map()
     cell_values_flat = cell_values.flatten()
@@ -318,13 +319,14 @@ while True:
                 move = get_move(game, ship, "density", "density")
                 logging.error("Error - Ship {} should move, but has an unexpected status {}, falling back to density move {}".format(ship.id, ship.status, move))
 
-            command_queue.append(ship.move(move))
+            if move:
+                command_queue[ship.id] = ship.move(move)
         else:
             #
             # mining
             #
             if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is mining".format(ship.id))
-            command_queue.append(ship.stay_still())
+            command_queue[ship.id] = ship.stay_still()
 
         #
         # save the ship state
@@ -339,7 +341,7 @@ while True:
 
     # check if we can spawn a ship
     if spawn_ok(game):
-        command_queue.append(me.shipyard.spawn())
+        command_queue[-1] = me.shipyard.spawn()
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn request")
 
     #
@@ -363,8 +365,6 @@ while True:
     for s_id in lost_ships:
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen on turn {}".format(s_id, ship_states[s_id]["last_seen"]))
         ship_states.pop(s_id, None)
-
-    if DEBUG & (DEBUG_COMMANDS): logging.info("Game - command queue: {}".format(command_queue))
 
     if DEBUG & (DEBUG_SHIP_STATES): logging.info("Game - end ship_states: {}".format(ship_states))
 
@@ -437,7 +437,16 @@ while True:
 
         if DEBUG & (DEBUG_TIMING): logging.info("Game - Elapsed time: {}".format(round(time.time() - game_start_time, 2)))
 
+    logging.debug("collisions: {}".format(game.collisions))
+
+    #
+    # resolve collisions
+    #
+    command_queue = resolve_collsions(game, game.collisions, command_queue)
+
+    if True or (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(command_queue))
+
     # Send your moves back to the game environment, ending this turn.
-    game.end_turn(command_queue)
+    game.end_turn(list(command_queue.values()))
 
 
