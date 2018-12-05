@@ -48,7 +48,14 @@ while True:
 
     command_queue = []
 
-    enemy_base = Position(8, 16)
+    player_ids = list(game.players.keys())
+
+    random.shuffle(player_ids)
+
+    for p_id in player_ids:
+        if p_id != me.id:
+            enemy_base_position = game.players[p_id].shipyard.position
+            break;
 
     my_ships = me.get_ships()
 
@@ -93,12 +100,12 @@ while True:
         logging.info("Game - Ship {} at {} has {} halite and is {}".format(ship.id, ship.position, ship.halite_amount, ship.status))
 
         if ship.id in tasked_ships:
-            if ship.position == enemy_base:
-                logging.info("GAME - Ship {} arrived {}".format(ship.id, enemy_base))
+            if ship.position == enemy_base_position:
+                logging.info("GAME - Ship {} arrived {}".format(ship.id, enemy_base_position))
                 move = "o"
             else:
-                #logging.info("GAME - Ship {} yard: {} enemy_base: {}".format(ship.id, me.shipyard.position, enemy_base))
-                move = game_map.naive_navigate(ship, enemy_base)
+                #logging.info("GAME - Ship {} yard: {} enemy_base: {}".format(ship.id, me.shipyard.position, enemy_base_position))
+                move = game_map.naive_navigate(ship, enemy_base_position)
         else:
             # logic for untasked ships
             if ship.status == "returning":
