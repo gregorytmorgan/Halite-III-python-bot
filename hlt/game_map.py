@@ -442,11 +442,17 @@ class GameMap:
 
         return None, None
 
-    def get_cell_block(self, position, w, h):
+    def get_cell_blocks(self, position, w, h, blocks = None):
         """
         :param position
         :return Returns a dict indexed on 'n', 's', 'e', 'w' of 3x3 lists of cells
         """
+
+        if blocks is None:
+            blocks = ['n', 's', 'e', 'w']
+
+        # ToDo: loop over blocks and only return the requested quadrants
+
         t = CellBlock.get_corner_offset("n", w, h)
         north_corner = Position(position.x + t[0], position.y + t[0])
 
