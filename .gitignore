@@ -11,6 +11,7 @@ node_modules
 api-key.txt
 db.sqlite3
 f.txt
+db.sqlite3-journal
 
 halite3-match-manager/
 fluorine/
@@ -21,3 +22,4 @@ stats/
 test-bots/
 pypy3-v6.0.0-linux64/
 candidate.*/
+error_replays/
