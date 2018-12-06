@@ -20,6 +20,7 @@ class Game:
         """
         self.turn_number = 0
         self.collisions = []
+        self.command_queue = {},
         self.game_metrics = {
             "spent": [],
             'profit': [],

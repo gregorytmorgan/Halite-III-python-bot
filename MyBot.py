@@ -52,7 +52,7 @@ while True:
     game_map = game.game_map
     game_metrics = game.game_metrics
 
-    command_queue = {}
+    game.command_queue = {}
 
     cell_values = game_map.get_halite_map()
     cell_values_flat = cell_values.flatten()
@@ -320,13 +320,13 @@ while True:
                 logging.error("Error - Ship {} should move, but has an unexpected status {}, falling back to density move {}".format(ship.id, ship.status, move))
 
             if move:
-                command_queue[ship.id] = ship.move(move)
+                game.command_queue[ship.id] = ship.move(move)
         else:
             #
             # mining
             #
             if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is mining".format(ship.id))
-            command_queue[ship.id] = ship.stay_still()
+            game.command_queue[ship.id] = ship.stay_still()
 
         #
         # save the ship state
@@ -338,11 +338,6 @@ while True:
         ship_states[ship.id]["last_seen"] = ship.last_seen
         ship_states[ship.id]["christening"] = ship.christening
         ship_states[ship.id]["last_dock"] = ship.last_dock
-
-    # check if we can spawn a ship
-    if spawn_ok(game):
-        command_queue[-1] = me.shipyard.spawn()
-        if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn request")
 
     #
     # collenct game metrics
@@ -442,11 +437,16 @@ while True:
     #
     # resolve collisions
     #
-    command_queue = resolve_collsions(game, game.collisions, command_queue)
+    resolve_collsions(game)
 
-    if True or (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(command_queue))
+    if True or (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(game.command_queue))
+
+    # check if we can spawn a ship. Make sure to check after all moves have been finalized
+    if spawn_ok(game):
+        game.command_queue[-1] = me.shipyard.spawn()
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn request")
 
     # Send your moves back to the game environment, ending this turn.
-    game.end_turn(list(command_queue.values()))
+    game.end_turn(list(game.command_queue.values()))
 
 
