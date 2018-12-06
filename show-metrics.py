@@ -21,7 +21,7 @@ import re
 import os
 
 try:
-   opts, args = getopt.getopt(sys.argv[1:] , "hv", ["help"])
+   opts, args = getopt.getopt(sys.argv[1:] , "hvt:", ["help", "verbose", "title"])
 except getopt.GetoptError:
    print(sys.argv[0])
    sys.exit(2)
@@ -49,10 +49,13 @@ def main():
     data = []
     file_names = []
     verbose = False
+    title = ""
 
     for o, a in opts:
         if o == "-v":
             verbose = True
+        elif o in ("-t", "--title"):
+            title = a
         elif o in ("-h", "--help"):
             usage()
             sys.exit()
@@ -140,7 +143,7 @@ def main():
     handles, labels = ax.get_legend_handles_labels()
     labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0])) # sort both labels and handles by labels
     plt.legend(handles, labels, loc='upper left')
-    plt.gca().set_title("{}-{}".format(m.group(2), m.group(3)))
+    plt.gca().set_title("{}-{} {}".format(m.group(2), m.group(3), title))
     plt.show()
 
 if __name__ == "__main__":
