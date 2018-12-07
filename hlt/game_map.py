@@ -131,12 +131,12 @@ class GameMap:
         destination = self.normalize(destination)
         resulting_position = abs(source - destination)
 
+        dx = min(resulting_position.x, self.width - resulting_position.x)
+        dy = min(resulting_position.y, self.height - resulting_position.y)
+
         if algorithm == "manhatten":
-            retval = min(resulting_position.x, self.width - resulting_position.x) + \
-                min(resulting_position.y, self.height - resulting_position.y)
+            retval = dx + dy
         elif algorithm == "euclidean":
-            dx = min(resulting_position.x, self.width - resulting_position.x)
-            dy = min(resulting_position.y, self.height - resulting_position.y)
             retval = cdist(np.array([[0, 0]]), np.array([[dx, dy]]), metric='euclidean')[0][0]
         else:
             raise RuntimeError("Unknown distance algorithm: ".format(algorithm))

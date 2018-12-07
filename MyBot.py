@@ -54,9 +54,9 @@ while True:
 
     game.command_queue = {}
 
-    cell_values = game_map.get_halite_map()
-    cell_values_flat = cell_values.flatten()
-
+#    cell_values = game_map.get_halite_map()
+#    cell_values_flat = cell_values.flatten()
+#
 #    if game.turn_number < 10 or game.turn_number > constants.MAX_TURNS - 4:
 #        np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
 #        logging.debug("cell_values:\n{}".format(cell_values.astype(np.int)))
@@ -67,10 +67,10 @@ while True:
 #    logging.debug("cell_values amax: {}".format(np.amax(cell_values_flat)))
 #    logging.debug("cell_values mean: {}".format(cell_values_flat.mean()))
 #    logging.debug("cell_values mode: {}".format(stats.mode(cell_values_flat)[0][0]))
-
-    cell_values_flat.sort()
-
-    # when mean == mode, then evenly distributed
+#
+#    cell_values_flat.sort()
+#
+#    # when mean == mode, then evenly distributed
 #    cnt = cell_values_flat.shape[0]
 #    logging.debug("1/5:{} 4/5:{}".format(cell_values_flat[round(cnt/5.0)], cell_values_flat[round(cnt*4.0/5.0)]))
 
@@ -232,7 +232,7 @@ while True:
 
                 if game.turn_number != ship.christening and ship_states[ship.id]["prior_position"] != ship.position:
                     game_metrics["trip_data"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, dropoff_amount, loiter_distance))
-                    if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} completed dropoff of {} halite at {}. Return took {} turns".format(ship.id, dropoff_amount, dropoff_position, game.turn_number - ship.last_dock))
+                    if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed dropoff of {} halite at {}. Return took {} turns".format(ship.id, dropoff_amount, dropoff_position, game.turn_number - ship.last_dock))
 
                 ship.last_dock = game.turn_number
 
@@ -278,12 +278,12 @@ while True:
             path, cost = game_map.navigate(ship.position, dropoff_position, "dock") # returning to shipyard/dropoff
 
             if path is None:
-                if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} Error, navigate return None")
+                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} Error, navigate return None")
                 ship.path = []
                 logging.error("Ship {} Error, navigate failed for dropoff {}".format(ship.id, dropoff_position))
             else:
                 ship.path = path
-                if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} is now returning to {} at a cost of {} ({} turns)".format(ship.id, dropoff_position, round(cost, 1), len(ship.path)))
+                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is now returning to {} at a cost of {} ({} turns)".format(ship.id, dropoff_position, round(cost, 1), len(ship.path)))
 
         #
         # status exploring|transiting (exploring when ship.path != 0)
@@ -319,17 +319,17 @@ while True:
 
             if ship.status == "exploring":
                 move = get_move(game, ship, "density")
-                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is exploring to the {}".format(ship.id, move))
+                if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is exploring to the {}".format(ship.id, move))
             elif ship.status == "transiting":
                 args = {
                     "waypoint_algorithm": "astar",
                     "move_cost": "turns"
                 }
                 move = get_move(game, ship, "nav", args) # path scheme = algo for incomplete path
-                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is {} {}".format(ship.id, ship.status, move))
+                if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is {} {}".format(ship.id, ship.status, move))
             elif ship.status == "returning":
                 move = get_move(game, ship, "nav", "naive") # returning will break if a waypoint resolution other than naive is used
-                if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is {} {}".format(ship.id, ship.status, move))
+                if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is {} {}".format(ship.id, ship.status, move))
             else:
                 move = get_move(game, ship, "density", "density")
                 logging.error("Error - Ship {} should move, but has an unexpected status {}, falling back to density move {}".format(ship.id, ship.status, move))
@@ -340,7 +340,7 @@ while True:
             #
             # mining
             #
-            if DEBUG & (DEBUG_GAME): logging.info("GAME - Ship {} is mining".format(ship.id))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is mining".format(ship.id))
             game.command_queue[ship.id] = ship.stay_still()
 
         #
@@ -461,9 +461,9 @@ while True:
             logging.info("Game - Avg. return distance: {}".format(avg_explore_duration))
 
         if DEBUG & (DEBUG_TIMING):
-            logging.info("Game - Min turn time: {}".format(min(game_metrics["turn_time"], key = lambda t: t[1])))
-            logging.info("Game - Max turn time: {}".format(max(game_metrics["turn_time"], key = lambda t: t[1])))
-            logging.info("Game - Avg turn time: {:.4f}".format(np.mean(game_metrics["turn_time"], axis=0)[1]))
+            logging.info("Game - Min. turn time: {}".format(min(game_metrics["turn_time"], key = lambda t: t[1])))
+            logging.info("Game - Max. turn time: {}".format(max(game_metrics["turn_time"], key = lambda t: t[1])))
+            logging.info("Game - Avg. turn time: {:.4f}".format(np.mean(game_metrics["turn_time"], axis=0)[1]))
 
         if DEBUG & (DEBUG_OUTPUT_GAME_METRICS):
             dump_stats(game, game_metrics, "all")
@@ -475,7 +475,7 @@ while True:
     #
     resolve_collsions(game)
 
-    if True or (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(game.command_queue))
+    if (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(game.command_queue))
 
     # check if we can spawn a ship. Make sure to check after all moves have been finalized
     if spawn_ok(game):

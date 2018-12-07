@@ -40,11 +40,11 @@ def spawn_ok(game):
     #
 
     if ship_count >= MAX_SHIPS:
-        if DEBUG & (DEBUG_GAME): logging.info("GAME - Spawn denied. MAX ships reached".format())
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Spawn denied. MAX ships reached".format())
         return False
 
     if me.halite_amount < constants.SHIP_COST:
-        if DEBUG & (DEBUG_GAME): logging.info("GAME - Spawn denied. Insufficient halite".format())
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Spawn denied. Insufficient halite".format())
         return False
 
     #
@@ -54,7 +54,7 @@ def spawn_ok(game):
     # spawn 4 right away
     if EXPEDITED_DEPARTURE:
         if me.ship_count < EXPEDITED_SHIP_COUNT:
-            if DEBUG & (DEBUG_GAME): logging.info("GAME - Spawn expedited due to ship count {} < {}".format(me.ship_count, EXPEDITED_SHIP_COUNT))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Spawn expedited due to ship count {} < {}".format(me.ship_count, EXPEDITED_SHIP_COUNT))
             return True
 
     # watch for collisions with owner only, note this will be 1 turn behind
@@ -69,7 +69,7 @@ def spawn_ok(game):
 
     # need to keep track of ships docking instead, a ship in an adjacent cell could be leaving
     if occupied_cells:
-        if DEBUG & (DEBUG_GAME): logging.info("GAME - Spawn denied. Occupied cells: {}".format(occupied_cells))
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Spawn denied. Occupied cells: {}".format(occupied_cells))
         return False
 
     # primary constraint
@@ -291,16 +291,16 @@ def get_random_move(game, ship, args = None):
         args = {}
 
     moves = args["moves"] if "moves" in args else ["n", "s", "e", "w"]
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting random move with moves = {} ... ".format(ship.id, moves))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Getting random move with moves = {} ... ".format(ship.id, moves))
 
     move = random.choice(moves)
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} move: {}".format(ship.id, move))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} move: {}".format(ship.id, move))
 
     new_position = ship.position.directional_offset(DIRECTIONS[move])
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} new_position: {}".format(ship.id, new_position))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} new_position: {}".format(ship.id, new_position))
 
     normalized_position = game.game_map.normalize(new_position)
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} normalized_position {}".format(ship.id, normalized_position))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} normalized_position {}".format(ship.id, normalized_position))
 
     cell = game.game_map[normalized_position]
 
@@ -318,7 +318,7 @@ def get_random_move(game, ship, args = None):
     # success
     #
     cell.mark_unsafe(ship)
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting random move {}".format(ship.id, move))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Getting random move {}".format(ship.id, move))
 
     return move
 
@@ -340,12 +340,12 @@ def get_nav_move(game, ship, args = None):
 
     game_map = game.game_map
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting nav move for path {} with waypoint resolution: {} and move_cost: {}".format(ship.id, ship.path, waypoint_resolution, move_cost))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Getting nav move for path {} with waypoint resolution: {} and move_cost: {}".format(ship.id, ship.path, waypoint_resolution, move_cost))
 
     ship_cell = game_map[ship]
 
     if not ship.path:
-        if DEBUG & (DEBUG_NAV): logging.warn("NAV - ship {} Getting nav path. Empty path. Returning 'o'".format(ship.id))
+        if DEBUG & (DEBUG_NAV): logging.warn("Nav - ship {} Getting nav path. Empty path. Returning 'o'".format(ship.id))
         if ship_cell.is_occupied:
             game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?
             if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}".format(ship.id, ship_cell.ship.id, ship.position, 'o'))
@@ -360,13 +360,13 @@ def get_nav_move(game, ship, args = None):
     if game_map.calculate_distance(ship.position, next_position) > 1:
         normalized_next_position = game_map.normalize(next_position)
 
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} Getting nav path. Found waypoint {}, calulating complete path".format(ship.id, next_position))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Getting nav path. Found waypoint {}, calulating complete path".format(ship.id, next_position))
 
         # calc a continous path
         path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_resolution, {"move_costs": move_cost})
 
         if path is None or len(path) == 0:
-            if DEBUG & (DEBUG_NAV): logging.warn("NAV - ship {} Nav failed, can't reach waypoint {} from {}".format(ship.id, normalized_next_position, ship.position))
+            if DEBUG & (DEBUG_NAV): logging.warn("Nav - ship {} Nav failed, can't reach waypoint {} from {}".format(ship.id, normalized_next_position, ship.position))
             if ship_cell.is_occupied:
                 game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?
                 if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}".format(ship.id, ship_cell.ship.id, ship.position, 'o'))
@@ -375,19 +375,19 @@ def get_nav_move(game, ship, args = None):
                 ship_cell.mark_unsafe(ship)
                 return 'o'
         else:
-            if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} path to waypoint {} found with a cost of {} ({} turns)".format(ship.id, next_position, next_position, round(cost), len(path)))
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} path to waypoint {} found with a cost of {} ({} turns)".format(ship.id, next_position, next_position, round(cost), len(path)))
             ship.path.pop()
             ship.path = ship.path + path
 
     new_position = ship.path[-1]
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} new_position: {}".format(ship.id, new_position))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} new_position: {}".format(ship.id, new_position))
 
     normalized_new_position = game_map.normalize(new_position)
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} normalized_new_position: {}".format(ship.id, normalized_new_position))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} normalized_new_position: {}".format(ship.id, normalized_new_position))
 
     # why?
     if normalized_new_position == ship.position:
-        if DEBUG & (DEBUG_NAV): logging.warn("NAV - ship {} popped move {}. Returning 'o'.  Why did this happen?".format(ship.id, ship.path[-1]))
+        if DEBUG & (DEBUG_NAV): logging.warn("Nav - ship {} popped move {}. Returning 'o'.  Why did this happen?".format(ship.id, ship.path[-1]))
         ship.path.pop()
         game_map[ship].mark_unsafe(ship)
         return 'o'
@@ -398,7 +398,7 @@ def get_nav_move(game, ship, args = None):
     offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
     move = Direction.convert(offset)
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} has potential nav move: {}".format(ship.id, move))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has potential nav move: {}".format(ship.id, move))
 
     #
     # collision resolution
@@ -412,7 +412,7 @@ def get_nav_move(game, ship, args = None):
     # success
     #
     cell.mark_unsafe(ship)
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} popped nav path {}".format(ship.id, ship.path[-1]))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} popped nav path {}".format(ship.id, ship.path[-1]))
     ship.path.pop()
 
     return move
@@ -529,7 +529,7 @@ def get_loiter_point(game, ship, hint = None):
     """
     loiter_distance = get_loiter_multiple(game)
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} loiter_distance: {}".format(ship.id, loiter_distance))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} loiter_distance: {}".format(ship.id, loiter_distance))
     if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_multiples"].append((game.turn_number, round(loiter_distance, 2)))
 
     # get a random point on a cicle in radians, note that +y is down
@@ -548,7 +548,7 @@ def get_loiter_point(game, ship, hint = None):
 
     raw_loiter_point = (math.cos(pt), math.sin(pt))
 
-    if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} raw_loiter_point: ({},{}), loiter_distance: {}, hint: {}".format(ship.id, round(raw_loiter_point[0], 4), round(raw_loiter_point[1], 4), loiter_distance, hint))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} raw_loiter_point: ({},{}), loiter_distance: {}, hint: {}".format(ship.id, round(raw_loiter_point[0], 4), round(raw_loiter_point[1], 4), loiter_distance, hint))
 
     loiterOffset = Position(round(raw_loiter_point[0] * loiter_distance), round(raw_loiter_point[1] * loiter_distance))
 
@@ -616,7 +616,7 @@ def resolve_collsions(game):
     """
     game_map = game.game_map
 
-    if DEBUG & (DEBUG_GAME): logging.info("Game - Begining resolution of {} collisions".format(len(game.collisions)))
+    if DEBUG & (DEBUG_GAME): logging.info("Game - Collision resolution start. {} collisions need resolution".format(len(game.collisions)))
 
     # for each collision identify type and resolve, then add solved move to the command queue
     for collision in game.collisions:
@@ -711,13 +711,13 @@ def resolve_random_move(game, collision, args = None):
 
     for idx in range(moveIdx, moveIdx + len(moves)):
         moveChoice = moves[idx % len(moves)]
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
 
         new_position = ship.position.directional_offset(DIRECTIONS[moveChoice])
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} new_position: {}".format(ship.id, new_position))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} new_position: {}".format(ship.id, new_position))
 
         normalized_position = game.game_map.normalize(new_position)
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - Ship {} normalized_position {}".format(ship.id, normalized_position))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} normalized_position {}".format(ship.id, normalized_position))
 
         cell = game.game_map[normalized_position]
 
@@ -838,7 +838,7 @@ def resolve_nav_move(game, collision):
             ship_cell.mark_unsafe(ship1)
             new_move = 'o'
     else:
-        if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship1.id, position, ship2.id , move))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship1.id, position, ship2.id , move))
         new_move = resolve_random_move(game, collision)
 
     #
