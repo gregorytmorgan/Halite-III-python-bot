@@ -22,17 +22,19 @@ class Game:
         self.collisions = []
         self.command_queue = {},
         self.game_metrics = {
-            "spent": [],
-            'profit': [],
-            "mined": [],
-            "gathered": [(0, 0, 5000)],
-            "turn_time": [],
             "burned": [],
-            "raw_loiter_points": [],
+            "gathered": [(0, 0, 5000)],
+            "loiter_distances": [],
             "loiter_multiples": [],
             "loiter_offsets": [],
-            "loiter_distances": [],
-            "return_duration": []
+            "mined": [],
+            "profit": [],
+            "raw_loiter_points": [],
+            "trip_transit_duration": [],
+            "trip_explore_duration": [],
+            "spent": [],
+            "trip_data": [],
+            "turn_time": []
         }
 
         self.ship_christenings = {}

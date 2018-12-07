@@ -219,9 +219,9 @@ def get_halite_move(game, ship, args = None):
     if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} is getting a density based move".format(ship.id))
 
     moves = []
-    for quadrant in game.game_map.get_cell_blocks(ship.position, 3, 3):
-        directional_offset = quadrant[0]
-        block = quadrant[1]
+    for blocks in game.game_map.get_cell_blocks(ship.position, 3, 3): # returns array of tuples [(direction), CellBlock]
+        directional_offset = blocks[0]
+        block = blocks[1]
 
         if block.get_max() > constants.MAX_HALITE * MINING_THRESHOLD_MULT:
             moves.append((directional_offset, block, block.get_mean()))
@@ -257,7 +257,7 @@ def get_halite_move(game, ship, args = None):
     #
     if cell.is_occupied:
         game.collisions.append((ship, cell.ship, Direction.convert(move_offset), normalized_position, resolve_halite_move)) # args = alt moves?
-        logging.debug("ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_position, Direction.convert(move_offset)))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_position, Direction.convert(move_offset)))
         return None
 
     #
@@ -841,12 +841,12 @@ def resolve_nav_move(game, collision):
         if DEBUG & (DEBUG_NAV): logging.info("NAV - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship1.id, position, ship2.id , move))
         new_move = resolve_random_move(game, collision)
 
-	#
-	# if we were not able to resolve above, unwind ...
-	#
+    #
+    # if we were not able to resolve above, unwind ...
+    #
     if new_move is None:
         cnt = unwind(game, ship1)
-        logging.debug("ship {} - Resolved by unwinding {} ships".format(ship1.id, cnt))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Resolved by unwinding {} ships".format(ship1.id, cnt))
         #ship_cell.mark_unsafe(ship1)
         new_move = 'o'
 
