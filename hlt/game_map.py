@@ -90,12 +90,26 @@ class GameMap:
         self.width = width
         self.height = height
         self._cells = cells
+
+        # data maps
         self._cell_value_map = None
+
+        # numpy array, dtype=float
         self._halite_map = None
+
+        # numpy array, dtype=object
         self._coord_map = np.empty((self.width, self.height), dtype=object)
+
+        # dictionary of numpy arrays, dtype=float
         self._cell_value_maps = {}
+
+        # vectorized funcs
         self.v_cell_value_map = np.vectorize(self.get_cell_value)
         self.v_calc_distance = np.vectorize(self.calculate_distance)
+
+        # stats
+        self.max_halite = None,
+        self.mean_halite = None,
 
         # init the coord map
         for y in np.arange(self.height):
@@ -555,6 +569,9 @@ class GameMap:
             for x in range(self.width):
                 self._halite_map[y][x] = self._cells[y][x].halite_amount
 
+        self.max_halite = np.max(self._halite_map)
+        self.mean_halite = np.mean(self._halite_map)
+
     def _update_cell_value_map(self):
         """
         Update the custom cell value map. Typically called on every map update.
@@ -629,19 +646,19 @@ class GameMap:
         halite_map = self.get_halite_map() # used to get slice for avg cost. Not worth the cost?
 
         # need to copy since we're going to modify the slice with NaN. How expensive?
-        avg_halite_map = copy.deepcopy(halite_map[row_start:row_end, col_start:col_end])
+        path_avg_halite_map = copy.deepcopy(halite_map[row_start:row_end, col_start:col_end])
 
         #ignore start/end cells
-        avg_halite_map[0][0] = np.nan
-        avg_halite_map[-1][-1] = np.nan
+        path_avg_halite_map[0][0] = np.nan
+        path_avg_halite_map[-1][-1] = np.nan
 
-        avg_halite_map = halite_map[row_start:row_end, col_start:col_end]
+        path_avg_halite_map = halite_map[row_start:row_end, col_start:col_end]
 
-        if avg_halite_map.size == 0 : logging.error("Error - point {} has a avg halite map size of 0".format(p2))
+        if path_avg_halite_map.size == 0 : logging.error("Error - point {} has a avg halite map size of 0".format(p2))
 
-        avg_halite = np.nanmean(avg_halite_map)
+        path_avg_halite = np.nanmean(path_avg_halite_map)
 
-        fuel_cost = 0 if np.isnan(avg_halite) else round(distance * avg_halite * .1)
+        fuel_cost = 0 if np.isnan(path_avg_halite) else round(distance * path_avg_halite * .1)
 
         return halite - fuel_cost - (distance_constant * distance)
 
