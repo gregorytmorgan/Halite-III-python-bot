@@ -562,27 +562,21 @@ class GameMap:
 
         self._update_halite_map() # update the halite map before cell values
 
-        if USE_CELL_VALUE_MAP:
-            self._update_cell_value_map()
+        # invalid the cv maps at the begining of every turn
+        self._cell_value_maps.clear()
 
     def _update_halite_map(self):
         """
         Update the custom map halite amounts. . Typically called on every map update.
         """
         self._halite_map = np.empty((self.width, self.height), dtype="float32")
+
         for y in range(self.height):
             for x in range(self.width):
                 self._halite_map[y][x] = self._cells[y][x].halite_amount
 
         self.max_halite = np.max(self._halite_map)
         self.mean_halite = np.mean(self._halite_map)
-
-    def _update_cell_value_map(self):
-        """
-        Update the custom cell value map. Typically called on every map update.
-        """
-        for p in self._cell_value_maps:
-            self._cell_value_maps[p] = self.v_cell_value_map(p, self._coord_map)
 
     def get_halite_map(self):
         """
@@ -618,10 +612,12 @@ class GameMap:
         :param p Posistion
         :return Returns a WxH numpy array of cell values.
         """
-        if not (p in self._cell_value_maps):
-            self._cell_value_maps[p] = self.v_cell_value_map(p, self._coord_map, distance_constant)
+        key = hash(str(p) + str(distance_constant))
 
-        return self._cell_value_maps[p]
+        if not (key in self._cell_value_maps):
+            self._cell_value_maps[key] = self.v_cell_value_map(p, self._coord_map, distance_constant)
+
+        return self._cell_value_maps[key]
 
     def get_cell_value(self, p1, p2, distance_constant = 1):
         """
