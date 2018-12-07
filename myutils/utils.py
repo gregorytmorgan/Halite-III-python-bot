@@ -572,12 +572,14 @@ def get_departure_point(game, dropoff, destination, departure_lanes = "e-w"):
     shortcut_x = True if distance.x >= (game.game_map.width / 2) else False
     shortcut_y = True if distance.y >= (game.game_map.height / 2) else False
 
+    std_departure_distance = 1 if game.game_map.calculate_distance(dropoff, destination) < DEPARTURE_DISTANCE else DEPARTURE_DISTANCE
+
     if departure_lanes == "e-w":
-        departure_distance = -DEPARTURE_DISTANCE if shortcut_x else DEPARTURE_DISTANCE
+        departure_distance = -std_departure_distance if shortcut_x else std_departure_distance
         departure_x = dropoff.x + departure_distance if destination.x > dropoff.x else dropoff.x - departure_distance
         departure_y = dropoff.y
     elif departure_lanes == "n-s":
-        departure_distance = -DEPARTURE_DISTANCE if shortcut_y else DEPARTURE_DISTANCE
+        departure_distance = -std_departure_distance if shortcut_y else std_departure_distance
         departure_x = dropoff.x
         departure_y = dropoff.y + departure_distance if destination.y > dropoff.y else dropoff.y - departure_distance
     else:
