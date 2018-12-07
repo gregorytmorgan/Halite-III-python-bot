@@ -343,13 +343,15 @@ class GameMap:
         :param destination Dropoff position
         :return Returns a list of positions. Positions are ordered end to start
         """
-        offset = start.y - dropoff.y
+        yoffset = start.y - dropoff.y
 
-        if offset <= 2 and offset >= 0:
-            path = [dropoff, Position(dropoff.x, dropoff.y + (3 - offset)), Position(start.x, start.y + (3 - offset))]
+        if start.x == dropoff.x:
+            path, cost = self.get_naive_path(start, dropoff)
+        elif yoffset <= 2 and yoffset >= 0:
+            path = [dropoff, Position(dropoff.x, dropoff.y + (3 - yoffset)), Position(start.x, start.y + (3 - yoffset))]
             cost = 123 # dummy val
-        elif offset >= -2 and offset < 0:
-            path = [dropoff, Position(dropoff.x, dropoff.y - (3 + offset)), Position(start.x, start.y - (3 + offset))]
+        elif yoffset >= -2 and yoffset < 0:
+            path = [dropoff, Position(dropoff.x, dropoff.y - (3 + yoffset)), Position(start.x, start.y - (3 + yoffset))]
             cost = 123 # dummy val
         else:
             path, cost = self.get_naive_path(start, Position(dropoff.x, start.y))
@@ -357,7 +359,7 @@ class GameMap:
 
         return path, cost
 
-    def get_astar_path(self, start, destination, move_cost_type="turns"):
+    def get_astar_path(self, start, destination, move_cost_type="turns", excludes = []):
         """
         Get a path using a-star search
 
