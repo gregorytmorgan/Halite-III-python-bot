@@ -14,6 +14,7 @@ from .common import read_input
 
 from myutils.constants import DEBUG, DEBUG_NAV, USE_CELL_VALUE_MAP, DEBUG_TIMING
 from myutils.cell_block import CellBlock
+from myutils.globals import Mining_threshold
 
 class MapCell:
     """A cell on the game map."""

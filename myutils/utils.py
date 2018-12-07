@@ -20,6 +20,7 @@ import numpy as np
 
 # mybot utils
 from myutils.constants import *
+from myutils.globals import Mining_threshold
 
 def spawn_ok(game):
     """
@@ -223,14 +224,14 @@ def get_halite_move(game, ship, args = None):
         directional_offset = blocks[0]
         block = blocks[1]
 
-        if block.get_max() > constants.MAX_HALITE * MINING_THRESHOLD_MULT:
+        if block.get_max() > Mining_threshold:
             moves.append((directional_offset, block, block.get_mean()))
 
     sorted_blocks = sorted(moves, key=lambda item: item[2], reverse=True)
 
     if not sorted_blocks:
         move = get_random_move(game, ship) # ToDo: would be better to try a large search radius?
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surrounding cells have halite < {} . Returning random move: {}".format(ship.id, constants.MAX_HALITE * MINING_THRESHOLD_MULT, move))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surrounding cells have halite < threshold({}) . Returning random move: {}".format(ship.id, Mining_threshold, move))
         return move
 
     best_bloc_data = sorted_blocks[0] # (directional_offset, block, block mean value)
@@ -496,7 +497,7 @@ def should_move(game, ship):
     if ship.is_full:
         return True
 
-    if cell_halite < constants.MAX_HALITE * MINING_THRESHOLD_MULT:
+    if cell_halite < Mining_threshold:
         return True
 
 #    cargo_threshold = .95 * constants.MAX_HALITE
