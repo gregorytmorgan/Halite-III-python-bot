@@ -94,7 +94,7 @@ class Game:
         a rate of at least 1.
         '''
         if not self.game_metrics["mined"]:
-            self.game_map.mean_halite * .25
+            return self.game_map.mean_halite * .25
 
         if turns is None:
             turns = self.turn_number
