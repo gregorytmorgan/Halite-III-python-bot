@@ -95,6 +95,7 @@ class GameMap:
         self._coord_map = np.empty((self.width, self.height), dtype=object)
         self._cell_value_maps = {}
         self.v_cell_value_map = np.vectorize(self.get_cell_value)
+        self.v_calc_distance = np.vectorize(self.calculate_distance)
 
         # init the coord map
         for y in np.arange(self.height):
@@ -128,19 +129,15 @@ class GameMap:
         """
         source = self.normalize(source)
         destination = self.normalize(destination)
+        resulting_position = abs(source - destination)
 
         if algorithm == "manhatten":
-            resulting_position = abs(source - destination)
             retval = min(resulting_position.x, self.width - resulting_position.x) + \
                 min(resulting_position.y, self.height - resulting_position.y)
-
-            #sx = min(resulting_position.x, self.width - resulting_position.x)
-            #sy = min(resulting_position.y, self.height - resulting_position.y)
-            #s = np.array([sx, sd])
-            #d = np.array([destination.x, destination.y])
-            #retval = cdist(s, d, metric='cityblock')
-        elif algo == "euclidean":
-            retval = cdist(np.array([source.x, source.y]), np.array([destination.x, destination.y]), metric='euclidean')
+        elif algorithm == "euclidean":
+            dx = min(resulting_position.x, self.width - resulting_position.x)
+            dy = min(resulting_position.y, self.height - resulting_position.y)
+            retval = cdist(np.array([[0, 0]]), np.array([[dx, dy]]), metric='euclidean')[0][0]
         else:
             raise RuntimeError("Unknown distance algorithm: ".format(algorithm))
 
@@ -248,7 +245,6 @@ class GameMap:
             dx2 = start.x - goal.x
             dy2 = start.y - goal.y
             cross = abs(dx1 * dy2 - dx2 * dy1)
-            #cross = np.cross([start.x, start.y], [current.x, current.y])
             retval = manhatten + cross * 0.001
         elif move_cost_type == "halite":
             retval = manhatten * constants.MAX_HALITE
@@ -454,16 +450,16 @@ class GameMap:
         # ToDo: loop over blocks and only return the requested quadrants
 
         t = CellBlock.get_corner_offset("n", w, h)
-        north_corner = Position(position.x + t[0], position.y + t[0])
+        north_corner = Position(position.x + t[0], position.y + t[1])
 
         t = CellBlock.get_corner_offset("s", w, h)
-        south_corner = Position(position.x + t[0], position.y + t[0])
+        south_corner = Position(position.x + t[0], position.y + t[1])
 
         t = CellBlock.get_corner_offset("e", w, h)
-        east_corner = Position(position.x + t[0], position.y + t[0])
+        east_corner = Position(position.x + t[0], position.y + t[1])
 
         t = CellBlock.get_corner_offset("w", w, h)
-        west_corner = Position(position.x + t[0], position.y + t[0])
+        west_corner = Position(position.x + t[0], position.y + t[1])
 
         return [
             (Direction.North, CellBlock(self, north_corner, w, h)),
@@ -590,8 +586,7 @@ class GameMap:
         param p Position
         :return Returns WxH numpy array of distances to p.
         """
-        v_calc_distance = np.vectorize(self.calculate_distance)
-        return v_calc_distance(p, self._coord_map)
+        return self.v_calc_distance(p, self._coord_map)
 
     def get_cell_value_map(self, p, distance_constant = 1):
         """
