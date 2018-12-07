@@ -4,6 +4,7 @@ import time
 import numpy as np
 from scipy.spatial.distance import cdist
 import copy
+import sys
 
 from . import constants
 from .entity import Entity, Shipyard, Ship, Dropoff
@@ -278,7 +279,8 @@ class GameMap:
         """
         if algorithm == "astar":
             move_cost = args["move_cost"] if "move_cost" in args else None
-            path, cost = self.get_astar_path(start, destination, move_cost)
+            excludes = args["excludes"] if "excludes" in args else []
+            path, cost = self.get_astar_path(start, destination, move_cost, excludes)
         elif algorithm == "naive":
             path, cost = self.get_naive_path(start, destination)
         elif algorithm == "dock":
@@ -434,7 +436,8 @@ class GameMap:
                     if self.DEBUG: logging.info("skipping neighbour {}, already checked".format(neighbour))
                     continue #We have already processed this node exhaustively
 
-                candidateG = G[current] + self.move_cost(current, neighbour, move_cost_type)
+                cost = sys.maxsize if neighbour in excludes else self.move_cost(current, neighbour, move_cost_type)
+                candidateG = G[current] + cost
 
                 if neighbour not in openVertices:
                     if self.DEBUG: logging.info("Discovered a new cell {}, adding to  openVertices.".format(neighbour))
