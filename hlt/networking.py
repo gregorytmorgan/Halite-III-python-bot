@@ -93,9 +93,8 @@ class Game:
         Returns the mining rate for the game or a specific ship. Always returns
         a rate of at least 1.
         '''
-
-        if len(self.game_metrics["mined"]) == 0:
-            return 1
+        if not self.game_metrics["mined"]:
+            self.game_map.mean_halite * .25
 
         if turns is None:
             turns = self.turn_number
