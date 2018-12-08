@@ -23,7 +23,7 @@ from myutils.constants import *
 game_start_time = time.time()
 game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
-botName = "MyBot.v19"
+botName = "MyBot.v20"
 cumulative_profit = 5000
 loiter_assignments = {}
 
@@ -41,23 +41,25 @@ if DEBUG & (DEBUG_TIMING): logging.info("Game - Successfully created bot! My Pla
 
 while True:
     game.collisions.clear()
+    game.command_queue = {}
     turn_spent = 0
     turn_gathered = 0
     turn_profit = 0
     turn_start_time = time.time()
-
-    game.update_frame()
+    targets = []
 
     me = game.me
     game_map = game.game_map
     game_metrics = game.game_metrics
 
-    game.command_queue = {}
+    game.update_frame()
+
+    my_ships = me.get_ships()
 
 #    cell_values = game_map.get_halite_map()
 #    cell_values_flat = cell_values.flatten()
 #
-#    if game.turn_number < 10 or game.turn_number > constants.MAX_TURNS - 4:
+#    if (game.turn_number > 1 and game.turn_number < 4) or game.turn_number > constants.MAX_TURNS - 4:
 #        np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
 #        logging.debug("cell_values:\n{}".format(cell_values.astype(np.int)))
 #    else:
@@ -78,21 +80,24 @@ while True:
     # Calc hotspots (loiter assignments) and dense areas
     #
     if USE_CELL_VALUE_MAP:
-        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, 8) # 2 * game.get_mining_rate(MINING_RATE_LOOKBACK)
+        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, 2 * game.get_mining_rate(MINING_RATE_LOOKBACK)) # 8 * game.get_mining_rate(MINING_RATE_LOOKBACK)
 
         if cell_value_map is None:
             raise RuntimeError("cv map is None")
 
-#        if game.turn_number < 10 or game.turn_number > constants.MAX_TURNS - 4:
-#            np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
-#            logging.debug("cell_values:\n{}".format(cell_value_map.astype(np.int)))
-#        else:
-#            np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=25)
+        if game.turn_number < 1 or game.turn_number > constants.MAX_TURNS - 1:
+            np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
+            logging.debug("cell_values:\n{}".format(cell_value_map.astype(np.int)))
+        else:
+            np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
 
-        if game.turn_number in [1, round(constants.MAX_TURNS/2), constants.MAX_TURNS, 5, 10]:
-            dump_data_file(game, cell_value_map, "cell_value_map_turn_" + str(game.turn_number))
+        if DEBUG & (DEBUG_OUTPUT_GAME_METRICS):
+            if game.turn_number in [1, round(constants.MAX_TURNS/2), constants.MAX_TURNS, 5, 10]:
+                dump_data_file(game, cell_value_map, "cell_value_map_turn_" + str(game.turn_number))
 
-        threshold = constants.MAX_HALITE * MINING_THRESHOLD_MULT
+        untasked_ships_cnt = len(my_ships) - len(loiter_assignments)
+
+        threshold = 0
 
         hottest_areas = np.ma.MaskedArray(cell_value_map, mask= [cell_value_map < threshold], fill_value = 0)
 
@@ -116,6 +121,7 @@ while True:
     if DEBUG & (DEBUG_GAME): logging.info("Game - Found {} targets".format(len(targets)))
 
     logging.debug("Targets: {}".format(targets))
+
     logging.debug("Loiter assignments: {}".format(loiter_assignments))
 
     if DEBUG & (DEBUG_TIMING): logging.info("Game - Turn setup elapsed time: {}".format(round(time.time() - turn_start_time, 2)))
@@ -123,8 +129,6 @@ while True:
     #
     # initialize the ship states
     #
-
-    my_ships = me.get_ships()
 
     # sort the ships by halite, this helps give returning ships priority/helps with
     # traffic issues around dropoffs until better collision mgmt is in place
