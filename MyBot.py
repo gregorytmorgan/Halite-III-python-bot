@@ -47,7 +47,7 @@ while True:
     turn_start_time = time.time()
     targets = []
 
-	# convenience vars
+    # convenience vars
     me = game.me
     game_map = game.game_map
     game_metrics = game.game_metrics
@@ -86,20 +86,26 @@ while True:
         if cell_value_map is None:
             raise RuntimeError("cv map is None")
 
-        if game.turn_number < 1 or game.turn_number > constants.MAX_TURNS - 1:
-            np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
-            logging.debug("cell_values:\n{}".format(cell_value_map.astype(np.int)))
-        else:
-            np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
+        if DEBUG & (DEBUG_CV_MAP):
+            if game.turn_number < 25 or game.turn_number > constants.MAX_TURNS - 1:
+                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
+                logging.debug("cell_values:\n{}".format(cell_value_map.astype(np.int)))
+            else:
+                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
 
         if DEBUG & (DEBUG_OUTPUT_GAME_METRICS):
             if game.turn_number in [1, round(constants.MAX_TURNS/2), constants.MAX_TURNS, 5, 10]:
                 dump_data_file(game, cell_value_map, "cell_value_map_turn_" + str(game.turn_number))
 
-        while len(targets) < untasked_ships_cnt:
-            threshold = TARGET_THRESHOLD_DEFAULT
+        threshold = TARGET_THRESHOLD_DEFAULT
 
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Generating targets, threshold: {}".format(threshold))
+        while len(targets) < untasked_ships_cnt:
+
+            if DEBUG & (DEBUG_GAME):
+                if threshold == TARGET_THRESHOLD_DEFAULT:
+                    logging.info("Game - Generating targets, threshold: {}".format(threshold))
+                else:
+                    logging.info("Game - Untasked ships({}) exceeds available targets({}), Generating targets, threshold: {}".format(untasked_ships_cnt, targets, threshold))
 
             hottest_areas = np.ma.MaskedArray(cell_value_map, mask = [cell_value_map <= threshold], fill_value = 0, copy=False)
 
@@ -125,15 +131,21 @@ while True:
             threshold -= TARGET_THRESHOLD_STEP
 
             if threshold < TARGET_THRESHOLD_MIN:
+                if DEBUG & (DEBUG_GAME): logging.info("Game - Target threshold {} reached min threshold {}. Aborting target generation".format(threshold, TARGET_THRESHOLD_MIN))
                 break
+
+            #
+            # end target generation
+            #
+
+        if DEBUG & (DEBUG_GAME): logging.info("Game - There are {} untasked ships and {} targets available.".format(untasked_ships_cnt, len(targets)))
+
+        logging.debug("Targets: {}".format(targets))
+
+        logging.debug("Loiter assignments: {}".format(game.loiter_assignments))
+
     else:
         targets = []
-
-    if DEBUG & (DEBUG_GAME): logging.info("Game - There are {} untasked ships and {} targets available.".format(untasked_ships_cnt, len(targets)))
-
-    logging.debug("Targets: {}".format(targets))
-
-    logging.debug("Loiter assignments: {}".format(game.loiter_assignments))
 
     if DEBUG & (DEBUG_TIMING): logging.info("Game - Turn setup elapsed time: {}".format(round(time.time() - turn_start_time, 2)))
 
@@ -281,10 +293,10 @@ while True:
                 ship.status = "returning"
 
             current_assignment = game.get_loiter_assignment(ship)
-			
+
             if current_assignment:
                 game.update_loiter_assignment(current_assignment[0])
-                if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} is full and didn't reach loiter assignment {}, popped assignment".format(ship.id, current_assignment[1]))
+                if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} is full and didn't reach loiter assignment {}, popped assignment".format(ship.id, current_assignment[0]))
 
             path, cost = game_map.navigate(ship.position, dropoff_position, "dock") # returning to shipyard/dropoff
 
@@ -366,9 +378,9 @@ while True:
         ship_states[ship.id]["last_dock"] = ship.last_dock
         ship_states[ship.id]["explore_start"] = ship.explore_start
 
-		#
-		# end for each ship
-		#
+        #
+        # end for each ship
+        #
 
     #
     # collenct game metrics

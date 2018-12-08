@@ -10,7 +10,8 @@ from .game_map import GameMap, Player
 from hlt.positionals import Position
 from hlt.entity import Ship
 
-from myutils.constants import DEBUG, DEBUG_NONE
+from myutils.constants import SHIP_MINING_EFFICIENCY, SHIP_MAX_HALITE, DEBUG, DEBUG_NONE
+from myutils.globals import Mining_threshold
 
 class Game:
     """
@@ -103,13 +104,74 @@ class Game:
             for dropoff in player.get_dropoffs():
                 self.game_map[dropoff.position].structure = dropoff
 
+    def turns_to_mining_threshold(self, initial_halite, threshold):
+        """
+        Get the number of turns to reach the remaining halite threshold from initial_halite
+
+        THIS IS A HACK, should have actual func to determine turns to threshold
+        """
+        t = 1
+
+        if initial_halite <= threshold:
+            return 0
+
+        remaining = initial_halite
+
+        while remaining > threshold:
+            remaining = initial_halite - self.mining_value(initial_halite, t)
+            t += 1
+
+        return t
+
+    def turns_to_mining_yield(self, initial_halite, target):
+        """
+        Get the number of turns to reach yield y (halite value) from initial_halite.
+
+        E.g. how many turns until I'm getting < 100 halite per turn?
+        """
+        return 1 + math.log(float(target)/initial_halite, SHIP_MINING_EFFICIENCY)
+
+    def mining_value(self, initial_halite, t):
+        """
+        Get the total amount of halite mined at turn t when starting with initial_halite.
+
+        :param initial_halite Initial halite in the cell at the start of mining
+        :param t Time/turns mined.s
+        :return Total halite mined.
+        """
+        return initial_halite - (initial_halite * (1 - SHIP_MINING_EFFICIENCY) ** t)
+
     def get_mining_rate(self, turns = None, ship_id = None):
         '''
         Returns the mining rate for the game or a specific ship. Always returns
         a rate of at least 1.
         '''
-        if not self.game_metrics["mined"]:
-            return self.game_map.mean_halite * .25
+        if len(self.game_metrics["mined"]) < 3:
+            row_start = self.me.shipyard.position.y - 3
+            row_end = self.me.shipyard.position.y + 3
+            col_start = self.me.shipyard.position.x - 3
+            col_end = self.me.shipyard.position.x + 3
+
+            shipyard_area_mean_halite = np.mean(self.game_map._halite_map[row_start:row_end, col_start:col_end])
+
+            logging.debug("shipyard_area_mean_halite: {}".format(shipyard_area_mean_halite))
+            logging.debug("avg minable halite per cell: {}".format(shipyard_area_mean_halite - Mining_threshold))
+
+            #m = SHIP_MAX_HALITE / (shipyard_area_mean_halite - Mining_threshold)
+            #logging.debug("m: {}".format(m))
+
+            t = self.turns_to_mining_threshold(shipyard_area_mean_halite, Mining_threshold)
+
+            logging.debug("turns: {}".format(t))
+
+            if t == 0:
+                mrate = 1.0
+            else:
+                mrate = (shipyard_area_mean_halite - Mining_threshold) / t
+
+            logging.debug("mrate: {}".format(mrate))
+
+            return max(1.0, mrate)
 
         if turns is None:
             turns = self.turn_number
@@ -135,7 +197,7 @@ class Game:
         else:
             rate = mined_by_ship.items[ship_id] / (self.turn_number - self.ship_christenings[ship_id] - 1)
 
-        return rate
+        return max(1, rate)
 
     def get_loiter_assignment(self, target):
         """
