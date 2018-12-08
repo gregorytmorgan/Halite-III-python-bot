@@ -9,6 +9,7 @@ from hlt import constants
 from hlt.positionals import Position
 from hlt.positionals import Direction
 
+from hlt.entity import Ship
 from hlt.entity import Shipyard
 
 import os
