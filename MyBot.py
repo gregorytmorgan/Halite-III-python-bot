@@ -476,16 +476,16 @@ while True:
             avg_trip_distance = round(np.mean(game_metrics["trip_data"], axis=0)[4], 2)
             logging.info("Game - Avg. trip distance: {}".format(avg_trip_distance))
 
-            # trip_transit_duration 0:turn (end of return) 1:ship 2:duration 3:distance from dropoff
-            avg_return_duration = round(np.mean(game_metrics["trip_transit_duration"], axis=0)[2], 2)
-            logging.info("Game - Avg. outbound duration: {}".format(avg_return_duration))
-
-            avg_return_distance = round(np.mean(game_metrics["trip_transit_duration"], axis=0)[3], 2)
-            logging.info("Game - Avg. return distance: {}".format(avg_return_distance))
-
             # trip_explore_duration 0:turn (end of explore) 1:ship 2:duration 3:distance from dropoff
-            avg_explore_duration = round(np.mean(game_metrics["trip_explore_duration"], axis=0)[3], 2)
-            logging.info("Game - Avg. return distance: {}".format(avg_explore_duration))
+            trip_explore_duration = round(np.mean(game_metrics["trip_explore_duration"], axis=0)[3], 2)
+            logging.info("Game - Avg. explore duration: {}".format(trip_explore_duration))
+
+            # trip_transit_duration 0:turn (end of return) 1:ship 2:duration 3:distance from dropoff
+            trip_transit_duration = round(np.mean(game_metrics["trip_transit_duration"], axis=0)[2], 2)
+            logging.info("Game - Avg. transit duration: {}".format(trip_transit_duration))
+
+            avg_return_duration = avg_trip_duration - trip_explore_duration - trip_transit_duration
+            logging.info("Game - Avg. return duration: {}".format(round(avg_return_duration, 2)))
 
         if DEBUG & (DEBUG_TIMING):
             logging.info("Game - Min. turn time: {}".format(min(game_metrics["turn_time"], key = lambda t: t[1])))
