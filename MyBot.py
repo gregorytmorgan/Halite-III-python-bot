@@ -25,7 +25,6 @@ game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
 botName = "MyBot.v20"
 cumulative_profit = 5000
-loiter_assignments = {}
 
 if DEBUG & (DEBUG_TIMING): logging.info("Game - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
 
@@ -48,6 +47,7 @@ while True:
     turn_start_time = time.time()
     targets = []
 
+	# convenience vars
     me = game.me
     game_map = game.game_map
     game_metrics = game.game_metrics
@@ -55,6 +55,7 @@ while True:
     game.update_frame()
 
     my_ships = me.get_ships()
+    untasked_ships_cnt = len(my_ships) - len(game.loiter_assignments)
 
 #    cell_values = game_map.get_halite_map()
 #    cell_values_flat = cell_values.flatten()
@@ -95,8 +96,6 @@ while True:
             if game.turn_number in [1, round(constants.MAX_TURNS/2), constants.MAX_TURNS, 5, 10]:
                 dump_data_file(game, cell_value_map, "cell_value_map_turn_" + str(game.turn_number))
 
-        untasked_ships_cnt = len(my_ships) - len(loiter_assignments)
-
         while len(targets) < untasked_ships_cnt:
             threshold = TARGET_THRESHOLD_DEFAULT
 
@@ -117,7 +116,7 @@ while True:
                 hotspots.append((p, round(cell_value_map[y][x]), game_map[p].halite_amount)) # (position, value, halite)
 
             # remove the hotspots previosly assigned, but not reached
-            hotspots[:] = [x for x in hotspots if x[0] not in loiter_assignments]
+            hotspots[:] = [x for x in hotspots if x[0] not in game.loiter_assignments]
 
             targets = sorted(hotspots, key=lambda item: item[1])
 
@@ -134,7 +133,7 @@ while True:
 
     logging.debug("Targets: {}".format(targets))
 
-    logging.debug("Loiter assignments: {}".format(loiter_assignments))
+    logging.debug("Loiter assignments: {}".format(game.loiter_assignments))
 
     if DEBUG & (DEBUG_TIMING): logging.info("Game - Turn setup elapsed time: {}".format(round(time.time() - turn_start_time, 2)))
 
@@ -230,7 +229,7 @@ while True:
 
                     if len(targets) != 0:
                         loiter_point = targets.pop()[0]
-                        loiter_assignments[loiter_point] = ship.id
+                        game.update_loiter_assignment(ship, loiter_point)
                         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} assigned loiter point {} off target list. {} targets remain".format(ship.id, loiter_point, len(targets)))
                     else:
                         loiter_point = get_loiter_point(game, ship, hint)
@@ -281,15 +280,11 @@ while True:
 
                 ship.status = "returning"
 
-            unassigned_pt = False
-            for p, s in loiter_assignments.items():
-                if s == ship.id:
-                    unassigned_pt = p
-                    break
-
-            if unassigned_pt:
-                if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} is full and didn't reach loiter assignment {}, popped assignment".format(ship.id, p))
-                loiter_assignments.pop(unassigned_pt, None)
+            current_assignment = game.get_loiter_assignment(ship)
+			
+            if current_assignment:
+                game.update_loiter_assignment(current_assignment[0])
+                if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} is full and didn't reach loiter assignment {}, popped assignment".format(ship.id, current_assignment[1]))
 
             path, cost = game_map.navigate(ship.position, dropoff_position, "dock") # returning to shipyard/dropoff
 
@@ -313,8 +308,8 @@ while True:
                 if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is now exploring".format(ship.id))
                 game_metrics["trip_transit_duration"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, round(game_map.calculate_distance(ship.position, dropoff_position), 2)))
 
-            if ship.position in loiter_assignments:
-                loiter_assignments.pop(ship.position, None)
+            if game.get_loiter_assignment(ship.position):
+                game.update_loiter_assignment(ship.position)
                 if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} reached loiter assignment {}, popped assignment".format(ship.id, ship.position))
 
         #
@@ -370,6 +365,10 @@ while True:
         ship_states[ship.id]["christening"] = ship.christening
         ship_states[ship.id]["last_dock"] = ship.last_dock
         ship_states[ship.id]["explore_start"] = ship.explore_start
+
+		#
+		# end for each ship
+		#
 
     #
     # collenct game metrics

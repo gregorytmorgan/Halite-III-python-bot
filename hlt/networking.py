@@ -7,6 +7,9 @@ from .common import read_input
 from . import constants
 from .game_map import GameMap, Player
 
+from hlt.positionals import Position
+from hlt.entity import Ship
+
 from myutils.constants import DEBUG, DEBUG_NONE
 
 class Game:
@@ -19,8 +22,11 @@ class Game:
         Also sets up basic logging.
         """
         self.turn_number = 0
+
+        # (this_ship, offending_ship, move, collision_position, resolution_function)
         self.collisions = []
-        self.command_queue = {},
+
+        # metrics
         self.game_metrics = {
             "burned": [],
             "gathered": [(0, 0, 5000)],
@@ -37,7 +43,16 @@ class Game:
             "turn_time": []
         }
 
+        # keyed on ship id
+        self.command_queue = {},
+
+        # keyed on ship id. We can't attach a christening attrib to a ship obj because
+        # we'll lose the info if the ship is destroyed. We're interested in destroyed ship
+        # info when we calc stats such as overall mining rate
         self.ship_christenings = {}
+
+        # keyed on position
+        self.loiter_assignments = {}
 
         # Grab constants JSON
         raw_constants = read_input()
@@ -121,6 +136,59 @@ class Game:
             rate = mined_by_ship.items[ship_id] / (self.turn_number - self.ship_christenings[ship_id] - 1)
 
         return rate
+
+    def get_loiter_assignment(self, target):
+        """
+        Get a loiter assignment by ship or point.
+
+        :param loiter_assignments List of assignments
+        :param target Ship|Position
+        :return Tuple (Position, ship_id) on success, False otherwise
+        """
+        if isinstance(target, Ship):
+            for pt, sid in self.loiter_assignments.items():
+                if sid == target.id:
+                    return (pt, sid)
+        elif isinstance(target, Position):
+            if target in self.loiter_assignments:
+                return (target, self.loiter_assignments[target])
+
+        return False
+
+    def update_loiter_assignment(self, target, loiter_point = None):
+        """
+        Add/remove a loiter assignment by ship or Position.
+
+        If the 2nd arg is present, then it's an assignment, otherwise it's a deletion.
+
+        :param loiter_assignments List of assignments
+        :param target Ship|Position
+        :param loiter_point
+        :return True on success, False otherwise
+        """
+
+        if loiter_point:
+            self.loiter_assignments[loiter_point] = target.id
+            retval = True
+        else:
+            unassigned_point = False
+            if isinstance(target, Ship):
+                for pt, sid in self.loiter_assignments.items():
+                    if sid == target.id:
+                        unassigned_point = pt
+                        break
+            elif isinstance(target, Position):
+                if target in self.loiter_assignments:
+                    sid = self.loiter_assignments[target]
+                    unassigned_point = target
+
+            if unassigned_point:
+                self.loiter_assignments.pop(unassigned_point, None)
+                retval = True
+            else:
+                retval = False
+
+        return retval
 
     @staticmethod
     def end_turn(commands):
