@@ -97,28 +97,40 @@ while True:
 
         untasked_ships_cnt = len(my_ships) - len(loiter_assignments)
 
-        threshold = 0
+        while len(targets) < untasked_ships_cnt:
+            threshold = TARGET_THRESHOLD_DEFAULT
 
-        hottest_areas = np.ma.MaskedArray(cell_value_map, mask= [cell_value_map < threshold], fill_value = 0)
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Generating targets, threshold: {}".format(threshold))
 
-        y_vals, x_vals = hottest_areas.nonzero()
+            hottest_areas = np.ma.MaskedArray(cell_value_map, mask = [cell_value_map <= threshold], fill_value = 0, copy=False)
 
-        # late game we need to adjust mining threshold based on remaining halite to pickup cells
-        # less halite than the existing threshold
+#            if game.turn_number < 999 or game.turn_number > constants.MAX_TURNS - 1:
+#                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
+#                np.ma.masked_print_option.set_display("---")
+#                logging.debug("hottest_areas:\n{}".format(hottest_areas.astype(np.int)))
 
-        hotspots = []
-        for x, y in zip(x_vals, y_vals):
-            p = Position(x, y)
-            hotspots.append((p, cell_value_map[y][x], game_map[p].halite_amount)) # (position, value, halite)
+            y_vals, x_vals = hottest_areas.nonzero()
 
-        # remove the hotspots previosly assigned, but not reached
-        hotspots[:] = [x for x in hotspots if x[0] not in loiter_assignments]
+            hotspots = []
+            for x, y in zip(x_vals, y_vals):
+                p = Position(x, y)
+                hotspots.append((p, round(cell_value_map[y][x]), game_map[p].halite_amount)) # (position, value, halite)
 
-        targets = sorted(hotspots, key=lambda item: item[1])
+            # remove the hotspots previosly assigned, but not reached
+            hotspots[:] = [x for x in hotspots if x[0] not in loiter_assignments]
+
+            targets = sorted(hotspots, key=lambda item: item[1])
+
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Found {} targets".format(len(targets)))
+
+            threshold -= TARGET_THRESHOLD_STEP
+
+            if threshold < TARGET_THRESHOLD_MIN:
+                break
     else:
         targets = []
 
-    if DEBUG & (DEBUG_GAME): logging.info("Game - Found {} targets".format(len(targets)))
+    if DEBUG & (DEBUG_GAME): logging.info("Game - There are {} untasked ships and {} targets available.".format(untasked_ships_cnt, len(targets)))
 
     logging.debug("Targets: {}".format(targets))
 
