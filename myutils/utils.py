@@ -247,12 +247,12 @@ def get_halite_move(game, ship, args = None):
     move_offset = best_bloc_data[0]
 
     new_position = game.game_map.normalize(ship.position.directional_offset(move_offset))
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} best cell new_position: {}, offset: {}, value: {}".format(ship.id, new_position, move_offset, max_cell_amount))
 
     normalized_position = game.game_map.normalize(new_position)
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} best cell normalized_position: {}".format(ship.id, normalized_position))
 
     cell = game.game_map[normalized_position]
+
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} best cell new_position: {}, offset: {}, value: {}".format(ship.id, normalized_position, move_offset, cell.halite_amount))
 
     #
     # collision resolution
@@ -269,11 +269,12 @@ def get_halite_move(game, ship, args = None):
     move = Direction.convert(move_offset)
 
     # blocks are guaranteed to have at least 1 cell that is minable. This is critical to avoid getting stuck
-    # between two blocks each of which never modified.  For a 3x3 block, add 'plus_one' assures that we move far
-    # to reach the modifiable cell, thus prevent an endless movement between blocks
+    # between two blocks each of which is never modified.  For a 3x3 block, add 'plus_one' assures that we move
+    # far enough to reach the modifiable cell, thus preventing an endless movement between blocks
     move_plus_one = Position(best_cell.position.x, best_cell.position.y) # go one more move in the same direction
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a move_plus_one of {}".format(ship.id, move_plus_one))
-    ship.path.append(move_plus_one)
+    if cell.position != move_plus_one:
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has a plus_one move of {}, halite: {}".format(ship.id, move_plus_one, max_cell_amount))
+        ship.path.append(move_plus_one)
 
     return move
 
@@ -342,7 +343,7 @@ def get_nav_move(game, ship, args = None):
 
     game_map = game.game_map
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Getting nav move for path {} with waypoint resolution: {} and move_cost: {}".format(ship.id, ship.path, waypoint_resolution, move_cost))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Getting nav move, path: {}, waypoint resolution: {}, move_cost: {}".format(ship.id, ship.path, waypoint_resolution, move_cost))
 
     ship_cell = game_map[ship]
 
@@ -377,15 +378,14 @@ def get_nav_move(game, ship, args = None):
                 ship_cell.mark_unsafe(ship)
                 return 'o'
         else:
-            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} path to waypoint {} found with a cost of {} ({} turns)".format(ship.id, next_position, next_position, round(cost), len(path)))
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} path to waypoint {} found. Length: {}, cost: {}".format(ship.id, next_position, len(path), round(cost)))
             ship.path.pop()
             ship.path = ship.path + path
 
     new_position = ship.path[-1]
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} new_position: {}".format(ship.id, new_position))
 
     normalized_new_position = game_map.normalize(new_position)
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} normalized_new_position: {}".format(ship.id, normalized_new_position))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} new_position: {}".format(ship.id, normalized_new_position))
 
     # why?
     if normalized_new_position == ship.position:
