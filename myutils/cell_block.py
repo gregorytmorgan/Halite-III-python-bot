@@ -40,7 +40,7 @@ class CellBlock:
 
     def get_values(self):
         """
-		Returns a numpy array of cell values
+        Returns a numpy array of cell values
         """
         return self.cell_values
 
@@ -68,7 +68,7 @@ class CellBlock:
     @staticmethod
     def calc_positions(position, w, h):
         """
-		Returns a list of cell positions
+        Returns a list of cell positions
         """
         positions = []
         for y in range(position.y, position.y + h):
@@ -80,7 +80,7 @@ class CellBlock:
     @staticmethod
     def calc_offsets(w, h):
         """
-		Returns a list of offets from the cell block position
+        Returns a list of offets from the cell block position
         """
         offsets = []
         for y in range(0, h):
@@ -102,7 +102,7 @@ class CellBlock:
         elif direction == "s":
             return (-round((w - 1)/2), 1)
         elif direction == "e":
-            return (1, -h)
+            return (1, -round(h/2))
         elif direction == "w":
             return (-w, -round((h - 1)/2))
         else:
