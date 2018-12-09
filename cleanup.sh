@@ -1,10 +1,15 @@
 #!/bin/bash
 
-rm -f stats/*.log
+cnt=$(rm -vf stats/*.log | wc -l)
+echo "Cleaned up $cnt log files in stats."
 
-rm -f replays/*.log
+cnt=$(rm -vf replays/*.log | wc -l)
+echo "Cleaned up $cnt log files in replays."
 
-rm -f replays/*.hlt
+cnt=$(rm -vf replays/*.hlt | wc -l)
+echo "Cleaned up $cnt txt files in replays."
 
-rm -f error_replays/*.log
+cnt=$(rm -vf error_replays/*.log | wc -l)
+echo "Cleaned up $cnt log files in error_replays."
 
+echo "Done."
