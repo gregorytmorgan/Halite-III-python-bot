@@ -76,6 +76,8 @@ class MapCell:
     def __str__(self):
         return 'MapCell({}, halite={})'.format(self.position, self.halite_amount)
 
+    def __repr__(self):
+        return str(self)
 
 class GameMap:
     """
@@ -418,7 +420,7 @@ class GameMap:
 
                 path.pop() # remove the start point
 
-                if DEBUG & (DEBUG_TIMING): logging.info("Timing - Total A* elapsed time {}".format(round(time.time() - astar_start_time, 4)))
+                if self.DEBUG: logging.info("Timing - Total A* elapsed time {}".format(round(time.time() - astar_start_time, 4)))
 
                 return path, F[end] # Done!
 
