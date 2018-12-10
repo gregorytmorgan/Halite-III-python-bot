@@ -23,7 +23,7 @@ from myutils.constants import *
 game_start_time = time.time()
 game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
-botName = "MyBot.dev"
+botName = "MyBot.v21"
 cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
@@ -89,7 +89,7 @@ while True:
         if DEBUG & (DEBUG_CV_MAP):
             if game.turn_number < 25 or game.turn_number > constants.MAX_TURNS - 1:
                 np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
-                logging.debug("cell_values:\n{}".format(cell_value_map.astype(np.int)))
+                logging.info("cell_values:\n{}".format(cell_value_map.astype(np.int)))
             else:
                 np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
 
@@ -219,7 +219,7 @@ while True:
     # handle each ship for this turn
     #
     for ship in my_ships:
-        dropoff_position = get_dropoff_position(game, ship)
+        dropoff_position = get_dropoff_positions(game, ship)
 
         if DEBUG & (DEBUG_GAME) and ship.christening != game.turn_number:
             suffix = "to {} and is {} away".format(ship.path[0], round(game_map.calculate_distance(ship.position, ship.path[0], "manhatten"))) if ship.path and ship.status == "transiting" else ""
@@ -346,7 +346,7 @@ while True:
         # if cell is below mining threshold then continue,
         # if the ship is above cargo threshold continue
         # else we'll stay in place and mine
-        if should_move(game, ship):
+        if move_ok(game, ship):
             #
             # exploring (not mining)
             #

@@ -485,9 +485,11 @@ def dump_data_file(game, data, file_basename):
     with open(stats_dir + '/' + file_basename + "-" + ts + "-bot-" + str(game.me.id) + ".log", "w") as f:
         f.write(data_str)
 
-def should_move(game, ship):
+def move_ok(game, ship):
     """
     Should the ship explore or mine?
+
+    Note: The refueling case is handled by the get_move code.
 
     :param game
     :param ship
@@ -498,19 +500,37 @@ def should_move(game, ship):
     if ship.is_full:
         return True
 
+    # generally ignore low value cells. Note Mining_threshold may be dynamic
     if cell_halite < Mining_threshold:
         return True
 
-#    cargo_threshold = .95 * constants.MAX_HALITE
-#    logging.debug("DEBUG cargo {} > cargo threshold {} === {}".format(ship.halite_amount, cargo_threshold, ship.halite_amount > cargo_threshold))
-#    if ship.halite_amount > cargo_threshold and ship.status == "returning":
-#        return True
+    dropoffs = get_dropoff_positions(game)
+    fuel_status = ship.halite_amount / SHIP_MAX_HALITE
 
-#    remaining_cargo_capacity = constants.MAX_HALITE - ship.halite_amount
-#    mining_yield = cell_halite * .25
-#    logging.debug("DEBUG {} >= {} === {}".format(mining_yield, remaining_cargo_capacity, mining_yield < remaining_cargo_capacity))
-#    if mining_yield < remaining_cargo_capacity and ship.status == "returning":
-#        return True
+    # the amount of halite we'll get if we refuel/mine
+    # if ship in a dropoff/shipyard, set fuel to max to the ship departs
+    refuel_amount = constants.MAX_HALITE if ship.position in dropoffs else cell_halite * SHIP_MINING_EFFICIENCY
+
+    net_mine = (cell_halite * SHIP_MINING_EFFICIENCY) + (cell_halite * SHIP_MINING_EFFICIENCY) * -SHIP_FUEL_COST
+    net_move = cell_halite * -SHIP_FUEL_COST + game.get_mining_rate(MINING_RATE_LOOKBACK) * SHIP_MINING_EFFICIENCY
+
+    #logging.debug("fuel_status: {}".format(fuel_status))
+    #logging.debug("refuel_amount: {}".format(refuel_amount))
+    #logging.debug("net_mine: {}, net_move: {}".format(net_mine, net_move))
+
+    if ship.status == "transiting":
+        #if refuel_amount > net_mining_yield and fuel_status < SHIP_REFUEL_THRESHOLD:
+        #    return True
+        pass
+    elif ship.status == "exploring":
+        #if cell_halite < Mining_threshold:
+        #    return True
+        pass
+    elif ship.status == "returning":
+        if net_move > net_mine or fuel_status > SHIP_REFUEL_THRESHOLD:
+            return True
+    else:
+        raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
     return False
 
@@ -546,7 +566,7 @@ def get_loiter_point(game, ship, hint = None):
     elif hint == "w":
         pt = random.uniform(5*math.pi/4, 3*math.pi/4)
     else:
-        raise
+        raise RuntimeError("Unknown hint: {}".format(hint))
 
     raw_loiter_point = (math.cos(pt), math.sin(pt))
 
@@ -589,7 +609,7 @@ def get_departure_point(game, dropoff, destination, departure_lanes = "e-w"):
 
     return Position(departure_x, departure_y)
 
-def get_dropoff_position(game, ship):
+def get_dropoff_positions(game, ship = None):
     """
     Get the closest dropoff or shipyard to ship
 
@@ -599,6 +619,9 @@ def get_dropoff_position(game, ship):
     """
     dropoffs = game.me.get_dropoffs()
     destinations = list(dropoffs) + [game.me.shipyard.position]
+
+    if ship is None:
+        return destinations
 
     minDistance = False
     movePosition = False
