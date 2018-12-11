@@ -25,38 +25,45 @@ ship_states = {}
 
 botName = "MyBot.cover-dropoff2"
 
+#
+#
+#
+
+def cover_shipyard_action(game, ship):
+    if not ship.path:
+        ship.path, cost = game_map.navigate(ship.position, get_enemy_base(), "astar", {"move_cost": "turns"})
+
+def cover_cell_move(game, ship):
+    if not ship.path or not fuel_ok(game, ship):
+        move = "o"
+    else:
+        args = {"waypoint_algorithm": "astar", "move_cost": "turns"}
+        move = get_move(game, ship, "nav", args) # path scheme = algo for incomplete path
+
+    return move
+
+def cover_dropoff_north_action(game, ship):
+    target = get_enemy_base().directional_offset(Direction.North)
+    target.y -= 2
+    if not ship.path:
+        ship.path, cost = game_map.navigate(ship.position, target, "astar", {"move_cost": "turns"})
+
+def cover_dropoff_south_action(game, ship):
+    target = get_enemy_base().directional_offset(Direction.South)
+    target.y += 2
+    if not ship.path:
+        ship.path, cost = game_map.navigate(ship.position, target, "astar", {"move_cost": "turns"})
+
+#
+#
+#
+
 def get_enemy_base():
     for p_id in player_ids:
         if p_id != me.id:
             enemy_base_position = game.players[p_id].shipyard.position
             break;
     return enemy_base_position
-
-def cover_action1(ship):
-    if not ship.path:
-        logging.debug("action not path".format())
-        ship.path, cost = game_map.navigate(ship.position, get_enemy_base(), "astar", {"move_cost": "turns"})
-    else:
-        logging.debug("action path".format())
-
-    logging.debug("path: {}".format(ship.path))
-
-def cover_move1(ship):
-    if not ship.path:
-        logging.debug("move not path".format())
-        move = "o"
-    else:
-        logging.debug("move path".format())
-        args = {"waypoint_algorithm": "astar", "move_cost": "turns"}
-        move = get_move(game, ship, "nav", args) # path scheme = algo for incomplete path
-
-    return move
-
-def cover_action2(ship):
-    pass
-
-def cover_move2(ship):
-    pass
 
 def assign_task(task, target_ship):
     if isinstance(target_ship, int):
@@ -111,21 +118,31 @@ def get_task(target):
 tasks = {
     1: {
         "id": 1,
-        "task_name": "cover_dropoff",
-        "action": cover_action1,
-        "move": cover_move1,
+        "task_name": "cover_shipyard",
+        "action": cover_shipyard_action,
+        "move": cover_cell_move,
         "ships": [],
-        "active": True,
+        "active": False,
         "ships_required": 1
     },
     2: {
         "id": 2,
-        "task_name": "cover_dropoff2",
-        "action": cover_action2,
-        "move": cover_move2,
+        "task_name": "cover_dropoff_north",
+        "action": cover_dropoff_north_action,
+        "move": cover_cell_move,
         "ships": [],
-        "active": False
+        "active": True,
+        "ships_required": 1
     },
+    3: {
+        "id": 3,
+        "task_name": "cover_dropoff_south",
+        "action": cover_dropoff_south_action,
+        "move": cover_cell_move,
+        "ships": [],
+        "active": True,
+        "ships_required": 1
+    }
 }
 
 #
@@ -230,7 +247,7 @@ while True:
         # logic
         if ship.status == "tasked":
             task = get_task(ship)
-            task["action"](ship)
+            task["action"](game, ship)
         elif ship.status == "returning":
             if ship.position == me.shipyard.position:
                 ship.status = "exploring"
@@ -242,14 +259,15 @@ while True:
 
         # move
         if ship.status == "tasked":
-            move = task["move"](ship)
+            move = task["move"](game, ship)
         elif ship.status == "returning":
-            move = game_map.naive_navigate(ship, me.shipyard.position)
+            if fuel_ok(game, ship):
+                move = game_map.naive_navigate(ship, me.shipyard.position)
         elif ship.status == "exploring":
-            if move_ok(game, ship):
-                move = get_move(game, ship, "random", "random")
+            if move_ok(game, ship) and fuel_ok(game, ship):
+                move = get_move(game, ship, "density", "random")
             else:
-                move = "o" #ship.stay_still()
+                move = "o"
         else:
             raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
@@ -286,15 +304,14 @@ while True:
             logging.info("Game - Ship {} lost. abort task {}".format(s_id, task["id"]))
             abort_task(task, s_id)
 
-
-    # check if we can spawn a ship
-    if spawn_ok(game):
-        game.command_queue[-1] = me.shipyard.spawn()
-
     #
     # resolve collisions
     #
     resolve_collsions(game)
+
+    # check if we can spawn a ship
+    if spawn_ok(game):
+        game.command_queue[-1] = me.shipyard.spawn()
 
     #logging.debug("game.command_queue: {}".format(game.command_queue))
 

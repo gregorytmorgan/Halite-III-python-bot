@@ -53,21 +53,23 @@ def spawn_ok(game):
     # conditional constraints
     #
 
-    # spawn 4 right away
-    if EXPEDITED_DEPARTURE:
-        if me.ship_count < EXPEDITED_SHIP_COUNT:
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Spawn expedited due to ship count {} < {}".format(me.ship_count, EXPEDITED_SHIP_COUNT))
-            return True
+    logging.debug("shipyard_cell.is_occupied: {}".format(shipyard_cell.is_occupied))
+    if shipyard_cell.is_occupied:
+        logging.debug("shipyard_cell.ship.owner == me.id: {}".format(shipyard_cell.ship.owner == me.id))
 
     # watch for collisions with owner only, note this will be 1 turn behind
     occupied_cells = []
     if shipyard_cell.is_occupied and shipyard_cell.ship.owner == me.id:
         occupied_cells.append(shipyard_cell.position)
 
+    logging.debug("oc1: {}".format(occupied_cells))
+
     # entry lane are N/S
     for pos in [shipyard_cell.position.directional_offset(Direction.North), shipyard_cell.position.directional_offset(Direction.South)]:
         if game.game_map[pos].is_occupied:
             occupied_cells.append(pos)
+
+    logging.debug("oc2: {}".format(occupied_cells))
 
     # need to keep track of ships docking instead, a ship in an adjacent cell could be leaving
     if occupied_cells:
