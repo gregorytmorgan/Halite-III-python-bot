@@ -45,7 +45,7 @@ class Game:
         }
 
         # keyed on ship id
-        self.command_queue = {},
+        self.command_queue = {}
 
         # keyed on ship id. We can't attach a christening attrib to a ship obj because
         # we'll lose the info if the ship is destroyed. We're interested in destroyed ship

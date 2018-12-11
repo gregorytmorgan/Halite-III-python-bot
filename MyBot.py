@@ -23,7 +23,7 @@ from myutils.constants import *
 game_start_time = time.time()
 game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
-botName = "MyBot.v21"
+botName = "MyBot.dev"
 cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
@@ -40,7 +40,7 @@ if DEBUG & (DEBUG_GAME): logging.info("Game - Successfully created bot! My Playe
 
 while True:
     game.collisions.clear()
-    game.command_queue = {}
+    game.command_queue.clear()
     turn_spent = 0
     turn_gathered = 0
     turn_profit = 0
