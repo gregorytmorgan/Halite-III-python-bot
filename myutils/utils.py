@@ -511,7 +511,7 @@ def move_ok(game, ship):
     # if ship in a dropoff/shipyard, set fuel to max to the ship departs
     refuel_amount = constants.MAX_HALITE if ship.position in dropoffs else cell_halite * SHIP_MINING_EFFICIENCY
 
-    net_mine = (cell_halite * SHIP_MINING_EFFICIENCY) + (cell_halite * SHIP_MINING_EFFICIENCY) * -SHIP_FUEL_COST
+    net_mine = (cell_halite * SHIP_MINING_EFFICIENCY) + (cell_halite - cell_halite * SHIP_MINING_EFFICIENCY) * -SHIP_FUEL_COST
     net_move = cell_halite * -SHIP_FUEL_COST + game.get_mining_rate(MINING_RATE_LOOKBACK) * SHIP_MINING_EFFICIENCY
 
     #logging.debug("fuel_status: {}".format(fuel_status))
