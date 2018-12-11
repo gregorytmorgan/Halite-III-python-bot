@@ -60,6 +60,9 @@ class Ship(Entity):
         self.last_seen = 0
         self.last_dock = 0
         self.christening = 0
+        self.explore_start = 0
+        self.assignment_duration = 0
+        self.assignment_distance = 0
 
         Ship.count += 1
 

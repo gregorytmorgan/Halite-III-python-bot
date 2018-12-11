@@ -1,5 +1,6 @@
 from . import commands
 
+from myutils.constants import DIRECTIONS
 
 class Direction:
     """
@@ -68,6 +69,9 @@ class Direction:
         :param direction: The input direction
         :return: The lateral directions
         """
+        if isinstance(direction,  str):
+            direction = DIRECTIONS[direction]
+
         if direction == Direction.North or direction == Direction.South:
             return [Direction.East, Direction.West]
         elif direction == Direction.East or direction == Direction.West:
@@ -76,6 +80,22 @@ class Direction:
             return Direction.Still
         else:
             raise IndexError
+
+    @staticmethod
+    def get_adjacent(p):
+        """
+
+        """
+        return [
+            Position(p.x, p.y - 1),        # n   0,-1
+            Position(p.x, + 1, p.y - 1),   # ne  1,-1
+            Position(p.x + 1, p.y),        # e   1, 0
+            Position(p.x + 1, p.y + 1),    # se  1, 1
+            Position(p.x, p.y + 1),        # s      0, 1
+            Position(p.x - 1, p.y + 1),    # sw -1, 1
+            Position(p.x - 1, p.y),        # w  -1, 0
+            Position(p.x - 1, p.y - 1)     # nw -1,-1
+        ]
 
 class Position:
     def __init__(self, x, y):

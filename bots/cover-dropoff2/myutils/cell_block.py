@@ -11,8 +11,8 @@ class CellBlock:
     """
     Collection of cells
     """
-    def __init__(self, game, position, width, height):
-        self.game = game
+    def __init__(self, game_map, position, width, height):
+        self.game_map = game_map
         self.w = width
         self.h = height
         self.position = position
@@ -22,7 +22,7 @@ class CellBlock:
         cell_vals = [[0 for i in range(width)] for j in range(height)]
 
         for p in self.positions:
-            cell = game.game_map[p]
+            cell = self.game_map[p]
             cell_vals[p.x - position.x][p.y - position.y] = cell.halite_amount
 
         self.cell_values = np.array(cell_vals)
@@ -34,13 +34,13 @@ class CellBlock:
         cells = []
 
         for p in self.positions:
-            cells.append(self.game.game_map[p])
+            cells.append(self.game_map[p])
 
         return cells
 
     def get_values(self):
         """
-		Returns a numpy array of cell values
+        Returns a numpy array of cell values
         """
         return self.cell_values
 
@@ -68,7 +68,7 @@ class CellBlock:
     @staticmethod
     def calc_positions(position, w, h):
         """
-		Returns a list of cell positions
+        Returns a list of cell positions
         """
         positions = []
         for y in range(position.y, position.y + h):
@@ -80,7 +80,7 @@ class CellBlock:
     @staticmethod
     def calc_offsets(w, h):
         """
-		Returns a list of offets from the cell block position
+        Returns a list of offets from the cell block position
         """
         offsets = []
         for y in range(0, h):
@@ -102,7 +102,7 @@ class CellBlock:
         elif direction == "s":
             return (-round((w - 1)/2), 1)
         elif direction == "e":
-            return (1, -h)
+            return (1, -round(h/2))
         elif direction == "w":
             return (-w, -round((h - 1)/2))
         else:

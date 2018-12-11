@@ -234,7 +234,7 @@ def get_halite_move(game, ship, args = None):
     # collision resolution
     #
     if cell.is_occupied:
-        #game.collisions.append((ship, cell.ship, Direction.convert(move_offset), normalized_position, resolve_halite_move)) # args = alt moves?
+        game.collisions.append((ship, cell.ship, Direction.convert(move_offset), normalized_position, resolve_halite_move)) # args = alt moves?
         if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_position, Direction.convert(move_offset)))
         return None
 
@@ -290,7 +290,7 @@ def get_random_move(game, ship, args = None):
         remaining_moves = [x for x in moves if move not in x]
         if DEBUG & (DEBUG_NAV): logging.info("ship {} collided with ship {} at {} while moving {}. Remaining_moves: {}".format(ship, cell.ship, normalized_position, move, remaining_moves))
 
-        #game.collisions.append((ship, cell.ship, move, normalized_position, resolve_random_move)) # args = remaining moves
+        game.collisions.append((ship, cell.ship, move, normalized_position, resolve_random_move)) # args = remaining moves
         return None
 
     #
@@ -326,7 +326,7 @@ def get_nav_move(game, ship, args = None):
     if not ship.path:
         if DEBUG & (DEBUG_NAV): logging.warn("Nav - ship {} Getting nav path. Empty path. Returning 'o'".format(ship.id))
         if ship_cell.is_occupied:
-            #game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?
+            game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?
             if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}".format(ship.id, ship_cell.ship.id, ship.position, 'o'))
             return None
         else:
@@ -382,7 +382,7 @@ def get_nav_move(game, ship, args = None):
     # collision resolution
     #
     if cell.is_occupied:
-        #game.collisions.append((ship, cell.ship, move, normalized_new_position, resolve_nav_move)) # args = ?
+        game.collisions.append((ship, cell.ship, move, normalized_new_position, resolve_nav_move)) # args = ?
         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_new_position, move))
         return None
 
@@ -479,6 +479,34 @@ def move_ok(game, ship):
     # generally ignore low value cells. Note Mining_threshold may be dynamic
     if cell_halite < Mining_threshold:
         return True
+
+    dropoffs = get_dropoff_positions(game)
+    fuel_status = ship.halite_amount / SHIP_MAX_HALITE
+
+    # the amount of halite we'll get if we refuel/mine
+    # if ship in a dropoff/shipyard, set fuel to max to the ship departs
+    refuel_amount = constants.MAX_HALITE if ship.position in dropoffs else cell_halite * SHIP_MINING_EFFICIENCY
+
+    net_mine = (cell_halite * SHIP_MINING_EFFICIENCY) + (cell_halite * SHIP_MINING_EFFICIENCY) * -SHIP_FUEL_COST
+    net_move = cell_halite * -SHIP_FUEL_COST + game.get_mining_rate(MINING_RATE_LOOKBACK) * SHIP_MINING_EFFICIENCY
+
+    #logging.debug("fuel_status: {}".format(fuel_status))
+    #logging.debug("refuel_amount: {}".format(refuel_amount))
+    #logging.debug("net_mine: {}, net_move: {}".format(net_mine, net_move))
+
+    if ship.status == "transiting":
+        #if refuel_amount > net_mining_yield and fuel_status < SHIP_REFUEL_THRESHOLD:
+        #    return True
+        pass
+    elif ship.status == "exploring":
+        #if cell_halite < Mining_threshold:
+        #    return True
+        pass
+    elif ship.status == "returning":
+        if net_move > net_mine or fuel_status > SHIP_REFUEL_THRESHOLD:
+            return True
+    else:
+        raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
     return False
 

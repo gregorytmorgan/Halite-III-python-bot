@@ -58,9 +58,18 @@ def cover_action2(ship):
 def cover_move2(ship):
     pass
 
-def assign_task(task, ship):
+def assign_task(task, target_ship):
+    if isinstance(target_ship, int):
+        if me.has_ship(target_ship):
+            ship = me.get_ship(target_ship)
+    elif isinstance(target_ship, Ship):
+        ship = target_ship
+    else:
+        raise RuntimeError("Invalid target_ship: ".format(target))
+
     logging.info("GAME - Ship {} is tasked with '{}'".format(ship.id, task["task_name"]))
     ship_states[ship.id]["status"] = "tasked"
+    ship.status = "tasked"
     task["ships"].append(ship.id)
 
 def abort_task(task, ship_id = None):
@@ -78,6 +87,12 @@ def abort_task(task, ship_id = None):
 
     logging.info("GAME - Ship {} is aborting task '{}'".format(ship_id, task["task_name"]))
 
+def get_task_by_ship_id(s_id):
+    for tid, t in tasks.items():
+        if s_id in t["ships"]:
+            return t
+    return None
+
 def get_task(target):
     if isinstance(target, str):
         for tid, t in tasks.items():
@@ -85,10 +100,7 @@ def get_task(target):
                 return t
         return None
     elif isinstance(target, Ship):
-        for tid, t in tasks.items():
-            if target.id in t["ships"]:
-                return t
-        return None
+        return get_task_by_ship_id(target.id)
     elif isinstance(target, int):
         if target in tasks:
             return tasks[target]
@@ -98,7 +110,7 @@ def get_task(target):
 
 tasks = {
     1: {
-        "task_id": 1,
+        "id": 1,
         "task_name": "cover_dropoff",
         "action": cover_action1,
         "move": cover_move1,
@@ -107,7 +119,7 @@ tasks = {
         "ships_required": 1
     },
     2: {
-        "task_id": 2,
+        "id": 2,
         "task_name": "cover_dropoff2",
         "action": cover_action2,
         "move": cover_move2,
@@ -131,11 +143,12 @@ if DEBUG & (DEBUG_GAME): logging.info("Game - Successfully created bot! My Playe
 while True:
     game.update_frame()
 
+    game.collisions.clear()
+    game.command_queue.clear()
+
     # You extract player metadata and the updated map metadata here for convenience.
     me = game.me
     game_map = game.game_map
-
-    command_queue = []
 
     player_ids = list(game.players.keys())
 
@@ -143,7 +156,9 @@ while True:
 
     my_ships = me.get_ships()
 
+    #
     # initialize the ship states
+    #
     for ship in my_ships:
         if not (ship.id in ship_states):
             if DEBUG & (DEBUG_GAME): logging.info("Game - New ship with ID {}".format(ship.id))
@@ -160,20 +175,6 @@ while True:
 
             game.ship_christenings[ship.id] = game.turn_number
 
-            # assign tasks
-            for t_id, task in tasks.items():
-                if not task["active"]:
-                    logging.debug("{} is not active".format(task["task_name"]))
-                    continue
-
-                logging.debug("{} is active".format(task["task_name"]))
-
-                xt = get_task(ship)
-                logging.debug("s:{}, req: {}, xt: {}".format(len(task["ships"]), task["ships_required"], xt))
-
-                if len(task["ships"]) < task["ships_required"] and not get_task(ship):
-                    assign_task(task, ship)
-
         # attribs not dependent on save state
         ship.last_seen = game.turn_number
 
@@ -183,44 +184,79 @@ while True:
         ship.christening = ship_states[ship.id]["christening"]
         ship.last_dock = ship_states[ship.id]["last_dock"]
 
-    # handle each ship for this turn
+    #
+    # assign tasks
+    #
+
+    at = None
+    for t in tasks.values():
+        if t["active"]:
+            at = "Task {} has ships {}".format(t["id"], t["ships"])
+    logging.debug("Active tasks: {}".format(at))
+
+    tasked_ships = []
+    for t in tasks.values():
+        if t["ships"]:
+            tasked_ships += t["ships"]
+
+    untasked_ships = []
     for ship in my_ships:
-        logging.debug("tasks: {}".format(tasks))
+        if ship.id not in tasked_ships:
+            untasked_ships.append(ship.id)
+
+    # assign tasks
+    for t_id, task in tasks.items():
+        if not task["active"]:
+            logging.debug("{} is not active".format(task["task_name"]))
+            continue
+
+        logging.debug("{} is active".format(task["task_name"]))
+
+        if len(task["ships"]) < task["ships_required"]:
+            if untasked_ships:
+                s_id = untasked_ships.pop()
+                logging.debug("Ship {} is assigned task '{}'".format(s_id, task["task_name"]))
+                assign_task(task, s_id)
+            else:
+                logging.debug("Task {} needs {} move ships, but there are no untasked ships".format(task["task_name"], task["ships_required"] - len(task["ships"])))
+
+    #
+    # handle each ship for this turn
+    #
+    for ship in my_ships:
 
         logging.info("Game - Ship {} at {} has {} halite and is {}".format(ship.id, ship.position, ship.halite_amount, ship.status))
 
-        task = get_task(ship)
-
-        logging.debug("ship task: {}".format(task))
-
-        if task:
+        # logic
+        if ship.status == "tasked":
+            task = get_task(ship)
             task["action"](ship)
-        else:
-            # logic for untasked ships
-            if ship.status == "returning":
-                if ship.position == me.shipyard.position:
-                    ship.status = "exploring"
-                    move = get_move(game, ship, "random", "random")
-                else:
-                    move = game_map.naive_navigate(ship, me.shipyard.position)
-
-            elif ship.halite_amount >= constants.MAX_HALITE / 4:
+        elif ship.status == "returning":
+            if ship.position == me.shipyard.position:
+                ship.status = "exploring"
+        elif ship.status == "exploring":
+            if ship.halite_amount >= constants.MAX_HALITE / 4:
                 ship.status = "returning"
-                move = game_map.naive_navigate(ship, me.shipyard.position)
-            else:
-                move = get_move(game, ship, "random", "random")
+        else:
+            raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
         # move
-        if task:
+        if ship.status == "tasked":
             move = task["move"](ship)
-            move = "o" if move is None else move
-            move_cmd = ship.move(move)
-        elif fuel_ok(game, ship) and move_ok(game, ship) and move is not None:
-            move_cmd = ship.move(move)
+        elif ship.status == "returning":
+            move = game_map.naive_navigate(ship, me.shipyard.position)
+        elif ship.status == "exploring":
+            if move_ok(game, ship):
+                move = get_move(game, ship, "random", "random")
+            else:
+                move = "o" #ship.stay_still()
         else:
-            move_cmd = ship.stay_still()
+            raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
-        command_queue.append(move_cmd)
+        logging.debug("move: {}".format(move))
+
+        if not (move is None):
+            game.command_queue[ship.id] = ship.move(move)
 
         logging.info("GAME - Ship {} is moving {}".format(ship.id, move))
 
@@ -243,16 +279,24 @@ while True:
             logging.info("Game - Ship {} lost. Last seen on turn {}".format(s_id, ship_states[s_id]["last_seen"]))
 
     for s_id in lost_ship_ids:
-        task = get_task(s_id)
-        if task:
-            abort_task(task, s_id)
+        logging.info("Game - Ship {} lost. pop state".format(s_id))
         ship_states.pop(s_id, None)
+        task = get_task_by_ship_id(s_id)
+        if task:
+            logging.info("Game - Ship {} lost. abort task {}".format(s_id, task["id"]))
+            abort_task(task, s_id)
+
 
     # check if we can spawn a ship
     if spawn_ok(game):
-        command_queue.append(me.shipyard.spawn())
+        game.command_queue[-1] = me.shipyard.spawn()
+
+    #
+    # resolve collisions
+    #
+    resolve_collsions(game)
+
+    #logging.debug("game.command_queue: {}".format(game.command_queue))
 
     # Send your moves back to the game environment, ending this turn.
-    game.end_turn(command_queue)
-
-
+    game.end_turn(list(game.command_queue.values()))
