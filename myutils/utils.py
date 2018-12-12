@@ -747,11 +747,11 @@ def get_blocked_by_move(game, collision):
     turns_blocked = ship1.blocked_by["turns"]
     blocker = ship1.blocked_by["ship"]
     if ship1.owner == game.me.id:
-        block_threshold = 3
+        block_threshold = 4
     else:
-        block_threshold = 1
+        block_threshold = 2
 
-    if blocker.id == ship2.id and blocker.position == ship2.position and turns_blocked > block_threshold:
+    if blocker.id == ship2.id and blocker.position == ship2.position and turns_blocked >= block_threshold:
         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has been blocked by ship {} at {} for {} turns. Crashing".format(ship1.id, ship2.id, position, turns_blocked))
         game.game_map[position].mark_unsafe(ship1)
         if ship1.path:
