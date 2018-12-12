@@ -44,13 +44,23 @@ def cover_cell_move(game, ship):
 
 def cover_dropoff_north_action(game, ship):
     target = get_enemy_base().directional_offset(Direction.North)
-    target.y -= 2
+    target.y -= 4
     if not ship.path:
         ship.path, cost = game_map.navigate(ship.position, target, "astar", {"move_cost": "turns"})
 
 def cover_dropoff_south_action(game, ship):
     target = get_enemy_base().directional_offset(Direction.South)
-    target.y += 2
+    #target.y += 4
+    if not ship.path:
+        ship.path, cost = game_map.navigate(ship.position, target, "astar", {"move_cost": "turns"})
+
+def cover_dropoff_east_action(game, ship):
+    target = get_enemy_base().directional_offset(Direction.East)
+    if not ship.path:
+        ship.path, cost = game_map.navigate(ship.position, target, "astar", {"move_cost": "turns"})
+
+def cover_dropoff_west_action(game, ship):
+    target = get_enemy_base().directional_offset(Direction.West)
     if not ship.path:
         ship.path, cost = game_map.navigate(ship.position, target, "astar", {"move_cost": "turns"})
 
@@ -138,6 +148,24 @@ tasks = {
         "id": 3,
         "task_name": "cover_dropoff_south",
         "action": cover_dropoff_south_action,
+        "move": cover_cell_move,
+        "ships": [],
+        "active": True,
+        "ships_required": 1
+    },
+    4: {
+        "id": 4,
+        "task_name": "cover_dropoff_east",
+        "action": cover_dropoff_east_action,
+        "move": cover_cell_move,
+        "ships": [],
+        "active": True,
+        "ships_required": 1
+    },
+    5: {
+        "id": 5,
+        "task_name": "cover_dropoff_west",
+        "action": cover_dropoff_west_action,
         "move": cover_cell_move,
         "ships": [],
         "active": True,
@@ -230,7 +258,7 @@ while True:
         logging.debug("{} is active".format(task["task_name"]))
 
         if len(task["ships"]) < task["ships_required"]:
-            if untasked_ships:
+            if len(untasked_ships) > 2: # leave a couple of ships around to mine
                 s_id = untasked_ships.pop()
                 logging.debug("Ship {} is assigned task '{}'".format(s_id, task["task_name"]))
                 assign_task(task, s_id)

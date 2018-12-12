@@ -644,7 +644,7 @@ def resolve_collsions(game):
                 if game_map[ship1].is_occupied:            # ship lost it's original cell to another ship
                     move = get_random_move(game, ship1) # find any unoccupied cell
                     if move is None:                    # else unwind
-                        cnt = unwind(ship1)
+                        cnt = unwind(game, ship1)
                         move = "o"
                         if DEBUG & (DEBUG_NAV): logging.info("Ship {} collision resolved by unwinding {} ships".format(ship1.id, cnt))
                 else:
@@ -732,9 +732,9 @@ def resolve_random_move(game, collision, args = None):
         if not cell.is_occupied:
             cell.mark_unsafe(ship)
             move = moveChoice
-            break
-
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Successfully resolved random move collision. Move: {}".format(ship.id, move))
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Successfully resolved random move collision. Move: {}".format(ship.id, move))
+        else:
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Failed to resolved random move collision. Move: {}".format(ship.id, move))
 
     return move
 
@@ -890,3 +890,10 @@ def unwind(game, displaced_ship):
     cnt += unwind(game, offending_ship)
 
     return cnt
+
+def ship_states_to_string(states):
+    out = []
+    for k, v in states.items():
+        out.append("Ship {}: {}".format(k, v))
+
+    return "\n".join(out)
