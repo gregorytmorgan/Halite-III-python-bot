@@ -66,7 +66,7 @@ def spawn_ok(game):
 
     # entry lane are N/S
     for pos in [shipyard_cell.position.directional_offset(Direction.North), shipyard_cell.position.directional_offset(Direction.South)]:
-        if game.game_map[pos].is_occupied:
+        if game.game_map[pos].is_occupied and game.game_map[pos].ship.owner == me.id:
             occupied_cells.append(pos)
 
     # need to keep track of ships docking instead, a ship in an adjacent cell could be leaving
@@ -509,7 +509,7 @@ def move_ok(game, ship):
 
     # the amount of halite we'll get if we refuel/mine
     # if ship in a dropoff/shipyard, set fuel to max to the ship departs
-    refuel_amount = constants.MAX_HALITE if ship.position in dropoffs else cell_halite * SHIP_MINING_EFFICIENCY
+    #refuel_amount = constants.MAX_HALITE if ship.position in dropoffs else cell_halite * SHIP_MINING_EFFICIENCY
 
     net_mine = (cell_halite * SHIP_MINING_EFFICIENCY) + (cell_halite - cell_halite * SHIP_MINING_EFFICIENCY) * -SHIP_FUEL_COST
     net_move = cell_halite * -SHIP_FUEL_COST + game.get_mining_rate(MINING_RATE_LOOKBACK) * SHIP_MINING_EFFICIENCY
@@ -634,11 +634,12 @@ def get_dropoff_positions(game, ship = None):
 
     return movePosition
 
-def resolve_collsions(game):
+def resolve_collsions(game, ship_states):
     """
     Resolve all collisions in the collision list
 
     :param game
+    :param ship_states Pass in the states so we can update the blocked_by attrib
     :return None
     """
     game_map = game.game_map
@@ -659,14 +660,20 @@ def resolve_collsions(game):
             move = direction
             collision_cell.mark_unsafe(ship1)
         else:
-            if DEBUG & (DEBUG_NAV): logging.info("Ship {} - calling provided resolver: moving {} to {} collided with ship {}, resolving ...".format(ship1.id, direction, collision_cell.position, ship2.id))
-            move = resolver(game, collision) # will all res functions have the same prototye/signature? Should they be lambdas?
+            blocked_by_move = get_blocked_by_move(game, collision)
+            ship_states[ship1.id]["blocked_by"] = ship1.blocked_by
+
+            if blocked_by_move is not None:
+                move = blocked_by_move
+            else:
+                if DEBUG & (DEBUG_NAV): logging.info("Ship {} - calling provided resolver: moving {} to {} collided with ship {}, resolving ...".format(ship1.id, direction, collision_cell.position, ship2.id))
+                move = resolver(game, collision) # will all res functions have the same prototye/signature? Should they be lambdas?
 
             if move is None:
-                if game_map[ship1].is_occupied:            # ship lost it's original cell to another ship
+                if game_map[ship1].is_occupied:         # ship lost it's original cell to another ship
                     move = get_random_move(game, ship1) # find any unoccupied cell
                     if move is None:                    # else unwind
-                        cnt = unwind(ship1)
+                        cnt = unwind(game, ship1)
                         move = "o"
                         if DEBUG & (DEBUG_NAV): logging.info("Ship {} collision resolved by unwinding {} ships".format(ship1.id, cnt))
                 else:
@@ -718,10 +725,62 @@ def get_backoff_point(game, ship, destination):
     return backoffPoint
 
 
+def get_blocked_by_move(game, collision):
+    """
+    Make sure the same ship is repeatedly blocking us
+
+    :param game
+    :param collision Collision tuple: (0:ship1 1:ship2 2:move 3:dest1 4:res_func)
+    :return Return a 'crash move' is the ship has been blocked too long. None otherwise.
+    """
+
+    ship1 = collision[0]
+    ship2 = collision[1]
+    move = collision[2]
+    position = collision[3]
+
+    if not ship1.blocked_by:
+        ship1.blocked_by = {"ship": ship2, "turns": 1}
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} is now blocked by ship {} at {}.".format(ship1.id, ship2.id, position))
+        return None
+
+    logging.debug("ship1.owner: {}".format(ship1.owner))
+    logging.debug("game.me.id: {}".format(game.me.id))
+
+    turns_blocked = ship1.blocked_by["turns"]
+    blocker = ship1.blocked_by["ship"]
+    if ship1.owner == game.me.id:
+        block_threshold = 3
+    else:
+        block_threshold = 1
+
+    logging.debug("ship1 {}".format(ship1))
+    logging.debug("blocker {}".format(blocker))
+
+    if blocker.id == ship2.id and blocker.position == ship2.position and turns_blocked > block_threshold:
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has been blocked by ship {} at {} for {} turns. Crashing".format(ship1.id, ship2.id, position, turns_blocked))
+        game.game_map[position].mark_unsafe(ship1)
+        if ship1.path:
+            ship1.path.pop()
+        return move
+    elif blocker.id == ship2.id and blocker.position == ship2.position:
+        turns_blocked += 1
+        ship1.blocked_by = {"ship": ship2, "turns": turns_blocked}
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} has been blocked by ship {} at {} for {} turns. Waiting.".format(ship1.id, ship2.id, position, turns_blocked))
+    else:
+        ship1.blocked_by = {"ship": ship2, "turns": 1}
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} is now blocked by ship {} at {}".format(ship1.id, ship2.id, position))
+
+    return None
+
 def resolve_random_move(game, collision, args = None):
     """
+    Resolve a random move.
+
+    :param game
+    :param collision Collision tuple: (0:ship1 1:ship2 2:move 3:dest1 4:res_func)
     :returns Returns the first viable random move excluding the original collision move.
-        Returns 'o' if no move exists.
+        Returns None if no move exists.
     """
     ship = collision[0]
 
@@ -755,15 +814,18 @@ def resolve_random_move(game, collision, args = None):
             cell.mark_unsafe(ship)
             move = moveChoice
             break
-
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Successfully resolved random move collision. Move: {}".format(ship.id, move))
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Successfully resolved random move collision. Move: {}".format(ship.id, move))
+        else:
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Failed to resolved random move collision. Move: {}".format(ship.id, move))
 
     return move
 
 def resolve_halite_move(game, collision):
     """
+    Resolve collisions for a halite move.
 
-    :param collision [0:ship1 1:ship2 2:move 3:dest1 4:res_func]
+    :param game
+    :param collision Collision tuple: (0:ship1 1:ship2 2:move 3:dest1 4:res_func)
     :returns Returns the 'o' or the lateral move based on the one with the most halite. 'o' gets
         a 10% preference.
     """
@@ -823,6 +885,10 @@ def resolve_halite_move(game, collision):
 
 def resolve_nav_move(game, collision):
     """
+    Resolve a nav move.
+
+    :param game
+    :param collision Collision tuple: (0:ship1 1:ship2 2:move 3:dest1 4:res_func)
     :returns Returns move based on a number of special cases, if none of these exists,
         returns a random move excluding the original collision move. Returns 'o' if no
         move exists.
@@ -836,11 +902,11 @@ def resolve_nav_move(game, collision):
     collision_cell = game.game_map[position]
     ship_cell = game.game_map[ship1]
 
-    if DEBUG & (DEBUG_NAV): logging.info("ship {} - Resolving density move".format(ship1.id))
+    if DEBUG & (DEBUG_NAV): logging.info("ship {} - Resolving nav move".format(ship1.id))
 
     if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}".format(ship1.id, ship2.id, position, move))
 
-    # don't let enemy ships block the dropoff
+    # don't let enemy ships block the dropoff for even 1 turn. Halite from both ships will be deposited
     if collision_cell.structure_type is Shipyard and collision_cell.ship.owner != game.me.id:
         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with enemy ship {} at shipyard. Crashing".format(ship1.id, ship2.id))
         collision_cell.mark_unsafe(ship1)
@@ -858,7 +924,6 @@ def resolve_nav_move(game, collision):
 
     # when departing a shipyard, wait to leave
     elif ship1.position == game.me.shipyard.position:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} is in shipyard".format(ship1.id))
         if game.game_map[ship1].is_occupied:
             new_move = None
         else:
@@ -867,6 +932,12 @@ def resolve_nav_move(game, collision):
     else:
         if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship1.id, position, ship2.id , move))
         new_move = resolve_random_move(game, collision)
+
+        # popping the path point will allow nav around the blocking ship, buy this can
+        # cause conjestion/screw up arrival/departure lanes if close to the dropoff
+        if game.game_map.calculate_distance(ship2.position, game.me.shipyard.position) > 4:
+            if len(ship1.path) > 1:
+                ship1.path.pop()
 
     #
     # if we were not able to resolve above, unwind ...
@@ -912,3 +983,13 @@ def unwind(game, displaced_ship):
     cnt += unwind(game, offending_ship)
 
     return cnt
+
+def ship_states_to_string(states):
+    """
+    Dump the ship states row by row so they're easier to read
+    """
+    out = []
+    for k, v in states.items():
+        out.append("Ship {}: {}".format(k, v))
+
+    return "\n".join(out)

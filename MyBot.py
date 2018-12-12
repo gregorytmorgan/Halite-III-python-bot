@@ -192,7 +192,8 @@ while True:
                 "path": [],
                 "assignment_distance": 0,
                 "assignment_duration": 0,
-                "explore_start": 0
+                "explore_start": 0,
+                "blocked_by": None
             }
 
             # we can't attach a christening attrib to the acutal ship obj because we'll lose
@@ -211,6 +212,7 @@ while True:
         ship.explore_start = ship_states[ship.id]["explore_start"]
         ship.assignment_distance = ship_states[ship.id]["assignment_distance"]
         ship.assignment_duration = ship_states[ship.id]["assignment_duration"]
+        ship.blocked_by = ship_states[ship.id]["blocked_by"]
 
         # note, some ship state attribs are not stored on the actual ship object:
         # e.g. prior_position, prior_halite_amount
@@ -359,14 +361,10 @@ while True:
                 move = get_move(game, ship, "density")
                 if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is exploring to the {}".format(ship.id, move))
             elif ship.status == "transiting":
-                args = {
-                    "waypoint_algorithm": "astar",
-                    "move_cost": "turns"
-                }
-                move = get_move(game, ship, "nav", args) # path scheme = algo for incomplete path
+                move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"}) # path scheme = algo for incomplete path
                 if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is {} {}".format(ship.id, ship.status, move))
             elif ship.status == "returning":
-                move = get_move(game, ship, "nav", "naive") # returning will break if a waypoint resolution other than naive is used
+                move = get_move(game, ship, "nav", "naive") # returning will break if a waypoint resolution other than naive is used. Why?
                 if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is {} {}".format(ship.id, ship.status, move))
             else:
                 move = get_move(game, ship, "density", "density")
@@ -397,6 +395,7 @@ while True:
         ship_states[ship.id]["explore_start"] = ship.explore_start
         ship_states[ship.id]["assignment_distance"] = ship.assignment_distance
         ship_states[ship.id]["assignment_duration"] = ship.assignment_duration
+        ship_states[ship.id]["blocked_by"] = ship.blocked_by
 
         #
         # end for each ship
@@ -424,7 +423,7 @@ while True:
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen on turn {}".format(s_id, ship_states[s_id]["last_seen"]))
         ship_states.pop(s_id, None)
 
-    if DEBUG & (DEBUG_SHIP_STATES): logging.info("Game - end ship_states: {}".format(ship_states))
+    if DEBUG & (DEBUG_SHIP_STATES): logging.info("Game - end ship_states:\n{}".format(ship_states_to_string(ship_states)))
 
     if DEBUG & (DEBUG_GAME_METRICS):
         mined_this_turn = sum(map(lambda i: i[2] if i[0] == game.turn_number else 0, game_metrics["mined"]))
@@ -510,7 +509,7 @@ while True:
     #
     # resolve collisions
     #
-    resolve_collsions(game)
+    resolve_collsions(game, ship_states)
 
     if (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(game.command_queue))
 
