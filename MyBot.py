@@ -23,7 +23,7 @@ from myutils.constants import *
 game_start_time = time.time()
 game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
-botName = "MyBot.dev"
+botName = "MyBot.v22"
 cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
@@ -140,9 +140,9 @@ while True:
 
         if DEBUG & (DEBUG_GAME): logging.info("Game - There are {} untasked ships and {} targets available.".format(untasked_ships_cnt, len(targets)))
 
-        logging.debug("Targets: {}".format(targets))
+        #logging.debug("Targets: {}".format(targets))
 
-        logging.debug("Loiter assignments: {}".format(game.loiter_assignments))
+        #logging.debug("Loiter assignments: {}".format(game.loiter_assignments))
 
     else:
         targets = []
