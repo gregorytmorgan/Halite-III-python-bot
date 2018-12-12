@@ -63,6 +63,7 @@ class Ship(Entity):
         self.explore_start = 0
         self.assignment_duration = 0
         self.assignment_distance = 0
+        self.blocked_by = None
 
         Ship.count += 1
 
