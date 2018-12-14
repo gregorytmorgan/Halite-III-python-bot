@@ -48,6 +48,9 @@ class Direction:
         :param direction: The input direction
         :return: The opposite direction
         """
+        if isinstance(direction,  str):
+            direction = DIRECTIONS[direction]
+
         if direction == Direction.North:
             return Direction.South
         if direction == Direction.South:
@@ -77,7 +80,7 @@ class Direction:
         elif direction == Direction.East or direction == Direction.West:
             return [Direction.North, Direction.South]
         elif direction == Direction.Still:
-            return Direction.Still
+            return [Direction.Still]
         else:
             raise IndexError
 
@@ -108,6 +111,9 @@ class Position:
         :param direction: the direction cardinal tuple
         :return: a new position moved in that direction
         """
+        if isinstance(direction,  str):
+            direction = DIRECTIONS[direction]
+
         return self + Position(*direction)
 
     def get_surrounding_cardinals(self):
