@@ -23,7 +23,7 @@ from myutils.constants import *
 game_start_time = time.time()
 game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
-botName = "MyBot.v22"
+botName = "MyBot.v23"
 cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
@@ -185,7 +185,7 @@ while True:
             ship_states[ship.id] = {
                 "last_seen": game.turn_number,
                 "prior_position": None,
-                "prior_halite_amount": None,
+                "prior_halite_amount": 0,
                 "status": "returning",
                 "last_dock": game.turn_number,
                 "christening": game.turn_number,
@@ -218,10 +218,18 @@ while True:
         # e.g. prior_position, prior_halite_amount
 
     #
+    # remove base clear request that are no longer valid
+    #
+    for bcr in game.base_clear_request[:]:
+        cell = game_map[bcr["position"]]
+        if not cell.is_occupied or cell.ship.id != bcr["ship"].id:
+            game.base_clear_request.remove(bcr)
+
+    #
     # handle each ship for this turn
     #
     for ship in my_ships:
-        dropoff_position = get_dropoff_positions(game, ship)
+        base_position = get_base_positions(game, ship.position)
 
         if DEBUG & (DEBUG_GAME) and ship.christening != game.turn_number:
             suffix = "to {} and is {} away".format(ship.path[0], round(game_map.calculate_distance(ship.position, ship.path[0], "manhatten"))) if ship.path and ship.status == "transiting" else ""
@@ -230,19 +238,33 @@ while True:
         #
         # status - returning
         #
-        if ship.status == "returning" or ship.position == dropoff_position:
+        if ship.status == "returning" or ship.position == base_position:
             # Returning - arrived
-            if ship.position == dropoff_position:
+            if ship.position == base_position:
 
-                # if status != "returning" accidentail dropoff
-                # if ship_states[ship.id]["prior_position"] and ship_states[ship.id]["prior_position"] != dropoff_position:
-                #    ship delayed
+                if game.base_clear_request: # and ship.christening == game.turn_number:
+                    clear_request = game.base_clear_request.pop()
+                    cell = game_map[clear_request["position"]]
+
+                    if cell.is_occupied and cell.ship.owner != me.id:
+                        move_offset = clear_request["position"] - base_position
+                        move = Direction.convert((move_offset.x, move_offset.y))
+
+                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} responded to dropoff clear request for {}. Moving {}".format(ship.id, clear_request["position"], move))
+
+                        game.command_queue[ship.id] = ship.move(move)
+                        game_map[ship].mark_safe()
+                        game_map[clear_request["position"]].mark_unsafe(ship)
+
+                        continue
+                    else:
+                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Clear request canceled for {}. Cell is clear".format(clear_request["position"]))
 
                 # log some data about the previous assignment
-                if game.turn_number != ship.christening and ship_states[ship.id]["prior_position"] != dropoff_position:
+                if game.turn_number != ship.christening and ship_states[ship.id]["prior_position"] != base_position:
                     dropoff_amount = ship_states[ship.id]["prior_halite_amount"]
                     game_metrics["trip_data"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, dropoff_amount, ship.assignment_distance, ship.assignment_duration))
-                    if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed dropoff of {} halite at {}. Return + explore took {} turns".format(ship.id, dropoff_amount, dropoff_position, game.turn_number - ship.last_dock))
+                    if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed dropoff of {} halite at {}. Return + explore took {} turns".format(ship.id, dropoff_amount, base_position, game.turn_number - ship.last_dock))
 
                 ship.path.clear() # may not have completed the previous path
                 game.update_loiter_assignment(ship) # clear this ships assignment
@@ -268,7 +290,7 @@ while True:
                     else:
                         loiter_point = get_loiter_point(game, ship, hint)
                         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} No targets remain, using random loiter point {}".format(ship.id, loiter_point))
-                    departure_point = get_departure_point(game, dropoff_position, loiter_point)
+                    departure_point = get_departure_point(game, base_position, loiter_point)
 
                 # calc the path for the assignment
                 bases = [me.shipyard.position]
@@ -291,7 +313,7 @@ while True:
                 if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is now {}".format(ship.id, ship.status))
             else:
                 # status returning, not home yet
-                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from dropoff {}.".format(ship.id, game_map.calculate_distance(ship.position, dropoff_position), dropoff_position))
+                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from dropoff {}.".format(ship.id, game_map.calculate_distance(ship.position, base_position), base_position))
 
         #
         # status exploring|transiting --> returning
@@ -299,9 +321,9 @@ while True:
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
             if ship.status != "returning":
                 if ship.status == "transiting":
-                    game_metrics["trip_transit_duration"].append((game.turn_number, ship.id, max(ship.explore_start, game.turn_number) - ship.last_dock, round(game_map.calculate_distance(ship.position, dropoff_position), 2)))
+                    game_metrics["trip_transit_duration"].append((game.turn_number, ship.id, max(ship.explore_start, game.turn_number) - ship.last_dock, round(game_map.calculate_distance(ship.position, base_position), 2)))
                 elif ship.status == "exploring":
-                    game_metrics["trip_explore_duration"].append((game.turn_number, ship.id, game.turn_number - ship.explore_start, round(game_map.calculate_distance(ship.position, dropoff_position), 2)))
+                    game_metrics["trip_explore_duration"].append((game.turn_number, ship.id, game.turn_number - ship.explore_start, round(game_map.calculate_distance(ship.position, base_position), 2)))
                 else:
                     logging.warn("Unknown status at 'ship full': {}".format(ship.status))
 
@@ -314,11 +336,11 @@ while True:
                 game.update_loiter_assignment(current_assignment[0])
                 if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} at {} is full and didn't reach loiter assignment {}, popped assignment".format(ship.id, ship.position, current_assignment[0]))
 
-            ship.path, cost = game_map.navigate(ship.position, dropoff_position, "dock") # returning to shipyard/dropoff
+            ship.path, cost = game_map.navigate(ship.position, base_position, "dock") # returning to shipyard/dropoff
 
             if not ship.path:
                 ship.path = [] # path might be None if failed
-                logging.error("Ship {} Error, navigate failed for dropoff {}".format(ship.id, dropoff_position))
+                logging.error("Ship {} Error, navigate failed for dropoff {}".format(ship.id, base_position))
 
         #
         # status exploring|transiting (exploring when ship.path != 0)
@@ -335,7 +357,7 @@ while True:
                     ship.status = "exploring"
                     if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is now {}".format(ship.id, ship.status))
                     ship.explore_start = game.turn_number
-                    game_metrics["trip_transit_duration"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, round(game_map.calculate_distance(ship.position, dropoff_position), 2)))
+                    game_metrics["trip_transit_duration"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, round(game_map.calculate_distance(ship.position, base_position), 2)))
 
             if game.get_loiter_assignment(ship.position):
                 game.update_loiter_assignment(ship.position)
@@ -402,12 +424,13 @@ while True:
         #
 
     #
-    # collenct game metrics
+    # collect game metrics
     #
     turn_profit = turn_gathered - turn_spent
     cumulative_profit += (turn_gathered - turn_spent)
     game_metrics["profit"].append((game.turn_number, turn_profit))
     game_metrics["turn_time"].append((game.turn_number, round(time.time() - turn_start_time, 4)))
+    game_metrics["mining_rate"].append((game.turn_number, round(game.get_mining_rate(MINING_RATE_LOOKBACK), 2)))
 
     #
     # debug info for each turn
@@ -511,12 +534,12 @@ while True:
     #
     resolve_collsions(game, ship_states)
 
-    if (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(game.command_queue))
-
     # check if we can spawn a ship. Make sure to check after all moves have been finalized
     if spawn_ok(game):
-        game.command_queue[-1] = me.shipyard.spawn()
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn request")
+        game.command_queue[-1] = me.shipyard.spawn()
+
+    if (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(game.command_queue))
 
     # Send your moves back to the game environment, ending this turn.
     game.end_turn(list(game.command_queue.values()))

@@ -35,6 +35,7 @@ class Game:
             "loiter_multiples": [],
             "loiter_offsets": [],
             "mined": [],
+            "mining_rate": [],
             "profit": [],
             "raw_loiter_points": [],
             "trip_transit_duration": [],
@@ -54,6 +55,7 @@ class Game:
 
         # keyed on position
         self.loiter_assignments = {}
+        self.base_clear_request = []
 
         # Grab constants JSON
         raw_constants = read_input()
