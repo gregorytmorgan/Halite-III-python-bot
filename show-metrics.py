@@ -58,7 +58,7 @@ def main():
             title = a
         elif o in ("-h", "--help"):
             usage()
-            sys.exit()
+            sys.exit(0)
         else:
             assert False, "unhandled option"
 
@@ -139,12 +139,16 @@ def main():
         plt.plot(X, Y, label=data_label, marker = symbol) # symbols[sym_idx % 3]
         #plt.plot(X, Y, scalex=False, scaley=False, marker='+') # no auto scale
 
-    ax = plt.gca()
-    handles, labels = ax.get_legend_handles_labels()
-    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0])) # sort both labels and handles by labels
-    plt.legend(handles, labels, loc='upper left')
-    plt.gca().set_title("{}-{} {}".format(m.group(2), m.group(3), title))
-    plt.show()
+    if file_names:
+        ax = plt.gca()
+        handles, labels = ax.get_legend_handles_labels()
+        labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0])) # sort both labels and handles by labels
+        plt.legend(handles, labels, loc='upper left')
+        plt.gca().set_title("{}-{} {}".format(m.group(2), m.group(3), title))
+        plt.show()
+    else:
+        print("No data.")
+        exit(1)
 
 if __name__ == "__main__":
     main()
