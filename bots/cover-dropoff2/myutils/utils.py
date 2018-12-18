@@ -65,7 +65,11 @@ def spawn_ok(game):
     logging.debug("oc1: {}".format(occupied_cells))
 
     # entry lane are N/S
-    for pos in [shipyard_cell.position.directional_offset(Direction.North), shipyard_cell.position.directional_offset(Direction.South)]:
+    n_cell = shipyard_cell.position.directional_offset(Direction.North)
+    s_cell = shipyard_cell.position.directional_offset(Direction.South)
+    e_cell = shipyard_cell.position.directional_offset(Direction.East)
+    w_cell = shipyard_cell.position.directional_offset(Direction.West)
+    for pos in [n_cell, s_cell, e_cell, w_cell]:
         if game.game_map[pos].is_occupied:
             occupied_cells.append(pos)
 
@@ -641,7 +645,7 @@ def resolve_collsions(game):
             move = resolver(game, collision) # will all res functions have the same prototye/signature? Should they be lambdas?
 
             if move is None:
-                if game_map[ship1].is_occupied:            # ship lost it's original cell to another ship
+                if game_map[ship1].is_occupied:         # ship lost it's original cell to another ship
                     move = get_random_move(game, ship1) # find any unoccupied cell
                     if move is None:                    # else unwind
                         cnt = unwind(game, ship1)
@@ -818,33 +822,13 @@ def resolve_nav_move(game, collision):
 
     if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}".format(ship1.id, ship2.id, position, move))
 
-    # don't let enemy ships block the dropoff
-    if collision_cell.structure_type is Shipyard and collision_cell.ship.owner != game.me.id:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with enemy ship {} at shipyard. Crashing".format(ship1.id, ship2.id))
-        collision_cell.mark_unsafe(ship1)
-        ship1.path.pop()
-        new_move = move
-
-    # when arriving at a droppoff, wait from entry rather than making a random move
-    # this probably will not work as well without entry/exit lanes
-    elif (ship1.path and ship1.path[0] == game.me.shipyard.position) and game.game_map.calculate_distance(ship1.position, game.me.shipyard.position) == 1:
-        if game.game_map[ship1].is_occupied:
-            new_move = None
-        else:
-            ship_cell.mark_unsafe(ship1)
-            new_move = "o"
-
     # when departing a shipyard, wait to leave
-    elif ship1.position == game.me.shipyard.position:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} is in shipyard".format(ship1.id))
-        if game.game_map[ship1].is_occupied:
-            new_move = None
-        else:
-            ship_cell.mark_unsafe(ship1)
-            new_move = 'o'
-    else:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship1.id, position, ship2.id , move))
+    if ship1.position == game.me.shipyard.position:
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} is departing the shipyard".format(ship1.id))
         new_move = resolve_random_move(game, collision)
+    else:
+        new_move = resolve_random_move(game, collision)
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship1.id, position, ship2.id , new_move))
 
     #
     # if we were not able to resolve above, unwind ...

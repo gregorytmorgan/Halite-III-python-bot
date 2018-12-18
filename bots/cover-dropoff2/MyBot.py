@@ -299,8 +299,6 @@ while True:
         else:
             raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
-        logging.debug("move: {}".format(move))
-
         if not (move is None):
             game.command_queue[ship.id] = ship.move(move)
 
