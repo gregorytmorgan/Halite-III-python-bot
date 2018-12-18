@@ -72,6 +72,8 @@ def main():
 
     fig = plt.figure(frameon=False)
     fig.set_size_inches(8, 6)
+    ax1 = plt.gca()
+    ax2 = ax1.twinx()
 
     for fname in file_names:
         X.clear()
@@ -83,7 +85,7 @@ def main():
         if verbose:
             print("Processing {}".format(fname))
 
-        metrics = "burned|mined|gathered|profit|spent|loiter_distances|return_duration"
+        metrics = "burned|mined|mining_rate|gathered|profit|spent|loiter_distances|return_duration"
         m = re.search(r"^(" + metrics + ")-([0-9]+)-([0-9]+)-bot-([0-9])", os.path.basename(fname))
 
         if m is None:
@@ -104,7 +106,11 @@ def main():
             symbol = '.'
         elif metric == "mined":
             step = 1
-            symbol = '.'
+            symbol = ','
+        elif metric == "mining_rate":
+            step = 1
+            symbol = ','
+            cumulative = False
         elif metric == "profit":
             step = 5
             symbol = '.'
@@ -136,15 +142,29 @@ def main():
                 Y.append(val)
 
         #plt.scatter(X, Y, label=data_label, marker = symbol) # symbols[sym_idx % 3]
-        plt.plot(X, Y, label=data_label, marker = symbol) # symbols[sym_idx % 3]
+        if cumulative:
+            ax2.plot(X, Y, label=data_label, marker = symbol)
+        else:
+            ax1.plot(X, Y, label=data_label, marker = symbol)
+
         #plt.plot(X, Y, scalex=False, scaley=False, marker='+') # no auto scale
 
     if file_names:
         ax = plt.gca()
         handles, labels = ax.get_legend_handles_labels()
         labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0])) # sort both labels and handles by labels
-        plt.legend(handles, labels, loc='upper left')
-        plt.gca().set_title("{}-{} {}".format(m.group(2), m.group(3), title))
+
+        if m is None:
+            plt.gca().set_title("{}-{} {}".format("Unknown", "Unknown", title))
+        else:
+            plt.gca().set_title("{}-{} {}".format(m.group(2), m.group(3), title))
+
+        ax1.legend(handles, labels, loc='upper left')
+
+        # doesn't work ???
+        #lines2, labels2 = ax2.get_legend_handles_labels()
+        #ax2.legend(lines2, labels2, loc=1)
+
         plt.show()
     else:
         print("No data.")
