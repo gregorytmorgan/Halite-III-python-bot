@@ -51,6 +51,7 @@ def main():
     file_names = []
     verbose = False
     title = ""
+    trendline = False
 
     for o, a in opts:
         if o == "-v":
@@ -89,7 +90,7 @@ def main():
         if verbose:
             print("Processing {}".format(fname))
 
-        metrics = "burned|mined|mining_rate|gathered|profit|spent|loiter_distances|return_duration"
+        metrics = "burned|mined|mining_rate|ship_count|gathered|profit|spent|loiter_distances|return_duration"
         m = re.search(r"^(" + metrics + ")-([0-9]+)-([0-9]+)-bot-([0-9])", os.path.basename(fname))
 
         if m is None:
@@ -112,6 +113,10 @@ def main():
             step = 1
             symbol = ','
         elif metric == "mining_rate":
+            step = 1
+            symbol = ','
+            cumulative = False
+        elif metric == "ship_count":
             step = 1
             symbol = ','
             cumulative = False
@@ -156,31 +161,35 @@ def main():
                 ax2.yaxis.set_visible(True)
                 ax2.plot(X, Y, label=data_label, marker = symbol)
 
-                def fexp(x, a, b , c):
-                    return a * np.exp(-b * x) + c
+                if trendline:
+                    def fexp(x, a, b , c):
+                        return a * np.exp(-b * x) + c
 
-                def flinear():
-                    return a+b*x
+                    def flinear():
+                        return a+b*x
 
-                n = len(X) # n == the number of data points to use
-                #n = 155
-                fxn = np.linspace(1, X[:n][-1])
-                try:
-                    popt, pcov = curve_fit(fexp, X[:n], Y[:n], p0=[float(X[0]), 0.01, 1.], bounds=[0., [800., .2, 4.]])
-                    plt.plot(fxn, fexp(fxn, *popt), label="fexp", marker = ",")
-                except:
-                    popt, pcov = curve_fit(flinear, X[:n], Y[:n], p0=[float(X[0]), -4], bounds=[0., [800., -100.]])
-                    plt.plot(fxn, flinear(fxn, *popt), label="ff", marker = "+")
-                #print("popt: {}".format(popt))
-                #print("pcov: {}".format(pcov))
+                    n = len(X) # n == the number of data points to use
+                    #n = 155
+                    fxn = np.linspace(1, X[:n][-1])
+                    try:
+                        popt, pcov = curve_fit(fexp, X[:n], Y[:n], p0=[float(X[0]), 0.01, 1.], bounds=[0., [800., .2, 4.]])
+                        plt.plot(fxn, fexp(fxn, *popt), label="fexp", marker = ",")
+                    except:
+                        popt, pcov = curve_fit(flinear, X[:n], Y[:n], p0=[float(X[0]), -4], bounds=[0., [800., -100.]])
+                        plt.plot(fxn, flinear(fxn, *popt), label="ff", marker = "+")
+                    #print("popt: {}".format(popt))
+                    #print("pcov: {}".format(pcov))
 
     if file_names and len(X):
         handles, labels = ax1.get_legend_handles_labels()
-        labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0])) # sort both labels and handles by labels
-        ax1.legend(handles, labels, loc='upper right')
+        if handles:
+            labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0])) # sort both labels and handles by labels
+            ax1.legend(handles, labels, loc='upper right')
 
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax2.legend(lines2, labels2, loc='upper left')
+
+        handles2, labels2 = ax2.get_legend_handles_labels()
+        if handles2:
+            ax2.legend(handles2, labels2, loc='upper left')
 
         if m is None:
             plt.gca().set_title("{}-{} {}".format("Unknown", "Unknown", title))
