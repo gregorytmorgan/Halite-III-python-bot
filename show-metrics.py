@@ -13,7 +13,8 @@
 
 #import math
 #from scipy.stats import norm
-#import numpy as np
+from scipy.optimize import curve_fit
+import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import getopt
@@ -143,27 +144,41 @@ def main():
 
         #plt.scatter(X, Y, label=data_label, marker = symbol) # symbols[sym_idx % 3]
         if cumulative:
-            ax2.plot(X, Y, label=data_label, marker = symbol)
-        else:
             ax1.plot(X, Y, label=data_label, marker = symbol)
+        else:
+            # plot non cumulative data. E.g. mining_rate, ...
+            ax2.plot(X, Y, label=data_label, marker = symbol)
 
-        #plt.plot(X, Y, scalex=False, scaley=False, marker='+') # no auto scale
+            def fexp(x, a, b , c):
+                return a * np.exp(-b * x) + c
+
+            def flinear():
+                return a+b*x
+
+            n = len(X) # n == the number of data points to use
+            #n = 155
+            fxn = np.linspace(1, X[:n][-1])
+            try:
+                popt, pcov = curve_fit(fexp, X[:n], Y[:n], p0=[float(X[0]), 0.01, 1.], bounds=[0., [800., .2, 4.]])
+                plt.plot(fxn, fexp(fxn, *popt), label="fexp", marker = ",")
+            except:
+                popt, pcov = curve_fit(flinear, X[:n], Y[:n], p0=[float(X[0]), -4], bounds=[0., [800., -100.]])
+                plt.plot(fxn, flinear(fxn, *popt), label="ff", marker = "+")
+            #print("popt: {}".format(popt))
+            #print("pcov: {}".format(pcov))
 
     if file_names:
-        ax = plt.gca()
-        handles, labels = ax.get_legend_handles_labels()
+        handles, labels = ax1.get_legend_handles_labels()
         labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0])) # sort both labels and handles by labels
+        ax1.legend(handles, labels, loc='upper right')
+
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax2.legend(lines2, labels2, loc='upper left')
 
         if m is None:
             plt.gca().set_title("{}-{} {}".format("Unknown", "Unknown", title))
         else:
             plt.gca().set_title("{}-{} {}".format(m.group(2), m.group(3), title))
-
-        ax1.legend(handles, labels, loc='upper left')
-
-        # doesn't work ???
-        #lines2, labels2 = ax2.get_legend_handles_labels()
-        #ax2.legend(lines2, labels2, loc=1)
 
         plt.show()
     else:
