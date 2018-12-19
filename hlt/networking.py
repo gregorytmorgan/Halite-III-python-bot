@@ -2,6 +2,7 @@ import json
 import logging
 import sys
 import numpy as np
+from scipy.optimize import curve_fit
 
 from .common import read_input
 from . import constants
@@ -163,14 +164,13 @@ class Game:
             #m = SHIP_MAX_HALITE / (shipyard_area_mean_halite - Mining_threshold)
             #logging.debug("m: {}".format(m))
 
-            t = self.turns_to_mining_threshold(shipyard_area_mean_halite, Mining_threshold)
+#            t = self.turns_to_mining_threshold(shipyard_area_mean_halite, Mining_threshold)
+#            if t == 0:
+#                mrate = 1.0
+#            else:
+#                mrate = (shipyard_area_mean_halite - Mining_threshold) / t
 
-            logging.debug("turns: {}".format(t))
-
-            if t == 0:
-                mrate = 1.0
-            else:
-                mrate = (shipyard_area_mean_halite - Mining_threshold) / t
+            mrate = shipyard_area_mean_halite * SHIP_MINING_EFFICIENCY
 
             logging.debug("mrate: {}".format(mrate))
 
@@ -201,6 +201,83 @@ class Game:
             rate = mined_by_ship.items[ship_id] / (self.turn_number - self.ship_christenings[ship_id] - 1)
 
         return max(1, rate)
+
+    def get_mining_rateX(self, turns = None, ship_id = None):
+        '''
+        Returns the mining rate for the game or a specific ship. Always returns
+        a rate of at least 1.
+        '''
+
+        if len(self.game_metrics["mined"]) < 3:
+            row_start = self.me.shipyard.position.y - 3
+            row_end = self.me.shipyard.position.y + 3
+            col_start = self.me.shipyard.position.x - 3
+            col_end = self.me.shipyard.position.x + 3
+
+            shipyard_area_mean_halite = np.mean(self.game_map._halite_map[row_start:row_end, col_start:col_end])
+
+            logging.debug("shipyard_area_mean_halite: {}".format(shipyard_area_mean_halite))
+            logging.debug("avg minable halite per cell: {}".format(shipyard_area_mean_halite - Mining_threshold))
+
+            mrate = shipyard_area_mean_halite * SHIP_MINING_EFFICIENCY
+
+            logging.debug("mrate: {}".format(mrate))
+
+            return max(1.0, mrate)
+
+        mined = []
+        mean_mining_rate = []
+        mined_by_turn = {}
+        mined_by_ship = {}
+
+        def fexp(x, a, b , c):
+            return a * np.exp(-b * x) + c
+
+        def flinear(x, a, b):
+            return a+b*x
+
+        oldest_turn = 1 if self.turn_number < turns else (self.turn_number - turns)
+        i = len(self.game_metrics["mined"]) - 1
+
+
+        oldest_turn = 1
+
+
+        # turn, ship.id, mined
+        while i >= 0 and self.game_metrics["mined"][i][0] > oldest_turn:
+            turn = self.game_metrics["mined"][i][0]
+            s_id = self.game_metrics["mined"][i][1]
+            halite = self.game_metrics["mined"][i][2]
+            mined_by_turn[turn] = mined_by_turn[turn] + halite if turn in mined_by_turn else halite
+            mined_by_ship[s_id] = mined_by_ship[s_id] + halite if s_id in mined_by_ship else halite
+            i -= 1
+
+        if ship_id is None:
+            for s_id, halite in mined_by_ship.items():
+                mined.append(halite / (self.turn_number - self.ship_christenings[s_id] - 1))
+
+            for t, halite in mined_by_turn.items():
+                mean_mining_rate.append((t, halite / self.game_metrics["ship_count"][i][1]))
+
+            X, Y = zip(*mean_mining_rate)
+
+            n = len(X) # n == the number of data points to use
+
+            #logging.debug("\nX:{}\nY:{}".format(X, Y))
+
+            try:
+                popt, pcov = curve_fit(fexp, X[:n], Y[:n], p0=[float(X[0]), 0.01, 1.], bounds=[0., [800., .2, 4.]])
+                rate = fexp(self.turn_number, *popt)
+            except:
+                popt, pcov = curve_fit(flinear, X[:n], Y[:n], p0=[float(X[0]), -4], bounds=[[0, -100], [800., 0.]])
+                rate = fexp(self.turn_number, *popt)
+
+            #rate = np.average(mined)
+        else:
+            rate = mined_by_ship.items[ship_id] / (self.turn_number - self.ship_christenings[ship_id] - 1)
+
+        return max(1, rate)
+
 
     def get_loiter_assignment(self, target):
         """
