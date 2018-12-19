@@ -30,6 +30,7 @@ class Game:
         # metrics
         self.game_metrics = {
             "burned": [],
+            "ship_count": [],
             "gathered": [(0, 0, 5000)],
             "loiter_distances": [],
             "loiter_multiples": [],

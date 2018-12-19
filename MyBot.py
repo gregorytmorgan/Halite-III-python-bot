@@ -431,6 +431,7 @@ while True:
     game_metrics["profit"].append((game.turn_number, turn_profit))
     game_metrics["turn_time"].append((game.turn_number, round(time.time() - turn_start_time, 4)))
     game_metrics["mining_rate"].append((game.turn_number, round(game.get_mining_rate(MINING_RATE_LOOKBACK), 2)))
+    game_metrics["ship_count"].append((game.turn_number, len(my_ships)))
 
     #
     # debug info for each turn
