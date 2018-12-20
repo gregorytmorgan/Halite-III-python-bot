@@ -101,18 +101,20 @@ while True:
 
         while len(targets) < untasked_ships_cnt:
 
-            if DEBUG & (DEBUG_GAME):
-                if threshold == TARGET_THRESHOLD_DEFAULT:
-                    logging.info("Game - Generating targets, threshold: {}".format(threshold))
-                else:
-                    logging.info("Game - Untasked ships({}) exceeds available targets({}), Generating targets, threshold: {}".format(untasked_ships_cnt, targets, threshold))
-
             hottest_areas = np.ma.MaskedArray(cell_value_map, mask = [cell_value_map <= threshold], fill_value = 0, copy=False)
 
-#            if game.turn_number < 999 or game.turn_number > constants.MAX_TURNS - 1:
-#                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
-#                np.ma.masked_print_option.set_display("---")
-#                logging.debug("hottest_areas:\n{}".format(hottest_areas.astype(np.int)))
+            if DEBUG & (DEBUG_TASKS):
+                if threshold == TARGET_THRESHOLD_DEFAULT:
+                    logging.info("Task - Generating targets, threshold: {}".format(threshold))
+                else:
+                    logging.info("Task - Untasked ships({}) exceeds available targets({}), Generating targets, threshold: {}".format(untasked_ships_cnt, targets, threshold))
+
+            if DEBUG & (DEBUG_CV_MAP) and threshold != TARGET_THRESHOLD_DEFAULT:
+                np.ma.masked_print_option.set_display("---")
+                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
+                logging.info("cell_values:\n{}".format(cell_value_map.astype(np.int)))
+                logging.debug("hottest_areas:\n{}".format(hottest_areas.astype(np.int)))
+                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
 
             y_vals, x_vals = hottest_areas.nonzero()
 
@@ -126,23 +128,24 @@ while True:
 
             targets = sorted(hotspots, key=lambda item: item[1])
 
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Found {} targets".format(len(targets)))
+            if DEBUG & (DEBUG_TASKS): logging.info("Task - Found {} targets".format(len(targets)))
 
-            threshold -= TARGET_THRESHOLD_STEP
+            if len(targets) < untasked_ships_cnt:
+                threshold -= TARGET_THRESHOLD_STEP
 
             if threshold < TARGET_THRESHOLD_MIN:
-                if DEBUG & (DEBUG_GAME): logging.info("Game - Target threshold {} reached min threshold {}. Aborting target generation".format(threshold, TARGET_THRESHOLD_MIN))
+                if DEBUG & (DEBUG_TASKS): logging.info("Task - Target threshold {} reached min threshold {}. Aborting target generation".format(threshold, TARGET_THRESHOLD_MIN))
                 break
 
             #
             # end target generation
             #
 
-        if DEBUG & (DEBUG_GAME): logging.info("Game - There are {} untasked ships and {} targets available.".format(untasked_ships_cnt, len(targets)))
+        if DEBUG & (DEBUG_TASKS): logging.info("Task - There are {} untasked ships and {} targets available.".format(untasked_ships_cnt, len(targets)))
 
-        #logging.debug("Targets: {}".format(targets))
+        if DEBUG & (DEBUG_TASKS): logging.info("Task - Targets: {}".format(list_to_short_string(targets, 2)))
 
-        #logging.debug("Loiter assignments: {}".format(game.loiter_assignments))
+        if DEBUG & (DEBUG_TASKS): logging.info("Task - Loiter assignments: {}".format(game.loiter_assignments))
 
     else:
         targets = []
@@ -193,7 +196,8 @@ while True:
                 "assignment_distance": 0,
                 "assignment_duration": 0,
                 "explore_start": 0,
-                "blocked_by": None
+                "blocked_by": None,
+                "mining_threshold": SHIP_MINING_THRESHOLD_DEFAULT
             }
 
             # we can't attach a christening attrib to the acutal ship obj because we'll lose
@@ -213,6 +217,7 @@ while True:
         ship.assignment_distance = ship_states[ship.id]["assignment_distance"]
         ship.assignment_duration = ship_states[ship.id]["assignment_duration"]
         ship.blocked_by = ship_states[ship.id]["blocked_by"]
+        ship.mining_threshold = ship_states[ship.id]["mining_threshold"]
 
         # note, some ship state attribs are not stored on the actual ship object:
         # e.g. prior_position, prior_halite_amount
@@ -286,10 +291,10 @@ while True:
                     if len(targets) != 0:
                         loiter_point = targets.pop()[0]
                         game.update_loiter_assignment(ship, loiter_point)
-                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} assigned loiter point {} off target list. {} targets remain".format(ship.id, loiter_point, len(targets)))
+                        if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} assigned loiter point {} off target list. {} targets remain".format(ship.id, loiter_point, len(targets)))
                     else:
                         loiter_point = get_loiter_point(game, ship, hint)
-                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} No targets remain, using random loiter point {}".format(ship.id, loiter_point))
+                        if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} No targets remain, using random loiter point {}".format(ship.id, loiter_point))
                     departure_point = get_departure_point(game, base_position, loiter_point)
 
                 # calc the path for the assignment
@@ -381,16 +386,14 @@ while True:
 
             if ship.status == "exploring":
                 move = get_move(game, ship, "density")
-                if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is exploring to the {}".format(ship.id, move))
             elif ship.status == "transiting":
                 move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"}) # path scheme = algo for incomplete path
-                if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is {} {}".format(ship.id, ship.status, move))
             elif ship.status == "returning":
                 move = get_move(game, ship, "nav", "naive") # returning will break if a waypoint resolution other than naive is used. Why?
-                if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is {} {}".format(ship.id, ship.status, move))
             else:
-                move = get_move(game, ship, "density", "density")
-                logging.error("Error - Ship {} should move, but has an unexpected status {}, falling back to density move {}".format(ship.id, ship.status, move))
+                raise RuntimeError("Ship {} has an invalid status: {}".format(ship.id, ship.status))
+
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is {} to the {}".format(ship.id, ship.status, move))
 
             if move:
                 ship.assignment_distance += 1
@@ -418,6 +421,7 @@ while True:
         ship_states[ship.id]["assignment_distance"] = ship.assignment_distance
         ship_states[ship.id]["assignment_duration"] = ship.assignment_duration
         ship_states[ship.id]["blocked_by"] = ship.blocked_by
+        ship_states[ship.id]["mining_threshold"] = ship.mining_threshold
 
         #
         # end for each ship
@@ -452,16 +456,17 @@ while True:
     if DEBUG & (DEBUG_GAME_METRICS):
         mined_this_turn = sum(map(lambda i: i[2] if i[0] == game.turn_number else 0, game_metrics["mined"]))
         logging.info("Game - Mined this turn: {}".format(mined_this_turn))
-        logging.info("Game - Turn mining rate: {}".format(0 if not len(my_ships) else mined_this_turn / len(my_ships)))
-        logging.info("Game - Mining rate: {}".format(round(game.get_mining_rate(MINING_RATE_LOOKBACK), 2)))
+        logging.info("Game - Turn mining rate: {}".format(0 if not len(my_ships) else round(mined_this_turn / len(my_ships), 2)))
+        logging.info("Game - Mining rate (Last {} turns): {}".format(MINING_RATE_LOOKBACK, round(game.get_mining_rate(MINING_RATE_LOOKBACK), 2)))
 
         logging.info("Game - Total mined: {}".format(sum(x[2] for x in game_metrics["mined"])))
         logging.info("Game - Total gathered: {}".format(sum(x[2] for x in game_metrics["gathered"])))
         logging.info("Game - Total burned: {}".format(sum(x[2] for x in game_metrics["burned"])))
 
         # profit = gathered - spent
-        logging.info("Game - Profit: {} {}".format(turn_profit, cumulative_profit))
+        logging.info("Game - Profit: turn: {},  cumulative: {}".format(turn_profit, cumulative_profit))
 
+    if DEBUG & (DEBUG_SHIP_METRICS):
         mined_by_ship= {}
         avg_mined_by_ship = {}
         oldest_turn = 1 if game.turn_number < MINING_RATE_LOOKBACK else (game.turn_number - MINING_RATE_LOOKBACK)
