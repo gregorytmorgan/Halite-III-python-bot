@@ -225,7 +225,7 @@ def get_halite_move(game, ship, args = None):
 
     move = "o"
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} is getting a density based move".format(ship.id))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - ship {} is getting a density based move".format(ship.id))
 
     moves = []
     for blocks in game.game_map.get_cell_blocks(ship.position, 3, 3): # returns array of tuples [(direction), CellBlock]
@@ -245,7 +245,7 @@ def get_halite_move(game, ship, args = None):
     best_bloc_data = sorted_blocks[0] # (directional_offset, block, block mean value)
     max_cell_amount = best_bloc_data[1].get_max()
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} found {} valid halite cells with a the max cell containing {} halite".format(ship.id, len(sorted_blocks), max_cell_amount))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - ship {} found {} valid halite cells with a the max cell containing {} halite".format(ship.id, len(sorted_blocks), max_cell_amount))
 
     for best_cell in best_bloc_data[1].get_cells():
         if best_cell.halite_amount == max_cell_amount:
@@ -259,7 +259,7 @@ def get_halite_move(game, ship, args = None):
 
     cell = game.game_map[normalized_position]
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} best cell new_position: {}, offset: {}, value: {}".format(ship.id, normalized_position, move_offset, cell.halite_amount))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - Ship {} next cell: {}, offset: {}, value: {}".format(ship.id, normalized_position, move_offset, cell.halite_amount))
 
     #
     # collision resolution
@@ -385,7 +385,7 @@ def get_nav_move(game, ship, args = None):
                 ship_cell.mark_unsafe(ship)
                 return 'o'
         else:
-            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} path to waypoint {} found. Length: {}, cost: {}".format(ship.id, next_position, len(path), round(cost)))
+            if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - ship {} path to waypoint {} found. Length: {}, cost: {}".format(ship.id, next_position, len(path), round(cost)))
             ship.path.pop()
             ship.path = ship.path + path
 
@@ -512,7 +512,7 @@ def move_ok(game, ship, args = None):
         return True
 
     # generally ignore low value cells.
-    if cell_halite < ship.mining_threshold:
+    if cell_halite <= ship.mining_threshold:
         return True
 
     fuel_status = ship.halite_amount / SHIP_MAX_HALITE
@@ -539,6 +539,8 @@ def move_ok(game, ship, args = None):
     elif ship.status == "returning":
         if net_move > net_mine or fuel_status > SHIP_REFUEL_THRESHOLD:
             return True
+        else:
+            logging.debug("SKIPPED MINING WHILE RETURNING")
     else:
         raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
@@ -561,7 +563,7 @@ def get_loiter_point(game, ship, hint = None):
     """
     loiter_distance = get_loiter_multiple(game)
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} loiter_distance: {}".format(ship.id, loiter_distance))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - Ship {} loiter_distance: {}".format(ship.id, loiter_distance))
     if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_multiples"].append((game.turn_number, round(loiter_distance, 2)))
 
     # get a random point on a cicle in radians, note that +y is down
@@ -580,7 +582,7 @@ def get_loiter_point(game, ship, hint = None):
 
     raw_loiter_point = (math.cos(pt), math.sin(pt))
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} raw_loiter_point: ({},{}), loiter_distance: {}, hint: {}".format(ship.id, round(raw_loiter_point[0], 4), round(raw_loiter_point[1], 4), loiter_distance, hint))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - Ship {} raw_loiter_point: ({},{}), loiter_distance: {}, hint: {}".format(ship.id, round(raw_loiter_point[0], 4), round(raw_loiter_point[1], 4), loiter_distance, hint))
 
     loiterOffset = Position(round(raw_loiter_point[0] * loiter_distance), round(raw_loiter_point[1] * loiter_distance))
 
@@ -695,6 +697,10 @@ def resolve_collsions(game, ship_states):
             if DEBUG & (DEBUG_NAV): logging.info("Nav - Collision resolved: ship {} resolving to {}".format(ship1.id, move))
 
         game.command_queue[ship1.id] = ship1.move(move)
+
+        if ship1.assignment and ship1.assignment == ship1.position and move != "o":
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed assignment {}, clearing assignment.".format(ship1.id, ship1.assignment))
+            game.update_loiter_assignment(ship1)
 
     if DEBUG & (DEBUG_GAME): logging.info("Game - Collision resolution complete")
 
