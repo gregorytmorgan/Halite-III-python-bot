@@ -12,9 +12,7 @@ from .player import Player
 from .positionals import Direction, Position
 from .common import read_input
 
-from myutils.constants import DEBUG, DEBUG_NAV, USE_CELL_VALUE_MAP, DEBUG_TIMING
 from myutils.cell_block import CellBlock
-from myutils.globals import Mining_threshold
 
 class MapCell:
     """A cell on the game map."""
@@ -650,8 +648,8 @@ class GameMap:
         halite = self[p2].halite_amount
 
         # skip cells we're never going to mine
-        if halite < Mining_threshold:
-            return 0
+        #if halite < Mining_threshold:
+        #    return 0
 
         halite_map = self.get_halite_map() # used to get slice for avg cost. Not worth the cost?
 
@@ -671,7 +669,7 @@ class GameMap:
         fuel_cost = 0 if np.isnan(path_avg_halite) else round(distance * path_avg_halite * .1)
 
         # only returning values > 0 is optional, simplifies downstream ops
-        return max(0, halite - fuel_cost - (distance_constant * distance))
+        return max(-1000, halite - fuel_cost - (distance_constant * distance))
 
     def __repr__(self):
         map = ""
