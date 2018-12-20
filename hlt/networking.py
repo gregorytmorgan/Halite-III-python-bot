@@ -270,9 +270,7 @@ class Game:
         :return Tuple (Position, ship_id) on success, False otherwise
         """
         if isinstance(target, Ship):
-            for pt, sid in self.loiter_assignments.items():
-                if sid == target.id:
-                    return (pt, sid)
+            return (target.assignment, target.id)
         elif isinstance(target, Position):
             if target in self.loiter_assignments:
                 return (target, self.loiter_assignments[target])
@@ -293,17 +291,19 @@ class Game:
 
         if loiter_point:
             self.loiter_assignments[loiter_point] = target.id
+            target.assignment = loiter_point
             retval = True
         else:
             unassigned_point = False
             if isinstance(target, Ship):
-                for pt, sid in self.loiter_assignments.items():
-                    if sid == target.id:
-                        unassigned_point = pt
-                        break
+                if target.assignment:
+                    unassigned_point = target.assignment
+                target.assignment = False
             elif isinstance(target, Position):
                 if target in self.loiter_assignments:
                     sid = self.loiter_assignments[target]
+                    if self.me.has_ship(sid):
+                        self.me.get_ship(sid).assignment = False
                     unassigned_point = target
 
             if unassigned_point:
