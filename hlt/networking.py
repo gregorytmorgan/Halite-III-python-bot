@@ -11,8 +11,7 @@ from .game_map import GameMap, Player
 from hlt.positionals import Position
 from hlt.entity import Ship
 
-from myutils.constants import SHIP_MINING_EFFICIENCY, SHIP_MAX_HALITE, DEBUG, DEBUG_NONE
-from myutils.globals import Mining_threshold
+from myutils.constants import SHIP_MINING_EFFICIENCY, DEBUG, DEBUG_NONE, DEBUG_NAV_VERBOSE
 
 class Game:
     """
@@ -150,6 +149,9 @@ class Game:
         Returns the mining rate for the game or a specific ship. Always returns
         a rate of at least 1.
         '''
+
+        # estimate need to take into account ship param as well. I.e. we may have 100
+        # 'mined' records, but no entries for a new ship
         if len(self.game_metrics["mined"]) < 3:
             row_start = self.me.shipyard.position.y - 3
             row_end = self.me.shipyard.position.y + 3
@@ -158,23 +160,11 @@ class Game:
 
             shipyard_area_mean_halite = np.mean(self.game_map._halite_map[row_start:row_end, col_start:col_end])
 
-            logging.debug("shipyard_area_mean_halite: {}".format(shipyard_area_mean_halite))
-            logging.debug("avg minable halite per cell: {}".format(shipyard_area_mean_halite - Mining_threshold))
+            mrate = max(1.0, shipyard_area_mean_halite * SHIP_MINING_EFFICIENCY)
 
-            #m = SHIP_MAX_HALITE / (shipyard_area_mean_halite - Mining_threshold)
-            #logging.debug("m: {}".format(m))
+            if DEBUG & (DEBUG_NAV_VERBOSE): logging.warn("Nav - Insufficient metrics to calulate mining rate. Estimate: {}, ship_id: {}".format(round(mrate, 2), ship_id))
 
-#            t = self.turns_to_mining_threshold(shipyard_area_mean_halite, Mining_threshold)
-#            if t == 0:
-#                mrate = 1.0
-#            else:
-#                mrate = (shipyard_area_mean_halite - Mining_threshold) / t
-
-            mrate = shipyard_area_mean_halite * SHIP_MINING_EFFICIENCY
-
-            logging.debug("mrate: {}".format(mrate))
-
-            return max(1.0, mrate)
+            return mrate
 
         if turns is None:
             turns = self.turn_number
@@ -198,16 +188,17 @@ class Game:
 
             rate = np.average(mined)
         else:
-            rate = mined_by_ship.items[ship_id] / (self.turn_number - self.ship_christenings[ship_id] - 1)
+            if ship_id in mined_by_ship:
+                rate = mined_by_ship[ship_id] / (self.turn_number - self.ship_christenings[ship_id] - 1)
+            else:
+                return None
 
         return max(1, rate)
 
-    def get_mining_rateX(self, turns = None, ship_id = None):
+    def get_mining_rate2(self, turns = None, ship_id = None):
         '''
-        Returns the mining rate for the game or a specific ship. Always returns
-        a rate of at least 1.
+        This needs work/testing
         '''
-
         if len(self.game_metrics["mined"]) < 3:
             row_start = self.me.shipyard.position.y - 3
             row_end = self.me.shipyard.position.y + 3
@@ -217,11 +208,8 @@ class Game:
             shipyard_area_mean_halite = np.mean(self.game_map._halite_map[row_start:row_end, col_start:col_end])
 
             logging.debug("shipyard_area_mean_halite: {}".format(shipyard_area_mean_halite))
-            logging.debug("avg minable halite per cell: {}".format(shipyard_area_mean_halite - Mining_threshold))
 
             mrate = shipyard_area_mean_halite * SHIP_MINING_EFFICIENCY
-
-            logging.debug("mrate: {}".format(mrate))
 
             return max(1.0, mrate)
 
@@ -241,7 +229,6 @@ class Game:
 
 
         oldest_turn = 1
-
 
         # turn, ship.id, mined
         while i >= 0 and self.game_metrics["mined"][i][0] > oldest_turn:
@@ -263,21 +250,16 @@ class Game:
 
             n = len(X) # n == the number of data points to use
 
-            #logging.debug("\nX:{}\nY:{}".format(X, Y))
-
             try:
                 popt, pcov = curve_fit(fexp, X[:n], Y[:n], p0=[float(X[0]), 0.01, 1.], bounds=[0., [800., .2, 4.]])
                 rate = fexp(self.turn_number, *popt)
             except:
                 popt, pcov = curve_fit(flinear, X[:n], Y[:n], p0=[float(X[0]), -4], bounds=[[0, -100], [800., 0.]])
                 rate = fexp(self.turn_number, *popt)
-
-            #rate = np.average(mined)
         else:
             rate = mined_by_ship.items[ship_id] / (self.turn_number - self.ship_christenings[ship_id] - 1)
 
         return max(1, rate)
-
 
     def get_loiter_assignment(self, target):
         """
