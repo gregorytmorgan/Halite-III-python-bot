@@ -21,7 +21,6 @@ import numpy as np
 
 # mybot utils
 from myutils.constants import *
-from myutils.globals import Mining_threshold
 
 def spawn_ok(game):
     """
@@ -233,14 +232,14 @@ def get_halite_move(game, ship, args = None):
         directional_offset = blocks[0]
         block = blocks[1]
 
-        if block.get_max() > Mining_threshold:
+        if block.get_max() > ship.mining_threshold:
             moves.append((directional_offset, block, block.get_mean()))
 
     sorted_blocks = sorted(moves, key=lambda item: item[2], reverse=True)
 
     if not sorted_blocks:
         move = get_random_move(game, ship) # ToDo: would be better to try a large search radius?
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surrounding cells have halite < threshold({}) . Returning random move: {}".format(ship.id, Mining_threshold, move))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surrounding cells have halite < threshold({}) . Returning random move: {}".format(ship.id, ship.mining_threshold, move))
         return move
 
     best_bloc_data = sorted_blocks[0] # (directional_offset, block, block mean value)
@@ -351,7 +350,7 @@ def get_nav_move(game, ship, args = None):
 
     game_map = game.game_map
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Getting nav move, path: {}, waypoint resolution: {}, move_cost: {}".format(ship.id, ship.path, waypoint_resolution, move_cost))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - ship {} Getting nav move, path: {}, waypoint resolution: {}, move_cost: {}".format(ship.id, list_to_short_string(ship.path, 4), waypoint_resolution, move_cost))
 
     ship_cell = game_map[ship]
 
@@ -393,7 +392,7 @@ def get_nav_move(game, ship, args = None):
     new_position = ship.path[-1]
 
     normalized_new_position = game_map.normalize(new_position)
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} new_position: {}".format(ship.id, normalized_new_position))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - ship {} new_position: {}".format(ship.id, normalized_new_position))
 
     # why?
     if normalized_new_position == ship.position:
@@ -408,7 +407,7 @@ def get_nav_move(game, ship, args = None):
     offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
     move = Direction.convert(offset)
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has potential nav move: {}".format(ship.id, move))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - Ship {} has potential nav move: {}".format(ship.id, move))
 
     #
     # collision resolution
@@ -422,7 +421,7 @@ def get_nav_move(game, ship, args = None):
     # success
     #
     cell.mark_unsafe(ship)
-    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} popped nav path {}".format(ship.id, ship.path[-1]))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - ship {} popped nav path {}".format(ship.id, ship.path[-1]))
     ship.path.pop()
 
     return move
@@ -493,7 +492,7 @@ def dump_data_file(game, data, file_basename):
     with open(stats_dir + '/' + file_basename + "-" + ts + "-bot-" + str(game.me.id) + ".log", "w") as f:
         f.write(data_str)
 
-def move_ok(game, ship):
+def move_ok(game, ship, args = None):
     """
     Should the ship explore or mine?
 
@@ -503,13 +502,17 @@ def move_ok(game, ship):
     :param ship
     :returns Returns True is the ship should move/explore, False if the ship should mine.
     """
+
+    if args is None:
+        args = {}
+
     cell_halite = game.game_map[ship.position].halite_amount
 
     if ship.is_full:
         return True
 
-    # generally ignore low value cells. Note Mining_threshold may be dynamic
-    if cell_halite < Mining_threshold:
+    # generally ignore low value cells.
+    if cell_halite < ship.mining_threshold:
         return True
 
     fuel_status = ship.halite_amount / SHIP_MAX_HALITE
@@ -530,7 +533,7 @@ def move_ok(game, ship):
         #    return True
         pass
     elif ship.status == "exploring":
-        #if cell_halite < Mining_threshold:
+        #if cell_halite < ship.mining_threshold:
         #    return True
         pass
     elif ship.status == "returning":
@@ -663,7 +666,7 @@ def resolve_collsions(game, ship_states):
         resolver = collision[4]
 
         if not collision_cell.is_occupied:
-            if DEBUG & (DEBUG_NAV): logging.info("Ship {} - not occupied: moving {} to {} previously collided with ship {}".format(ship1.id, direction, collision_cell.position, ship2.id))
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} - not occupied: moving {} to {} previously collided with ship {}".format(ship1.id, direction, collision_cell.position, ship2.id))
             move = direction
             collision_cell.mark_unsafe(ship1)
         else:
@@ -673,7 +676,7 @@ def resolve_collsions(game, ship_states):
             if blocked_by_move is not None:
                 move = blocked_by_move
             else:
-                if DEBUG & (DEBUG_NAV): logging.info("Ship {} - calling provided resolver: moving {} to {} collided with ship {}, resolving ...".format(ship1.id, direction, collision_cell.position, ship2.id))
+                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} - calling provided resolver: moving {} to {} collided with ship {}, resolving ...".format(ship1.id, direction, collision_cell.position, ship2.id))
                 move = resolver(game, collision) # will all res functions have the same prototye/signature? Should they be lambdas?
 
             if move is None:
@@ -682,14 +685,14 @@ def resolve_collsions(game, ship_states):
                     if move is None:                    # else unwind
                         cnt = unwind(game, ship1)
                         move = "o"
-                        if DEBUG & (DEBUG_NAV): logging.info("Ship {} collision resolved by unwinding {} ships".format(ship1.id, cnt))
+                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collision resolved by unwinding {} ships".format(ship1.id, cnt))
                 else:
                     move = 'o'
             else:
                 cell = game_map[ship1.position.directional_offset(move)]
                 cell.mark_unsafe(ship1)
 
-            if DEBUG & (DEBUG_NAV): logging.info("Collision resolved: ship {} resolving to {}".format(ship1.id, move))
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - Collision resolved: ship {} resolving to {}".format(ship1.id, move))
 
         game.command_queue[ship1.id] = ship1.move(move)
 
@@ -799,13 +802,13 @@ def resolve_random_move(game, collision, args = None):
 
     for idx in range(moveIdx, moveIdx + len(moves)):
         moveChoice = moves[idx % len(moves)]
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
+        if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
 
         new_position = ship.position.directional_offset(moveChoice)
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} new_position: {}".format(ship.id, new_position))
+        if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - Ship {} new_position: {}".format(ship.id, new_position))
 
         normalized_position = game.game_map.normalize(new_position)
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} normalized_position {}".format(ship.id, normalized_position))
+        if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - Ship {} normalized_position {}".format(ship.id, normalized_position))
 
         cell = game.game_map[normalized_position]
 
@@ -908,7 +911,7 @@ def resolve_nav_move(game, collision):
     collision_cell = game.game_map[position]
     ship_cell = game.game_map[ship1]
 
-    if DEBUG & (DEBUG_NAV): logging.info("ship {} - Resolving nav move".format(ship1.id))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Resolving nav move".format(ship1.id))
 
     if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}".format(ship1.id, ship2.id, position, move))
 
@@ -1032,3 +1035,9 @@ def get_base_surrounding_cardinals(game, position = None):
         retval.append(p)
 
     return retval
+
+def list_to_short_string(l, n):
+    if n < len(l)/2:
+        return "{} ... {}".format(str(l[:n])[:-1], str(l[-n:])[1:])
+    else:
+        return "{}".format(l)
