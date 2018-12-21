@@ -270,7 +270,8 @@ class Game:
         :return Tuple (Position, ship_id) on success, False otherwise
         """
         if isinstance(target, Ship):
-            return (target.assignment, target.id)
+            if target.assignment:
+                return (target.assignment, target.id)
         elif isinstance(target, Position):
             if target in self.loiter_assignments:
                 return (target, self.loiter_assignments[target])
