@@ -42,3 +42,5 @@ echo "$retval Best block search failed"
 retval=$(cat $file | grep "cells have halite < threshold" | wc -l)
 echo "$retval cells have halite < threshold"
 
+retval=$(cat replays/errorlog*.log | grep "owned entities" | grep "collided" | wc -l)
+echo "$retval cat replays/errorlog*.log | grep 'owned entities' | grep 'collided'"
