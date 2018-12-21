@@ -24,5 +24,23 @@ v16		Add better collision handling.  Prevent enemy from blocking shipyard, on
 
 v17		Add hotspot bot assignment, fix a fair number of nav bugs, esp around entry/exit lanes.
 
+v18		Add collision resolution
 
+v19		Fix bug in get best block search/get_cell_blocks()
+
+v20		Fix bug that caused prevented the cell_value_map from updating, Couple minor changes to help
+		with collisions/congestion around the shipyard. Update the cell_value func to skip cells that
+		have a value lower than the mining threshold + return 0 for negative values (Update: in
+		hindsight this was bad!). Make target threshold dynamic based on mining rate to ensure we
+		generate enought targets.
+
+v21		Fix corner offset bug that caused problems in the best block search. Only add a plus_one move
+		if the best cell is different than the next cell. Add simple logic to skip fueling when returning.
+
+v22		Rework base blocking protection from v21. Implement anti-blocking scheme for base adjacent cells.
+		Fix logic bug in calculating value of moving vs mining. (Update: this version resulted in a lose of rank)
+
+v23		Fix base blocking bugs. Don't discard cells with halite < the default mining threshold + don't
+		clamp cell values to 0+, these two items will cause a shortage of targets. Chk loiter assignment
+		halite is larger than mining threshold, If best block search fails, research with lower threshold.
 
