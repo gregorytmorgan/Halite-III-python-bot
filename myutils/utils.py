@@ -213,6 +213,24 @@ def get_move(game, ship, type="random", args = None):
 
     return move
 
+def get_best_blocks(game, ship, w, h):
+    """
+    Get the surrounding cell blocks
+
+    :param game
+    :param ship
+    :returns Returns a list of cell blocks, sorted by halite
+    """
+    best_blocks = []
+    for blocks in game.game_map.get_cell_blocks(ship.position, w, h): # returns array of tuples [(direction), CellBlock]
+        directional_offset = blocks[0]
+        block = blocks[1]
+
+        if block.get_max() > ship.mining_threshold:
+            best_blocks.append((directional_offset, block, block.get_mean()))
+
+    return sorted(best_blocks, key=lambda item: item[2], reverse=True)
+
 def get_halite_move(game, ship, args = None):
     """
     Get a move based on the surrounding cell with the most halite
@@ -227,20 +245,17 @@ def get_halite_move(game, ship, args = None):
 
     if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav - ship {} is getting a density based move".format(ship.id))
 
-    moves = []
-    for blocks in game.game_map.get_cell_blocks(ship.position, 3, 3): # returns array of tuples [(direction), CellBlock]
-        directional_offset = blocks[0]
-        block = blocks[1]
-
-        if block.get_max() > ship.mining_threshold:
-            moves.append((directional_offset, block, block.get_mean()))
-
-    sorted_blocks = sorted(moves, key=lambda item: item[2], reverse=True)
+    sorted_blocks = get_best_blocks(game, ship, 3, 3)
 
     if not sorted_blocks:
-        move = get_random_move(game, ship) # ToDo: would be better to try a large search radius?
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surrounding cells have halite < threshold({}) . Returning random move: {}".format(ship.id, ship.mining_threshold, move))
-        return move
+        old_threshold = ship.mining_threshold
+        ship.mining_threshold = 25
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surrounding cells have halite < threshold({}). Setting mining_threshold to {} and searching t{}".format(ship.id, old_threshold, ship.mining_threshold, game.turn_number))
+        sorted_blocks = get_best_blocks(game, ship, 3, 3)
+        if not sorted_blocks:
+            move = get_random_move(game, ship) # ToDo: would be better to try a large search radius?
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Best block search failed. All surrounding cells have halite < threshold({}) . Returning random move: {}".format(ship.id, ship.mining_threshold, move))
+            return move
 
     best_bloc_data = sorted_blocks[0] # (directional_offset, block, block mean value)
     max_cell_amount = best_bloc_data[1].get_max()
@@ -355,7 +370,7 @@ def get_nav_move(game, ship, args = None):
     ship_cell = game_map[ship]
 
     if not ship.path:
-        if DEBUG & (DEBUG_NAV): logging.warn("Nav - ship {} Getting nav path. Empty path. Returning 'o'".format(ship.id))
+        if DEBUG & (DEBUG_NAV): logging.warn("Nav - ship {} Getting nav path. Empty path. Returning 'o'. t{}".format(ship.id, game.turn_number))
         if ship_cell.is_occupied:
             game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?
             if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}".format(ship.id, ship_cell.ship.id, ship.position, 'o'))
@@ -764,11 +779,12 @@ def get_blocked_by_move(game, collision):
     turns_blocked = ship1.blocked_by["turns"]
     blocker = ship1.blocked_by["ship"]
     if ship1.owner == game.me.id:
-        block_threshold = 8
+        block_threshold = BLOCKED_BY_THRESHOLD_FRIENDLY
     else:
-        block_threshold = 2
+        block_threshold = BLOCKED_BY_THRESHOLD
 
-    if cell.ship.id == ship2.id and blocker.id == ship2.id and blocker.position == ship2.position and turns_blocked >= block_threshold:
+    # cell.ship.id == ship2.id and
+    if blocker.id == ship2.id and blocker.position == ship2.position and turns_blocked >= block_threshold:
         if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} has been blocked by ship {} at {} for {} turns. Crashing".format(ship1.id, ship2.id, position, turns_blocked))
         game.game_map[position].mark_unsafe(ship1)
         if ship1.path:
