@@ -65,6 +65,23 @@ class CellBlock:
     def get_positions(self):
         return self.positions
 
+    def contains_position(self, position):
+        """
+        Does this cell block constain position?
+
+        :param position The position to test.
+        :return Returns True if the position is in the block, False otherwise.
+        """
+        pos = self.game_map.normalize(position)
+
+        if pos.x < self.position.x or pos.x > self.position.x + self.w:
+            return False
+
+        if pos.y < self.position.y or pos.y > self.position.y + self.h:
+            return False
+
+        return True
+
     @staticmethod
     def calc_positions(position, w, h):
         """
