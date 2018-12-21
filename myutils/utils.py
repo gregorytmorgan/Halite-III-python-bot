@@ -45,13 +45,6 @@ def spawn_ok(game):
         if DEBUG & (DEBUG_GAME): logging.info("Game - Spawn denied. Insufficient halite".format())
         return False
 
-    # check for EXPEDITED_DEPARTURE before collisions since EXPEDITED_DEPARTURE will place
-    # ships in the arrival lanes
-    if EXPEDITED_DEPARTURE:
-        if me.ship_count < EXPEDITED_SHIP_COUNT:
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Spawn expedited due to ship count {} < {}".format(me.ship_count, EXPEDITED_SHIP_COUNT))
-            return True
-
     # watch for collisions with friendly ships only, spawn on enemy ship to clear the base.
     occupied_cells = []
     if shipyard_cell.is_occupied and shipyard_cell.ship.owner == me.id:
@@ -226,7 +219,9 @@ def get_best_blocks(game, ship, w, h):
         directional_offset = blocks[0]
         block = blocks[1]
 
-        if block.get_max() > ship.mining_threshold:
+        has_base = True if block.contains_position(get_base_positions(game, ship.position)) else False
+
+        if block.get_max() > ship.mining_threshold and not has_base:
             best_blocks.append((directional_offset, block, block.get_mean()))
 
     return sorted(best_blocks, key=lambda item: item[2], reverse=True)
@@ -638,28 +633,29 @@ def get_departure_point(game, dropoff, destination, departure_lanes = "e-w"):
 
 def get_base_positions(game, position = None):
     """
-    Get the closest dropoff or shipyard from position
+    Get the closest dropoff or shipyard from position.
+
+    If position is None, get all bases.
 
     :param game
     :param position
-    :return Returns a position
+    :return Returns a single position if the position arg is provded, returns an list of all base positions otherwise.
     """
-    dropoffs = game.me.get_dropoffs()
-    destinations = list(dropoffs) + [game.me.shipyard.position]
+    bases = list(game.me.get_dropoffs()) + [game.me.shipyard.position]
 
     if position is None:
-        return destinations
+        return bases
 
-    minDistance = False
-    movePosition = False
+    min_distance = False
+    closest_base = False
 
-    for dest in destinations:
-        distance = game.game_map.calculate_distance(position, dest)
-        if minDistance == False or distance < minDistance:
-            minDistance = distance
-            movePosition = dest
+    for base in bases:
+        distance = game.game_map.calculate_distance(position, base)
+        if min_distance == False or distance < min_distance:
+            min_distance = distance
+            closest_base = base
 
-    return movePosition
+    return closest_base
 
 def resolve_collsions(game, ship_states):
     """

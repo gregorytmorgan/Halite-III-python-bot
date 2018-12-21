@@ -23,7 +23,7 @@ from myutils.constants import *
 game_start_time = time.time()
 game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
-botName = "MyBot.v23"
+botName = "MyBot.v24"
 cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
@@ -290,28 +290,21 @@ while True:
                 # task/loiter point assignment
                 #
 
-                if EXPEDITED_DEPARTURE and game.turn_number <= 6:
-                    # takes 6 turns to get the first 4 ships out
-                    cardinals = ["w", "n", "s", "e"]
-                    hint = cardinals[me.ship_count % 4]
-                    loiter_point = get_loiter_point(game, ship, hint)
-                    departure_point = ship.position.directional_offset(DIRECTIONS[hint])
+                if len(targets) != 0:
+                    assignment_target = targets.pop()
+                    loiter_point = assignment_target[0]
+
+                    if assignment_target[2] < (ship.mining_threshold * 1.25):
+                        if DEBUG & (DEBUG_TASKS): logging.debug("Task - Ship {} has a mining threshold of {}, but assigment {} has {} halite. t{}".format(ship.id, ship.mining_threshold, loiter_point, assignment_target[2], game.turn_number))
+                        ship.mining_threshold = 25
+
+                    game.update_loiter_assignment(ship, loiter_point)
+                    if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} assigned loiter point {} off target list. {} targets remain".format(ship.id, loiter_point, len(targets)))
                 else:
-                    hint = None
-                    if len(targets) != 0:
-                        assignment_target = targets.pop()
-                        loiter_point = assignment_target[0]
+                    loiter_point = get_loiter_point(game, ship)
+                    if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} No targets remain, using random loiter point {}".format(ship.id, loiter_point))
 
-                        if assignment_target[2] < (ship.mining_threshold * 1.25):
-                            if True or DEBUG & (DEBUG_TASKS): logging.debug("Task - Ship {} has a mining threshold of {}, but assigment {} has {} halite. t{}".format(ship.id, ship.mining_threshold, loiter_point, assignment_target[2], game.turn_number))
-                            ship.mining_threshold = 25
-
-                        game.update_loiter_assignment(ship, loiter_point)
-                        if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} assigned loiter point {} off target list. {} targets remain".format(ship.id, loiter_point, len(targets)))
-                    else:
-                        loiter_point = get_loiter_point(game, ship, hint)
-                        if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} No targets remain, using random loiter point {}".format(ship.id, loiter_point))
-                    departure_point = get_departure_point(game, base_position, loiter_point)
+                departure_point = get_departure_point(game, base_position, loiter_point)
 
                 # calc the path for the assignment
                 bases = [me.shipyard.position]
@@ -326,7 +319,7 @@ while True:
 
                 # log some data about the current assignment
                 if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_distances"].append((game.turn_number, game_map.calculate_distance(ship.position, loiter_point, "manhatten")))
-                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is heading out with a departure point of {} and loiter point {}. Hint: {}".format(ship.id, departure_point, loiter_point, hint))
+                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is heading out with a departure point of {} and loiter point {}.".format(ship.id, departure_point, loiter_point))
 
                 ship.last_dock = game.turn_number
                 ship.status = "transiting"
