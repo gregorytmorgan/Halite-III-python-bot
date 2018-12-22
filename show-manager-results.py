@@ -93,25 +93,72 @@ def main():
                         else:
                             players[loser]["loses"][winner] = 1
 
-                    print("player {} defeated {}".format(winner, losers))
+#                    print("player {} defeated {}".format(winner, ", ".join(losers)))
 
 #            print("{}".format(players))
 
             output = []
 
+            results = [["x" for _ in range(len(players) + 1)] for _ in range(len(players) + 1)]
+
+            row = 0
+            col = 0
+
+            max_player_length = 12
+            sep = ".."
+
+            results[row][col] = "\t\t"
+            col += 1
+
             for player in players:
                 output.append("{}".format(player))
 
+                if len(player) > max_player_length:
+                    player_name = player[0:round(max_player_length / 2) - len(sep)] + sep + player[-round(max_player_length / 2) - len(sep):]
+                else:
+                    player_name = player
+
+                results[row][col] = player_name
+                col += 1
+
+            row += 1
+
             for player1, p1_data in players.items():
+
+                col = 0
+
+                results[row][col] = player1
+
                 for player2, p2_data in players.items():
+
+                    col += 1
 
                     output.append(player1)
 
-                    output.append("wins {} v {}: {}".format(player1, player2, players[player1]["wins"][player2]))
+                    if player1 == player2:
+                        wins = "-"
+                        loses = "-"
+                    else:
+                        if player2 in players[player1]["wins"]:
+                            output.append("wins {} v {}: {}".format(player1, player2, players[player1]["wins"][player2]))
+                            wins = players[player1]["wins"][player2]
+                        else:
+                            wins = 0
 
+                        if player2 in players[player1]["loses"]:
+                            loses = str(players[player1]["loses"][player2])
+                        else:
+                            loses = 0
 
+                    results[row][col] =  "{}/{}".format(wins, loses)
 
-            print("{}".format(output))
+                row += 1
+
+            for r in results:
+                if r[0].strip() == "":
+                    print("\t".join(r))
+                else:
+                    print("\t\t".join(r))
 
     if (verbose):
         print("Done")
