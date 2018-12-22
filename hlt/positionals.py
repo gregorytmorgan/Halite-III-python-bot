@@ -39,7 +39,7 @@ class Direction:
         if direction == Direction.Still:
             return commands.STAY_STILL
         else:
-            raise IndexError
+            raise IndexError("Invalid direction {}".format(direction))
 
     @staticmethod
     def invert(direction):
