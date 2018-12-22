@@ -10,6 +10,10 @@ import logging
 class CellBlock:
     """
     Collection of cells
+    :param game
+    :param position
+    :param width
+    :param height
     """
     def __init__(self, game_map, position, width, height):
         self.game_map = game_map
@@ -27,14 +31,23 @@ class CellBlock:
 
         self.cell_values = np.array(cell_vals)
 
-    def get_cells(self):
+    def get_cells(self, copy = False):
         """
         Get an WxH array of MapCells
         """
         cells = []
-
         for p in self.positions:
             cells.append(self.game_map[p])
+
+        #row_start = self.position.y - 3
+        #row_end = self.position.y + 3
+        #col_start = self.position.x - 3
+        #col_end = self.position.x + 3
+
+        #if copy:
+        #    cells = copy.deepcopy(self.game_map._cells[row_start:row_end, col_start:col_end])
+        #else:
+        #    cells = self.game_map._cells[row_start:row_end, col_start:col_end]
 
         return cells
 
