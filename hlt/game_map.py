@@ -93,9 +93,6 @@ class GameMap:
         self.height = height
         self._cells = cells
 
-        # data maps
-        self._cell_value_map = None
-
         # numpy array, dtype=float
         self._halite_map = None
 
