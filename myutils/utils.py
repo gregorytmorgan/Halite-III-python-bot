@@ -22,6 +22,8 @@ import numpy as np
 # mybot utils
 from myutils.constants import *
 
+from myutils.cell_block import CellBlock
+
 def spawn_ok(game):
     """
     Is is possible to spawn a ship now?  Checks cost, collisions, ...
@@ -215,7 +217,7 @@ def get_best_blocks(game, ship, w, h):
     :returns Returns a list of cell blocks, sorted by halite
     """
     best_blocks = []
-    for blocks in game.game_map.get_cell_blocks(ship.position, w, h): # returns array of tuples [(direction), CellBlock]
+    for blocks in game.game_map.get_cell_blocks(ship.position, w, h): # returns list of tuples [(direction), CellBlock]
         directional_offset = blocks[0]
         block = blocks[1]
 
@@ -547,7 +549,7 @@ def move_ok(game, ship, args = None):
         #    return True
         pass
     elif ship.status == "returning":
-        if net_move > net_mine or fuel_status > SHIP_REFUEL_THRESHOLD:
+        if net_move > net_mine or fuel_status > SHIP_REFUEL_THRESHOLD: # ????????????????
             return True
         else:
             logging.debug("SKIPPED MINING WHILE RETURNING")
@@ -708,9 +710,10 @@ def resolve_collsions(game, ship_states):
             if DEBUG & (DEBUG_NAV): logging.info("Nav - Collision resolved: ship {} resolving to {}".format(ship1.id, move))
 
         game.command_queue[ship1.id] = ship1.move(move)
+        ship_states[ship1.id]["position"] = get_position_from_move(game, ship1, move)
 
-        if ship1.assignment and ship1.assignment == ship1.position and move != "o":
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed assignment {}, clearing assignment.".format(ship1.id, ship1.assignment))
+        if ship1.assignments and ship1.assignments[-1] == ship1.position and move != "o":
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed assignment {}, clearing assignment.".format(ship1.id, ship1.assignments[-1]))
             game.update_loiter_assignment(ship1)
 
     if DEBUG & (DEBUG_GAME): logging.info("Game - Collision resolution complete")
@@ -978,7 +981,7 @@ def resolve_nav_move(game, collision):
             new_move = 'o'
     else:
         if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} collision at {} with ship {}. Resolving to random move {}".format(ship1.id, position, ship2.id , move))
-        new_move = resolve_random_move(game, collision, {"moves": Direction.laterals(move)})
+        new_move = resolve_random_move(game, collision, {"moves": [Direction.convert(m) for m in Direction.laterals(move)]})
 
         # popping the path point will allow nav around the blocking ship, buy this can
         # cause conjestion/screw up arrival/departure lanes if close to the dropoff
@@ -1059,3 +1062,7 @@ def list_to_short_string(l, n):
         return "{} ... {}".format(str(l[:n])[:-1], str(l[-n:])[1:])
     else:
         return "{}".format(l)
+
+def get_position_from_move(game, ship, move):
+    move_offset = DIRECTIONS[move]
+    return game.game_map.normalize(ship.position + Position(move_offset[0], move_offset[1]))

@@ -56,6 +56,8 @@ class Game:
 
         # keyed on position
         self.loiter_assignments = {}
+
+        # use list to retain order
         self.base_clear_request = []
 
         # Grab constants JSON
@@ -270,19 +272,22 @@ class Game:
         :return Tuple (Position, ship_id) on success, False otherwise
         """
         if isinstance(target, Ship):
-            if target.assignment:
-                return (target.assignment, target.id)
+            if target.assignments:
+                return (target.assignments[-1], target.id)
         elif isinstance(target, Position):
-            if target in self.loiter_assignments:
+            if target == self.loiter_assignments[-1]:
                 return (target, self.loiter_assignments[target])
 
         return False
 
     def update_loiter_assignment(self, target, loiter_point = None):
         """
-        Add/remove a loiter assignment by ship or Position.
+        Add/remove the active loiter assignment by ship or Position.
 
         If the 2nd arg is present, then it's an assignment, otherwise it's a deletion.
+
+        If a point is in the assignment list, but not active (tail of the list) False
+        is returned.
 
         :param loiter_assignments List of assignments
         :param target Ship|Position
@@ -292,28 +297,30 @@ class Game:
 
         if loiter_point:
             self.loiter_assignments[loiter_point] = target.id
-            target.assignment = loiter_point
-            retval = True
+            target.assignments.append(loiter_point)
+            return True
         else:
-            unassigned_point = False
             if isinstance(target, Ship):
-                if target.assignment:
-                    unassigned_point = target.assignment
-                target.assignment = False
+                if target.assignments:
+                    pt = target.assignments.pop()
+                    if pt in self.loiter_assignments:
+                        self.loiter_assignments.pop(pt, None)
+                    else:
+                        logging.error("Ship {} assignment {} is missing from the loiter assignments list".format(ship.id, pt))
+
+                    return True
             elif isinstance(target, Position):
                 if target in self.loiter_assignments:
                     sid = self.loiter_assignments[target]
-                    if self.me.has_ship(sid):
-                        self.me.get_ship(sid).assignment = False
-                    unassigned_point = target
+                    if target == self.me.get_ship(sid).assignments[-1]:
+                        self.me.get_ship(sid).assignments.pop()
+                    else:
+                        logging.error("Ship {} does not have assignment {} from the loiter assignments list".format(ship.id, target))
+                    self.loiter_assignments.pop(target, None)
 
-            if unassigned_point:
-                self.loiter_assignments.pop(unassigned_point, None)
-                retval = True
-            else:
-                retval = False
+                    return True
 
-        return retval
+        return False
 
     @staticmethod
     def end_turn(commands):

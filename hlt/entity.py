@@ -65,7 +65,7 @@ class Ship(Entity):
         self.assignment_distance = 0
         self.blocked_by = None
         self.mining_threshold = 0
-        self.assignment = False
+        self.assignments = []
 
         Ship.count += 1
 

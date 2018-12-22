@@ -196,7 +196,8 @@ while True:
                 "explore_start": 0,
                 "blocked_by": None,
                 "mining_threshold": SHIP_MINING_THRESHOLD_DEFAULT,
-                "assignment": False
+                "assignments": [],
+                "position": ship.position
             }
 
             # we can't attach a christening attrib to the acutal ship obj because we'll lose
@@ -217,7 +218,10 @@ while True:
         ship.assignment_duration = ship_states[ship.id]["assignment_duration"]
         ship.blocked_by = ship_states[ship.id]["blocked_by"]
         ship.mining_threshold = ship_states[ship.id]["mining_threshold"]
-        ship.assignment = ship_states[ship.id]["assignment"]
+        ship.assignments = ship_states[ship.id]["assignments"]
+
+        if ship.position != ship_states[ship.id]["position"]:
+            logging.warn("Ship {} has an inconsistent position. State: {}, Server: {}".format(ship.id, ship_states[ship.id]["position"], ship.position))
 
         # note, some ship state attribs are not stored on the actual ship object:
         # e.g. prior_position, prior_halite_amount
@@ -309,7 +313,7 @@ while True:
                 # calc the path for the assignment
                 bases = [me.shipyard.position]
                 ship.path, cost = game_map.navigate(departure_point, loiter_point, "astar", {"move_cost": "turns", "excludes":bases}) # heading out to loiter point
-                if ship.path is None: # note: path will be [] if loiter_point is closer that departure pt
+                if ship.path is None: # note: path will be [] if loiter_point is closer than the departure point
                     logging.error("Ship {} Error, navigate failed for loiter point {}, path:{}".format(ship.id, loiter_point, ship.path))
                     ship.path = [] # path will be None if failed,
                     ship.path.append(loiter_point) # maybe calc will succeed next time?
@@ -345,8 +349,8 @@ while True:
                 if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is now {}".format(ship.id, ship.status))
 
             # chk if ship has an assignment, if so clear it, we're heading home (need to chk position in case became full on assigned pt?)
-            if ship.assignment and ship.assignment != ship.position:
-                if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} at {} is full and didn't reach loiter assignment {}, popped assignment".format(ship.id, ship.position, ship.assignment))
+            if ship.assignments and ship.assignments[-1] != ship.position:
+                if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} at {} is full and didn't reach loiter assignment {}, popped assignment".format(ship.id, ship.position, ship.assignments[-1]))
                 game.update_loiter_assignment(ship)
 
             ship.path, cost = game_map.navigate(ship.position, base_position, "dock") # returning to shipyard/dropoff
@@ -362,8 +366,8 @@ while True:
             ship.assignment_duration += 1
 
             if ship.status == "transiting":
-                if ship.assignment and ship.assignment == ship.position:
-                    if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} reached loiter assignment {}".format(ship.id, ship.assignment))
+                if ship.assignments and ship.assignments[-1] == ship.position:
+                    if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} reached loiter assignment {}".format(ship.id, ship.assignments[-1]))
 
             if ship.path:
                 if ship.status != "transiting":
@@ -406,8 +410,8 @@ while True:
             if move:
                 ship.assignment_distance += 1
                 game.command_queue[ship.id] = ship.move(move)
-                if ship.assignment and ship.assignment == ship.position and move != "o":
-                    if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed assignment {}, clearing assignment.".format(ship.id, ship.assignment))
+                if ship.assignments and ship.assignments[-1] == ship.position and move != "o":
+                    if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed assignment {}, clearing assignment.".format(ship.id, ship.assignments[-1]))
                     game.update_loiter_assignment(ship)
 
         else:
@@ -415,7 +419,8 @@ while True:
             # mining
             #
             if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is mining".format(ship.id))
-            game.command_queue[ship.id] = ship.stay_still()
+            move = "o"
+            game.command_queue[ship.id] = ship.move(move)
 
         ship.assignment_duration += 1
 
@@ -434,7 +439,8 @@ while True:
         ship_states[ship.id]["assignment_duration"] = ship.assignment_duration
         ship_states[ship.id]["blocked_by"] = ship.blocked_by
         ship_states[ship.id]["mining_threshold"] = ship.mining_threshold
-        ship_states[ship.id]["assignment"] = ship.assignment
+        ship_states[ship.id]["assignments"] = ship.assignments
+        ship_states[ship.id]["position"] = None if move is None else get_position_from_move(game, ship, move)
 
         #
         # end for each ship
@@ -451,10 +457,8 @@ while True:
     game_metrics["ship_count"].append((game.turn_number, len(my_ships)))
 
     #
-    # debug info for each turn
-    #
-
     # check of lost ships
+    #
     lost_ships = []
     for s_id in ship_states:
         if not me.has_ship(s_id):
@@ -463,6 +467,10 @@ while True:
     for s_id in lost_ships:
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen at {} on turn {} with {} halite".format(s_id, ship_states[s_id]["prior_position"], ship_states[s_id]["last_seen"], ship_states[s_id]["prior_halite_amount"]))
         ship_states.pop(s_id, None)
+
+    #
+    # debug info for each turn
+    #
 
     if DEBUG & (DEBUG_SHIP_STATES): logging.info("Game - end ship_states:\n{}".format(ship_states_to_string(ship_states)))
 
