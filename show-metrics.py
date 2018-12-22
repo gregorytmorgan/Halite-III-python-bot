@@ -39,8 +39,11 @@ def usage():
     print("Profit stats for both bot-0 and bot-1 [1]:")
     print("./show-metrics.py $(ls -rt -1 stats/profit-*-bot-?.log | tail -n 2)")
     print("")
-    print("Two stats for both bot-0 and bot-1 [1]:")
-    print("./show-metrics.py $(ls -rt -1 stats/{mined,profit}-*-bot-?.log | tail -n 4)")
+    print("Three stats for both bot-0 and bot-1 [1]:")
+    print("./show-metrics.py $(ls -rt -1 stats/{mined,profit,mining_rate}-*-bot-?.log | tail -n 6)")
+    print("")
+    print("Ships v Mining_rate stats for both bot-0 and bot-1:")
+    print("./show-metrics.py $(ls -rt -1 stats/{mining_rate,ship_count}-*-bot-?.log | tail -n 4)")
     print("")
     print("[1] Make sure the tail count = number of players * number of stats")
 
