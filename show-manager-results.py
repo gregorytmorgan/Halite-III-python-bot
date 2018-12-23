@@ -27,11 +27,10 @@ except getopt.GetoptError:
 
 def usage():
     program_name = sys.argv[0]
-    print("Usage: {} [options] [files]".format(program_name))
+    print("Usage: {} [options] files|STDIN".format(program_name))
     print("-h\tHelp.")
     print("-v\tVerbose.")
-    print("\nExample:")
-    print("Either provide a file name on the command line, or stdin")
+    print("Example: ./manager.py -R 0 | ./show-manager-results.py")
 
 
 def parse_lines(lines):
@@ -136,8 +135,14 @@ def main():
         for f in args:
             file_names.append(f)
 
-    if file_names is False:
-        data = dummy_data # REPLACE ME
+    if not file_names:
+        if verbose: print("Processing {}".format("STDIN"))
+        for line in sys.stdin:
+            line = line.strip()
+            if not re.match(r"^\(", line):
+                continue
+
+            lines.append(line)
     else:
         for fname in file_names:
             if verbose: print("Processing {}".format(fname))
