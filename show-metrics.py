@@ -33,17 +33,17 @@ def usage():
     print("-h\tHelp.")
     print("-v\tVerbose.")
     print("\nExamples:")
-    print("4 most recent stats for bot 0 [1]:")
-    print("./show-metrics.py $(ls -tr -1 stats/*-bot-0.log | tail -n 4)")
+    print("Mining rate for bot 0 for the last 4 games:")
+    print("./show-metrics.py $(ls -tr -1 stats/mining_rate-*-bot-0.log | tail -n 4)")
     print("")
-    print("Profit stats for both bot-0 and bot-1 [1]:")
+    print("Profit stats for both bot-0 and bot-1:")
     print("./show-metrics.py $(ls -rt -1 stats/profit-*-bot-?.log | tail -n 2)")
     print("")
-    print("Three stats for both bot-0 and bot-1 [1]:")
+    print("Three stats for both bot-0 and bot-1:")
     print("./show-metrics.py $(ls -rt -1 stats/{mined,profit,mining_rate}-*-bot-?.log | tail -n 6)")
     print("")
     print("Ships v Mining_rate stats for both bot-0 and bot-1:")
-    print("./show-metrics.py $(ls -rt -1 stats/{mining_rate,ship_count}-*-bot-?.log | tail -n 4)")
+    print("./show-metrics.py $(ls -rt -1 stats/{mined,profit,mining_rate,ship_count}-*-bot-?.log | tail -n 8)")
     print("")
     print("[1] Make sure the tail count = number of players * number of stats")
 
@@ -74,6 +74,7 @@ def main():
     #symbols = [',', '.', '^', '*', '+', 'x']
     #sym_idx = 0
     #linestyles = ['-', '--', '-.', ':']
+    line_colors = ["g", "b", "r", "c", "m", "y", "k", "w"]
 
     fig = plt.figure(frameon=False)
     fig.set_size_inches(8, 6)
@@ -104,6 +105,8 @@ def main():
             bot = m.group(4)
 
         data_label = metric.title() + " bot-" + bot
+        bot_color = line_colors[(int(bot)) % len(line_colors)]
+
         cumulative = True # many stats are cumulative
 
         if metric == "gathered":
@@ -143,7 +146,10 @@ def main():
         with open(fname, "r") as file:
           for line in file:
             line_no += 1
-            item = eval(line.strip())
+            line = line.strip()
+            if not re.match(r"^\(", line):
+                continue
+            item = eval(line)
             if cumulative:
                 val += item[len(item) - 1]
             else:
@@ -157,12 +163,12 @@ def main():
         if len(X):
             if cumulative:
                 ax1.yaxis.tick_right()
-                ax1.plot(X, Y, label=data_label, marker = symbol)
+                ax1.plot(X, Y, label = data_label, marker = symbol, color = bot_color)
             else:
                 # plot non cumulative data. E.g. mining_rate, ...
                 ax2.yaxis.tick_left()
                 ax2.yaxis.set_visible(True)
-                ax2.plot(X, Y, label=data_label, marker = symbol)
+                ax2.plot(X, Y, label = data_label, marker = symbol, color = bot_color)
 
                 if trendline:
                     def fexp(x, a, b , c):
@@ -189,9 +195,9 @@ def main():
             labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0])) # sort both labels and handles by labels
             ax1.legend(handles, labels, loc='upper right')
 
-
         handles2, labels2 = ax2.get_legend_handles_labels()
         if handles2:
+            labels2, handles2 = zip(*sorted(zip(labels2, handles2), key=lambda t: t[0])) # sort both labels and handles by labels
             ax2.legend(handles2, labels2, loc='upper left')
 
         if m is None:
