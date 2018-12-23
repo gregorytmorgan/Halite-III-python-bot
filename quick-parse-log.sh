@@ -13,10 +13,10 @@ if [ ! -e $file ]; then
 fi
 
 retval=$(cat $file | grep -i "warning" | wc -l)
-echo "$retval warnings"
+echo "$retval cat $file | grep -i 'warning'"
 
 retval=$(cat $file | grep -i "error" | wc -l)
-echo "$retval errors"
+echo "$retval cat $file | grep -i 'error'"
 
 retval=$(cat $file | grep "No targets remain" | wc -l)
 echo "$retval No targets remain"
