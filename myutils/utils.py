@@ -1065,6 +1065,88 @@ def list_to_short_string(l, n):
     else:
         return "{}".format(l)
 
+def respond_to_sos(game, sos_call):
+    """
+    pop event
+    find all close ships to sos event
+    eval the chance of reaching the event loc
+    send ship based on capacity
+
+
+    sos -> (s_id, halite, position)
+    """
+    sos_position = sos_call["position"]
+    sos_ship_id = sos_call["s_id"]
+    sos_halite_lost = game.game_map[sos_position].halite_amount
+
+    if DEBUG & (DEBUG_GAME): logging.info("Game - Sos recieved from ship {} @ {}. There were {} halite lost.".format(sos_ship_id, sos_position, sos_halite_lost))
+
+    if sos_halite_lost < 300:
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Sos disregarded from ship {} @ {}. Halite lost is {}, threshold is {}".format(sos_ship_id, sos_position, sos_halite_lost, 500))
+        return False
+
+    block_size = 12
+    block = CellBlock(game.game_map, Position(round(sos_position.x - block_size/2), round(sos_position.y - block_size/2)), block_size, block_size)
+
+    cells = block.get_cells()
+
+    enemies = []
+    friendlies = []
+
+    for cell in cells:
+        if cell.is_occupied:
+            distance = game.game_map.calculate_distance(cell.position, sos_position)
+            if cell.ship.owner == game.me.id:
+                if cell.ship.status != "returning":
+                    friendlies.append((cell.ship, distance))
+            else:
+                enemies.append((cell.ship, distance))
+
+    friendlies.sort(key=lambda item: (item[1], item[0].halite_amount), reverse=True)
+    enemies.sort(key=lambda item: (item[1]), reverse=True)
+
+    # reward/risk
+    # halite / ((f_best_dist * c1) + (e_cnt/f_cnt * c2) + (bf_dst/be_dst * c3)) c1,c2,c3 = .5,2,4 ???
+
+    if enemies:
+        best_enemy = enemies[-1]
+        best_enemy_ship = best_enemy[0]
+        best_enemy_distance = best_enemy[1]
+
+    responder = False
+
+    for friendly_ship, friendly_distance in friendlies:
+        if enemies:
+            if friendly_ship.halite_amount < 500 and friendly_distance < best_enemy_distance:
+                responder = friendly_ship
+                responder.path.append(sos_position)
+        else:
+            if friendly_ship.halite_amount < 900:
+                responder = friendly_ship
+                responder.path.append(sos_position)
+
+    if DEBUG & (DEBUG_GAME):
+        if friendlies:
+           logging.info("Game - There are {} friendlies within {} moves of {}. The closest is ship {} @ {} away.".format(len(friendlies), block_size, sos_position, friendly_ship.id, friendly_distance))
+        else:
+            logging.info("Game - There are no friendlies within {} moves of {} with {} cargo capacity".format(block_size, sos_position, 600))
+
+        if enemies:
+           logging.info("Game - There are {} enemies within {} moves of {}. The closest is ship {} @ {} away.".format(len(enemies), block_size, sos_position, best_enemy_ship.id, best_enemy_distance))
+        else:
+            logging.info("Game - There are no enemies within {} moves of {}".format(block_size, sos_position))
+
+        if responder and responder.assignments:
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} deverted from assignment {} to respond to sos from ship {} @ {}".format(responder.id, responder.assignments[-1], sos_ship_id, sos_position))
+        elif responder:
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} assigned to respond to sos from ship {} @ {}".format(responder.id, sos_ship_id, sos_position))
+        else:
+            if DEBUG & (DEBUG_GAME): logging.info("Game - There are no viable ships to respond to sos from ship {} @ {}".format(sos_ship_id, sos_position))
+
+#should the sos position be added as an assignment?
+
+    return responder
+
 def get_position_from_move(game, ship, move):
     move_offset = DIRECTIONS[move]
     return game.game_map.normalize(ship.position + Position(move_offset[0], move_offset[1]))

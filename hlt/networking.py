@@ -61,6 +61,9 @@ class Game:
         # use list to retain order
         self.base_clear_request = []
 
+        #
+        self.sos_calls = []
+
         # Grab constants JSON
         raw_constants = read_input()
         constants.load_constants(json.loads(raw_constants))

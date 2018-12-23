@@ -235,6 +235,13 @@ while True:
             game.base_clear_request.remove(bcr)
 
     #
+    # chk for sos events
+    #
+    for sos in game.sos_calls[:]:
+        respond_to_sos(game, sos)
+        game.sos_calls.remove(sos)
+
+    #
     # handle each ship for this turn
     #
     for ship in my_ships:
@@ -374,12 +381,10 @@ while True:
                         if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} reached loiter assignment {} t{}".format(ship.id, ship.assignments[-1], game.turn_number))
                     elif adistance == 1 and acell.is_occupied and acell.ship.owner == me.id and acell.position != base_position:
                         if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} approached loiter assignment {} It is friendly occupied by ship {}. Clearing assignment. t{}".format(ship.id, ship.assignments[-1], acell.ship.id, game.turn_number))
-                        logging.debug("pre path: {}".format(ship.path))
                         game.update_loiter_assignment(ship)
                         while ship.path[-1] != acell.position:
                             ship.path.pop()
                         ship.path.pop()
-                        logging.debug("post path: {}".format(ship.path))
 
             if ship.path:
                 if ship.status != "transiting":
@@ -477,6 +482,12 @@ while True:
             lost_ships.append(s_id)
 
     for s_id in lost_ships:
+        sos_evt = {
+            "s_id": s_id,
+            "halite": ship_states[s_id]["prior_halite_amount"],
+            "position": ship_states[s_id]["position"]
+        }
+        game.sos_calls.append(sos_evt)
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen at {} on turn {} with {} halite. t{}".format(s_id, ship_states[s_id]["prior_position"], ship_states[s_id]["last_seen"], ship_states[s_id]["prior_halite_amount"], game.turn_number))
         ship_states.pop(s_id, None)
 
