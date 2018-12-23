@@ -1079,7 +1079,7 @@ def respond_to_sos(game, sos_call):
     sos_ship_id = sos_call["s_id"]
     sos_halite_lost = game.game_map[sos_position].halite_amount
 
-    if DEBUG & (DEBUG_GAME): logging.info("Game - Sos recieved from ship {} @ {}. There were {} halite lost.".format(sos_ship_id, sos_position, sos_halite_lost))
+    if DEBUG & (DEBUG_GAME): logging.info("Game - Sos recieved from ship {} @ {}. There was {} halite lost.".format(sos_ship_id, sos_position, sos_halite_lost))
 
     if sos_halite_lost < 300:
         if DEBUG & (DEBUG_GAME): logging.info("Game - Sos disregarded from ship {} @ {}. Halite lost is {}, threshold is {}".format(sos_ship_id, sos_position, sos_halite_lost, 500))
@@ -1137,7 +1137,7 @@ def respond_to_sos(game, sos_call):
             logging.info("Game - There are no enemies within {} moves of {}".format(block_size, sos_position))
 
         if responder and responder.assignments:
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} deverted from assignment {} to respond to sos from ship {} @ {}".format(responder.id, responder.assignments[-1], sos_ship_id, sos_position))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} diverted from assignment {} to respond to sos from ship {} @ {}".format(responder.id, responder.assignments[-1], sos_ship_id, sos_position))
         elif responder:
             if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} assigned to respond to sos from ship {} @ {}".format(responder.id, sos_ship_id, sos_position))
         else:
