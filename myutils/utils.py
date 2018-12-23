@@ -96,7 +96,7 @@ def spawn_ok(game):
         remaining_turns = constants.MAX_TURNS - game.turn_number
 
         retval = round(payback_turns * mining_over_head) < remaining_turns
-        if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}".format(retval))
+        if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}, payback: {}*{} < {}".format(retval, round(payback_turns, 2), mining_over_head, remaining_turns))
 
         return retval
     else:
@@ -618,7 +618,7 @@ def get_departure_point(game, dropoff, destination, departure_lanes = "e-w"):
     shortcut_x = True if distance.x >= (game.game_map.width / 2) else False
     shortcut_y = True if distance.y >= (game.game_map.height / 2) else False
 
-    std_departure_distance = 1 if game.game_map.calculate_distance(dropoff, destination) < DEPARTURE_DISTANCE else DEPARTURE_DISTANCE
+    std_departure_distance = 1 if game.game_map.calculate_distance(dropoff, destination) <= DEPARTURE_DISTANCE else DEPARTURE_DISTANCE
 
     if departure_lanes == "e-w":
         departure_distance = -std_departure_distance if shortcut_x else std_departure_distance
@@ -684,6 +684,8 @@ def resolve_collsions(game, ship_states):
             if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} - not occupied: moving {} to {} previously collided with ship {}".format(ship1.id, direction, collision_cell.position, ship2.id))
             move = direction
             collision_cell.mark_unsafe(ship1)
+            if ship1.path and collision_cell.position == ship1.path[-1] and collision_cell.position != get_base_positions(game, ship1.position):
+                ship1.path.pop()
         else:
             blocked_by_move = get_blocked_by_move(game, collision)
             ship_states[ship1.id]["blocked_by"] = ship1.blocked_by
