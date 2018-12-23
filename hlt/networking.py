@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+import os
 import numpy as np
 from scipy.optimize import curve_fit
 
@@ -11,7 +12,7 @@ from .game_map import GameMap, Player
 from hlt.positionals import Position
 from hlt.entity import Ship
 
-from myutils.constants import SHIP_MINING_EFFICIENCY, DEBUG, DEBUG_NONE, DEBUG_NAV_VERBOSE
+from myutils.constants import SHIP_MINING_EFFICIENCY, DEBUG, DEBUG_NONE, DEBUG_NAV_VERBOSE, LOG_DIRECTORY
 
 class Game:
     """
@@ -67,10 +68,14 @@ class Game:
         num_players, self.my_id = map(int, read_input().split())
 
         if DEBUG != DEBUG_NONE:
+
+            if not os.path.exists(LOG_DIRECTORY):
+                os.makedirs(LOG_DIRECTORY)
+
             logging.basicConfig(
-                filename="bot-{}.log".format(self.my_id),
-                filemode="w",
-                level=logging.DEBUG
+                filename = LOG_DIRECTORY + "/bot-{}.log".format(self.my_id),
+                filemode = "w",
+                level = logging.DEBUG
             )
 
         self.players = {}
