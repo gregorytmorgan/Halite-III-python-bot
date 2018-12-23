@@ -72,6 +72,7 @@ def print_win_lose_table(wins_lose_data):
     results = [["x" for _ in range(len(wins_lose_data) + 1)] for _ in range(len(wins_lose_data) + 1)]
 
     results[row][col] = "\t\t"
+    summary_results = []
     col += 1
 
     for player in wins_lose_data:
@@ -87,6 +88,8 @@ def print_win_lose_table(wins_lose_data):
 
     for player1, p1_data in wins_lose_data.items():
         col = 0
+        total_wins = 0
+        total_loses = 0
         results[row][col] = player1
         for player2, p2_data in wins_lose_data.items():
             col += 1
@@ -106,14 +109,23 @@ def print_win_lose_table(wins_lose_data):
                     loses = 0
 
             results[row][col] =  "{}/{}".format(wins, loses)
+            total_wins += int(wins) if wins != "-" else 0
+            total_loses += int(loses)  if loses != "-" else 0
 
         row += 1
+
+        summary_results.append((player1, total_wins, total_loses))
 
     for r in results:
         if r[0].strip() == "":
             print("\t".join(r))
         else:
             print("\t\t".join(r))
+
+    summary_results.sort(key=lambda item: item[1]/(item[1] + item[2]), reverse=True) #
+    print("\n")
+    for r in summary_results:
+        print("{}\t{}/{} {}%".format(r[0], r[1], r[2], round(r[1]/(r[1] + r[2]) * 100, 0)))
 
 def main():
     global verbose
