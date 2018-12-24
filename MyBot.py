@@ -23,7 +23,7 @@ from myutils.constants import *
 game_start_time = time.time()
 game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
-botName = "MyBot.v24"
+botName = "MyBot.v25"
 cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
@@ -375,14 +375,16 @@ while True:
             if ship.status == "transiting":
 
                 if ship.assignments: #  and ship.assignments[-1] == ship.position:
-                    adistance = game_map.calculate_distance(ship.assignments[-1], ship.position)
-                    acell = game_map[ship.assignments[-1]]
-                    if adistance == 0:
+                    assignment_distance = game_map.calculate_distance(ship.assignments[-1], ship.position)
+                    assignment_cell = game_map[ship.assignments[-1]]
+                    if assignment_distance == 0:
                         if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} reached loiter assignment {} t{}".format(ship.id, ship.assignments[-1], game.turn_number))
-                    elif adistance == 1 and acell.is_occupied and acell.ship.owner == me.id and acell.position != base_position:
-                        if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} approached loiter assignment {} It is friendly occupied by ship {}. Clearing assignment. t{}".format(ship.id, ship.assignments[-1], acell.ship.id, game.turn_number))
+                    elif assignment_distance == 1 and assignment_cell.is_occupied and assignment_cell.ship.owner == me.id and assignment_cell.position != base_position:
+                        if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} approached loiter assignment {} It is friendly occupied by ship {}. Clearing assignment. t{}".format(ship.id, ship.assignments[-1], assignment_cell.ship.id, game.turn_number))
                         game.update_loiter_assignment(ship)
-                        while ship.path[-1] != acell.position:
+                        if not ship.path:
+                            logging.error("Ship {} has an assignment, {}, with no path. t{}".format(ship.id, assignment_cell.position, game.turn_number))
+                        while ship.path[-1] != assignment_cell.position:
                             ship.path.pop()
                         ship.path.pop()
 
