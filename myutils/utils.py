@@ -247,11 +247,11 @@ def get_halite_move(game, ship, args = None):
     if not sorted_blocks:
         old_threshold = ship.mining_threshold
         ship.mining_threshold = 25
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} All surrounding cells have halite < threshold({}). Setting mining_threshold to {} and searching t{}".format(ship.id, old_threshold, ship.mining_threshold, game.turn_number))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Best block search failed 1.  All surrounding cells have halite < threshold({}). Setting mining_threshold to {} and retrying. t{}".format(ship.id, old_threshold, ship.mining_threshold, game.turn_number))
         sorted_blocks = get_best_blocks(game, ship, 3, 3)
         if not sorted_blocks:
             move = get_random_move(game, ship) # ToDo: would be better to try a large search radius?
-            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Best block search failed. All surrounding cells have halite < threshold({}) . Returning random move: {}".format(ship.id, ship.mining_threshold, move))
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} Best block search failed 2. All surrounding cells have halite < threshold({}) . Returning random move: {}. t{}".format(ship.id, ship.mining_threshold, move, game.turn_number))
             return move
 
     best_bloc_data = sorted_blocks[0] # (directional_offset, block, block mean value)
