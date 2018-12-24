@@ -1118,10 +1118,12 @@ def respond_to_sos(game, sos_call):
             if friendly_ship.halite_amount < 500 and friendly_distance < best_enemy_distance:
                 responder = friendly_ship
                 responder.path.append(sos_position)
+                break
         else:
             if friendly_ship.halite_amount < 900:
                 responder = friendly_ship
                 responder.path.append(sos_position)
+                break
 
     if DEBUG & (DEBUG_GAME):
         if friendlies:
