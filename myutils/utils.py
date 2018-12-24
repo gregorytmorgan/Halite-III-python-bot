@@ -549,10 +549,8 @@ def move_ok(game, ship, args = None):
         #    return True
         pass
     elif ship.status == "returning":
-        if net_move > net_mine or fuel_status > SHIP_REFUEL_THRESHOLD: # ????????????????
+        if net_move > net_mine or fuel_status > SHIP_REFUEL_THRESHOLD:
             return True
-        else:
-            logging.debug("SKIPPED MINING WHILE RETURNING")
     else:
         raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
