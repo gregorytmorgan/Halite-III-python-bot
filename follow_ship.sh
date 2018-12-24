@@ -19,7 +19,7 @@ if [ ! -e $file ]; then
     exit 1
 fi
 
-initial="new ship\|assigned loiter"
+initial="new ship\|assigned loiter\|using random loiter"
 milestones="completed assignment\|now returning\|reached loiter\|did not reach loiter\|approached loiter"
 sos="assigned to respond\|diverted from assignment"
 terminal="completed dropoff\|lost"
