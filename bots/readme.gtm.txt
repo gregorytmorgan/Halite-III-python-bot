@@ -44,3 +44,5 @@ v23		Fix base blocking bugs. Don't discard cells with halite < the default minin
 		clamp cell values to 0+, these two items will cause a shortage of targets. Chk loiter assignment
 		halite is larger than mining threshold, If best block search fails, research with lower threshold.
 
+v24		A best block search base exclusion, add chk for friendly occuplied assignment cell, add lost ship (sos)
+		response, minor tweak to departure point (shorten).

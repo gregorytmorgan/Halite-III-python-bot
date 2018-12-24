@@ -28,3 +28,5 @@
   G. delete version branch (optional)
 
 . Update bots/readme.gtm.txt with summary of change for this version
+
+. Update metrics spreadsheet with previous version data
