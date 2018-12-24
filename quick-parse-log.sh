@@ -39,8 +39,11 @@ echo "$retval SKIPPED MINING"
 retval=$(cat $file | grep "has a short mining rate" | wc -l)
 echo "$retval mining threshold below cell halite (has a short mining rate)"
 
-retval=$(cat $file | grep "Best block search failed" | wc -l)
-echo "$retval Best block search failed"
+retval=$(cat $file | grep "Best block search failed 1" | wc -l)
+echo "$retval Best block search failed 1"
+
+retval=$(cat $file | grep "Best block search failed 2" | wc -l)
+echo "$retval Best block search failed 2"
 
 retval=$(cat $file | grep "cells have halite < threshold" | wc -l)
 echo "$retval cells have halite < threshold"
