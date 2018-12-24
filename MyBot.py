@@ -177,7 +177,7 @@ while True:
                     game_metrics["mined"].append((game.turn_number, ship.id, mined))
 
         else:
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is a new ship".format(ship.id))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is a new ship. t{}".format(ship.id, game.turn_number))
             me.ship_count += 1
 
             turn_spent = constants.SHIP_COST
@@ -357,7 +357,7 @@ while True:
 
             # chk if ship has an assignment, if so clear it, we're heading home (need to chk position in case became full on assigned pt?)
             if ship.assignments and ship.assignments[-1] != ship.position:
-                if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} at {} is full and didn't reach loiter assignment {}, popped assignment. t{}".format(ship.id, ship.position, ship.assignments[-1], game.turn_number))
+                if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} at {} is full and did not reach loiter assignment {}. Cleared assignment. t{}".format(ship.id, ship.position, ship.assignments[-1], game.turn_number))
                 game.update_loiter_assignment(ship)
 
             ship.path, cost = game_map.navigate(ship.position, base_position, "dock") # returning to shipyard/dropoff
