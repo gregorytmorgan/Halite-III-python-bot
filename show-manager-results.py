@@ -35,8 +35,6 @@ def usage():
 
 
 def parse_lines(lines):
-    print("verbose:" + str(verbose))
-    print("consider_rank:" + str(consider_rank))
     players = {}
     for line in lines:
         match_data = eval(line)
@@ -134,7 +132,7 @@ def print_win_lose_table(wins_lose_data):
     summary_results.sort(key=lambda item: item[1]/(item[1] + item[2]), reverse=True) #
 
     print("\n")
-	
+
     for r in summary_results:
         print("{}\t{}/{} {}%".format(r[0], r[1], r[2], round(r[1]/(r[1] + r[2]) * 100, 0)))
 
@@ -155,6 +153,10 @@ def main():
             sys.exit()
         else:
             assert False, "unhandled option"
+
+    if verbose:
+        print("verbose:" + str(verbose))
+        print("consider_rank:" + str(consider_rank))
 
     if len(args) == 0:
         file_names = False
