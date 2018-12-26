@@ -4,7 +4,6 @@
 #import math
 #from scipy.stats import norm
 #import numpy as np
-import matplotlib.pyplot as plt
 import sys
 import getopt
 import re
@@ -47,30 +46,25 @@ def parse_lines(lines):
             if mp not in players:
                 players[mp] = {"wins": {},"loses": {}}
 
-        if consider_rank:
-            for player, rank in zip(match_players, match_results):
-                for player2, rank2 in zip(match_players, match_results):
-                    if player == player2:
-                        continue
+        for player, rank in zip(match_players, match_results):
+            if rank == "1":
+                if verbose:
+                    losers = match_players[:]
+                    losers.remove(player)
+                    losers.sort()
+                    print("{} beats {}".format(player, losers))
+                players[player]["wins"]["match"] = players[player]["wins"]["match"] + 1 if "match" in players[player]["wins"] else 1
+            else:
+                players[player]["loses"]["match"] = players[player]["loses"]["match"] + 1 if "match" in players[player]["loses"] else 1
 
-                    if rank < rank2:
-                        players[player]["wins"][player2] = players[player]["wins"][player2] + 1 if player2 in players[player]["wins"] else 1
-                    else:
-                        players[player]["loses"][player2] = players[player]["loses"][player2] + 1 if player2 in players[player]["loses"] else 1
-        else:
-            losers = []
-            winner = None
+            for player2, rank2 in zip(match_players, match_results):
+                if player == player2:
+                    continue
 
-            # seperate in winner and losers only
-            for player, rank in zip(match_players, match_results):
-                if int(rank) == 1:
-                    winner = player
+                if rank < rank2:
+                    players[player]["wins"][player2] = players[player]["wins"][player2] + 1 if player2 in players[player]["wins"] else 1
                 else:
-                    losers.append(player)
-
-            for loser in losers:
-                players[winner]["wins"][loser] = players[winner]["wins"][loser] + 1 if loser in players[winner]["wins"] else 1
-                players[loser]["loses"][winner] = players[loser]["loses"][winner] + 1 if winner in players[loser]["loses"] else 1
+                    players[player]["loses"][player2] = players[player]["loses"][player2] + 1 if player2 in players[player]["loses"] else 1
 
     return players, match_count
 
@@ -100,30 +94,32 @@ def print_win_lose_table(wins_lose_data):
         total_wins = 0
         total_loses = 0
         results[row][col] = player1
+
         for player2, p2_data in wins_lose_data.items():
             col += 1
-            if player1 == player2:
-                wins = "-"
-                loses = "-"
-            else:
+            wins = 0
+            loses = 0
+            if player1 != player2:
                 if player2 in wins_lose_data[player1]["wins"]:
-                    #output.append("wins {} v {}: {}".format(player1, player2, wins_lose_data[player1]["wins"][player2]))
-                    wins = wins_lose_data[player1]["wins"][player2]
-                else:
-                    wins = 0
+                    wins = int(wins_lose_data[player1]["wins"][player2])
 
                 if player2 in wins_lose_data[player1]["loses"]:
-                    loses = str(wins_lose_data[player1]["loses"][player2])
-                else:
-                    loses = 0
+                    loses = int(wins_lose_data[player1]["loses"][player2])
 
-            results[row][col] =  "{}/{}".format(wins, loses)
-            total_wins += int(wins) if wins != "-" else 0
-            total_loses += int(loses)  if loses != "-" else 0
+                if consider_rank:
+                    total_wins += wins
+                    total_loses += loses
+
+            results[row][col] =  "{}/{}".format("-" if player1 == player2 else wins, "-" if player1 == player2 else loses)
 
         row += 1
 
-        summary_results.append((player1, total_wins, total_loses))
+        if consider_rank:
+            summary_results.append((player1, total_wins, total_loses))
+        else:
+            total_wins =  wins_lose_data[player1]["wins"]["match"] if "match" in wins_lose_data[player1]["wins"] else 0
+            total_loses = wins_lose_data[player1]["loses"]["match"] if "match" in wins_lose_data[player1]["loses"] else 0
+            summary_results.append((player1, total_wins, total_loses))
 
     for r in results:
         if r[0].strip() == "":
