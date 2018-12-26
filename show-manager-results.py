@@ -53,7 +53,7 @@ def parse_lines(lines):
                     if player == player2:
                         continue
 
-                    if rank > rank2:
+                    if rank < rank2:
                         players[player]["wins"][player2] = players[player]["wins"][player2] + 1 if player2 in players[player]["wins"] else 1
                     else:
                         players[player]["loses"][player2] = players[player]["loses"][player2] + 1 if player2 in players[player]["loses"] else 1
