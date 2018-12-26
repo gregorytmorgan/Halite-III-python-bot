@@ -283,7 +283,7 @@ class Game:
             if target.assignments:
                 return (target.assignments[-1], target.id)
         elif isinstance(target, Position):
-            if target == self.loiter_assignments[-1]:
+            if target in self.loiter_assignments:
                 return (target, self.loiter_assignments[target])
 
         return False
@@ -320,10 +320,14 @@ class Game:
             elif isinstance(target, Position):
                 if target in self.loiter_assignments:
                     sid = self.loiter_assignments[target]
-                    if target == self.me.get_ship(sid).assignments[-1]:
-                        self.me.get_ship(sid).assignments.pop()
+                    if self.me.has_ship(sid):
+                        if target == self.me.get_ship(sid).assignments[-1]:
+                            self.me.get_ship(sid).assignments.pop()
+                        else:
+                            logging.warn("Ship {} does not have assignment {} from the loiter assignments list".format(ship.id, target))
                     else:
-                        logging.error("Ship {} does not have assignment {} from the loiter assignments list".format(ship.id, target))
+                            logging.warn("Ship {} does not exist, though it is assigned to {} from the loiter assignments list".format(ship.id, target))
+
                     self.loiter_assignments.pop(target, None)
 
                     return True
