@@ -88,7 +88,7 @@ else
 fi
 
 # Incrementing version and update version dependent vars
-MyBot_VFileName="MyBot.v$Version.py"
+MyBot_VFileName="MyBot.py"
 ARCHIVE_NAME="MyBot.v$Version.zip"
 
 #
