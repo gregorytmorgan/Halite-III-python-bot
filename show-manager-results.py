@@ -36,8 +36,10 @@ def usage():
 
 def parse_lines(lines):
     players = {}
+    match_count = 0
     for line in lines:
         match_data = eval(line)
+        match_count += 1
         match_players = match_data[1].split(',')
         match_results = match_data[2].split(',')
 
@@ -70,7 +72,7 @@ def parse_lines(lines):
                 players[winner]["wins"][loser] = players[winner]["wins"][loser] + 1 if loser in players[winner]["wins"] else 1
                 players[loser]["loses"][winner] = players[loser]["loses"][winner] + 1 if winner in players[loser]["loses"] else 1
 
-    return players
+    return players, match_count
 
 
 def print_win_lose_table(wins_lose_data):
@@ -183,7 +185,9 @@ def main():
 
                     lines.append(line)
 
-    wins_lose_data = parse_lines(lines)
+    wins_lose_data, match_count = parse_lines(lines)
+
+    print("Read {} matches".format(match_count))
 
     print_win_lose_table(wins_lose_data)
 
