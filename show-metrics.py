@@ -77,7 +77,7 @@ def main():
     line_colors = ["g", "b", "r", "c", "m", "y", "k", "w"]
 
     fig = plt.figure(frameon=False)
-    fig.set_size_inches(8, 6)
+    fig.set_size_inches(12, 9)
 
     ax1 = plt.gca()
 
