@@ -132,7 +132,7 @@ class CellBlock:
         elif direction == "s":
             return (-round((w - 1)/2), 1)
         elif direction == "e":
-            return (1, -round(h/2))
+            return (1, -round((h - 1)/2))
         elif direction == "w":
             return (-w, -round((h - 1)/2))
         else:
