@@ -17,7 +17,7 @@ global max_player_length
 
 verbose = 0
 consider_rank = False
-map_size = 0
+map_size = []
 player_count = 0
 max_player_length = 12
 sep = ".."
@@ -32,7 +32,7 @@ def usage():
     program_name = sys.argv[0]
     print("Usage: {} [options] files|STDIN".format(program_name))
     print("-h\tHelp.")
-    print("-m\tMap size - 32|40|48|56|64, default:any")
+    print("-m\tMap sizes - Comma separated list of 32|40|48|56|64, default:any")
     print("-m\tPlayer count - 2|4, default:any")
     print("-r\tConsider rank - e.g. In a 4p match 3rd gets 1 win 2 loses, otherwise the only the winner get a win.")
     print("-v\tVerbose. Multiple, e.g. -vv yields more detail.")
@@ -49,7 +49,7 @@ def parse_lines(lines):
         match_map_size = int(match_data[3])
         match_player_count = len(match_players)
 
-        if map_size and match_map_size != map_size:
+        if map_size and match_map_size not in map_size:
             continue
 
         if player_count and match_player_count != player_count:
@@ -162,7 +162,7 @@ def main():
         if o in ("-r", "--rank"):
             consider_rank = True
         elif o in ("-m", "--map_size"):
-            map_size = int(a)
+            map_size = list(map(int, a.split(",")))
         elif o in ("-p", "--player_count"):
             player_count = int(a)
         elif o in ("-v", "--verbose"):
