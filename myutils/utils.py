@@ -9,7 +9,6 @@ from hlt import constants
 from hlt.positionals import Position
 from hlt.positionals import Direction
 
-from hlt.entity import Ship
 from hlt.entity import Shipyard
 
 import os
@@ -33,9 +32,6 @@ def spawn_ok(game):
     """
     me = game.me
     shipyard_cell = game.game_map[me.shipyard]
-
-    # % turns above mining rate to dropoff the halite, will typically be about 2?
-    mining_over_head = 2
     ship_count = len(me.get_ships())
 
     #
@@ -94,10 +90,8 @@ def spawn_ok(game):
     if me.ship_count > 0:
         payback_turns = constants.SHIP_COST / game.get_mining_rate(MINING_RATE_LOOKBACK)
         remaining_turns = constants.MAX_TURNS - game.turn_number
-
-        retval = round(payback_turns * mining_over_head) < remaining_turns
-        if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}, payback: {}*{} < {}".format(retval, round(payback_turns, 2), mining_over_head, remaining_turns))
-
+        retval = round(payback_turns * MINING_OVERHEAD) < remaining_turns
+        if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}, payback: {}*{} < {}".format(retval, round(payback_turns, 2), MINING_OVERHEAD, remaining_turns))
         return retval
     else:
         return True
@@ -768,7 +762,7 @@ def get_blocked_by_move(game, collision):
     ship2 = collision[1]
     move = collision[2]
     position = collision[3]
-    cell = game.game_map[position]
+    #cell = game.game_map[position]
 
     if not ship1.blocked_by:
         ship1.blocked_by = {"ship": ship2, "turns": 1}
@@ -858,7 +852,7 @@ def resolve_halite_move(game, collision):
 
     ship = collision[0]
     move = collision[2]
-    position = collision[3]
+    #position = collision[3]
 
     if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Resolving density move".format(ship.id))
 
