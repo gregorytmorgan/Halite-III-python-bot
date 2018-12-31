@@ -10,16 +10,20 @@ import re
 
 global consider_rank
 global verbose
+global map_size
+global player_count
 global sep
 global max_player_length
 
-verbose = False
+verbose = 0
 consider_rank = False
+map_size = 0
+player_count = 0
 max_player_length = 12
 sep = ".."
 
 try:
-   opts, args = getopt.getopt(sys.argv[1:] , "hrv", ["help", "rank", "verbose"])
+   opts, args = getopt.getopt(sys.argv[1:] , "hm:p:rv", ["help", "map_size", "player_count", "rank", "verbose"])
 except getopt.GetoptError:
    print(sys.argv[0])
    sys.exit(2)
@@ -28,8 +32,10 @@ def usage():
     program_name = sys.argv[0]
     print("Usage: {} [options] files|STDIN".format(program_name))
     print("-h\tHelp.")
+    print("-m\tMap size - 32|40|48|56|64, default:any")
+    print("-m\tPlayer count - 2|4, default:any")
     print("-r\tConsider rank - e.g. In a 4p match 3rd gets 1 win 2 loses, otherwise the only the winner get a win.")
-    print("-v\tVerbose.")
+    print("-v\tVerbose. Multiple, e.g. -vv yields more detail.")
     print("Example: ./manager.py -R 0 | ./show-manager-results.py")
 
 
@@ -38,9 +44,18 @@ def parse_lines(lines):
     match_count = 0
     for line in lines:
         match_data = eval(line)
-        match_count += 1
         match_players = match_data[1].split(',')
         match_results = match_data[2].split(',')
+        match_map_size = int(match_data[3])
+        match_player_count = len(match_players)
+
+        if map_size and match_map_size != map_size:
+            continue
+
+        if player_count and match_player_count != player_count:
+            continue
+
+        match_count += 1
 
         for mp in match_players:
             if mp not in players:
@@ -48,7 +63,7 @@ def parse_lines(lines):
 
         for player, rank in zip(match_players, match_results):
             if rank == "1":
-                if verbose:
+                if verbose > 1:
                     losers = match_players[:]
                     losers.remove(player)
                     losers.sort()
@@ -138,14 +153,20 @@ def print_win_lose_table(wins_lose_data):
 def main():
     global verbose
     global consider_rank
+    global map_size
+    global player_count
     lines = []
     file_names = []
 
     for o, a in opts:
         if o in ("-r", "--rank"):
             consider_rank = True
+        elif o in ("-m", "--map_size"):
+            map_size = int(a)
+        elif o in ("-p", "--player_count"):
+            player_count = int(a)
         elif o in ("-v", "--verbose"):
-            verbose = True
+            verbose += 1
         elif o in ("-h", "--help"):
             usage()
             sys.exit()
@@ -153,8 +174,10 @@ def main():
             assert False, "unhandled option"
 
     if verbose:
-        print("verbose:" + str(verbose))
         print("consider_rank:" + str(consider_rank))
+        print("map_size:" + str(map_size))
+        print("player_count:" + str(player_count))
+        print("verbose:" + str(verbose))
 
     if len(args) == 0:
         file_names = False
