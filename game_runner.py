@@ -14,9 +14,9 @@ arg_height = "--height 32"
 #bot1_args = "./pypy3 -E MyBot.py"
 
 bot1_args = "python3 MyBot.py"
-bot2_args = "python3 bots/v18/MyBot.v18.py"
-bot3_args = "python3 bots/v17/MyBot.v17.py"
-bot4_args = "python3 bots/v16/MyBot.v16.py"
+bot2_args = "python3 bots/v23/MyBot.v24.py"
+bot3_args = "python3 bots/v23/MyBot.v23.py"
+bot4_args = "python3 bots/v22/MyBot.v22.py"
 
 #arg_strict = "--strict"
 arg_seed = "--seed 1543014634" # dense map with deadlock waiting to dropoff
