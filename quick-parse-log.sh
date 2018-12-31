@@ -48,19 +48,19 @@ echo "$retval Best block search failed 2"
 retval=$(cat $file | grep "cells have halite < threshold" | wc -l)
 echo "$retval cells have halite < threshold"
 
-retval=$(cat bot-0.log | grep -i "Sos recieved" | wc -l)
-echo "$retval cat bot-0.log | grep -i 'Sos recieved'"
+retval=$(cat $file | grep -i "Sos recieved" | wc -l)
+echo "$retval cat $file | grep -i 'Sos recieved'"
 
-retval=$(cat bot-0.log | grep -i "Sos disregarded" | wc -l)
-echo "$retval cat bot-0.log | grep -i 'Sos disregarded'"
+retval=$(cat $file | grep -i "Sos disregarded" | wc -l)
+echo "$retval cat $file | grep -i 'Sos disregarded'"
 
-retval=$(cat bot-0.log | grep -i sos | grep -i "no viable" | wc -l)
-echo "$retval cat bot-0.log | grep -i sos | grep -i 'no viable'"
+retval=$(cat $file | grep -i sos | grep -i "no viable" | wc -l)
+echo "$retval cat $file | grep -i sos | grep -i 'no viable'"
 
-retval=$(cat bot-0.log | grep -i sos | grep -i "diverted from assignment" | wc -l)
-echo "$retval cat bot-0.log | grep -i sos | grep -i 'diverted from assignment'"
+retval=$(cat $file | grep -i sos | grep -i "diverted from assignment" | wc -l)
+echo "$retval cat $file | grep -i sos | grep -i 'diverted from assignment'"
 
-retval=$(cat bot-0.log | grep -i sos | grep -i "assigned to respond" | wc -l)
-echo "$retval cat bot-0.log | grep -i sos | grep -i 'assigned to respond'"
+retval=$(cat $file | grep -i sos | grep -i "assigned to respond" | wc -l)
+echo "$retval cat $file | grep -i sos | grep -i 'assigned to respond'"
 
 
