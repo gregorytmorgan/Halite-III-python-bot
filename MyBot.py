@@ -221,7 +221,7 @@ while True:
         ship.assignments = ship_states[ship.id]["assignments"]
 
         if ship.position != ship_states[ship.id]["position"]:
-            logging.warn("Ship {} has an inconsistent position. State: {}, Server: {}".format(ship.id, ship_states[ship.id]["position"], ship.position))
+            logging.warn("Ship {} has an inconsistent position. State: {}, Server: {}. t{}".format(ship.id, ship_states[ship.id]["position"], ship.position, game.turn_number))
 
         # note, some ship state attribs are not stored on the actual ship object:
         # e.g. prior_position, prior_halite_amount
@@ -300,6 +300,16 @@ while True:
 
                     if cell.is_occupied and cell.ship.owner != me.id:
                         move_offset = clear_request["position"] - base_position
+
+                        # get an assignment for clearing ship, ship will probably crash, but in
+						# case the blocking ships moves ... we'll need to move it somewhere.
+                        # asbtract this into get_assignment(direction_hint) for use below as well?
+                        if len(targets) != 0:
+                            assignment_target = targets.pop()
+                            ship.path = assignment_target[0]
+                        else:
+                            ship.path = get_loiter_point(game, ship)
+
                         move = Direction.convert((move_offset.x, move_offset.y))
 
                         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} responded to base clear request for {}. Moving {}".format(ship.id, clear_request["position"], move))
@@ -307,6 +317,9 @@ while True:
                         game.command_queue[ship.id] = ship.move(move)
                         game_map[ship].mark_safe()
                         game_map[clear_request["position"]].mark_unsafe(ship)
+                        ship.last_dock = game.turn_number
+                        ship.status = "transiting"
+                        ship.explore_start = 0
 
                         continue
                     else:
@@ -340,7 +353,7 @@ while True:
                     assignment_target = targets.pop()
                     loiter_point = assignment_target[0]
 
-                    if assignment_target[2] < (ship.mining_threshold * 1.25):
+                    if assignment_target[2] < (ship.mining_threshold * 1.32):
                         if DEBUG & (DEBUG_TASKS): logging.debug("Task - Ship {} has a mining threshold of {}, but assigment {} has {} halite. t{}".format(ship.id, ship.mining_threshold, loiter_point, assignment_target[2], game.turn_number))
                         ship.mining_threshold = 25
 
@@ -402,13 +415,12 @@ while True:
                 logging.error("Ship {} Error, navigate failed for base {}".format(ship.id, base_position))
 
         #
-        # status exploring|transiting (exploring when ship.path != 0)
+        # status exploring|transiting - not returning, not full, exploring when ship.path != 0
         #
         else:
             ship.assignment_duration += 1
 
             if ship.status == "transiting":
-
                 if ship.assignments: #  and ship.assignments[-1] == ship.position:
                     assignment_distance = game_map.calculate_distance(ship.assignments[-1], ship.position)
                     assignment_cell = game_map[ship.assignments[-1]]
