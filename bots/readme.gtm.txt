@@ -46,3 +46,8 @@ v23		Fix base blocking bugs. Don't discard cells with halite < the default minin
 
 v24		A best block search base exclusion, add chk for friendly occuplied assignment cell, add lost ship (sos)
 		response, minor tweak to departure point (shorten).
+
+v25		Fix a number of small bugs, tune mining overhead setting; end result is we're now generating more ships.
+
+v26
+
