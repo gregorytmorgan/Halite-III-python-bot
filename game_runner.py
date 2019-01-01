@@ -3,6 +3,8 @@
 
 import subprocess
 import sys
+import shutil
+import time
 
 arg_replay = "--replay-directory replays/"
 arg_verbosity = "-vvv"
@@ -14,9 +16,9 @@ arg_height = "--height 32"
 #bot1_args = "./pypy3 -E MyBot.py"
 
 bot1_args = "python3 MyBot.py"
-bot2_args = "python3 bots/v23/MyBot.v24.py"
-bot3_args = "python3 bots/v23/MyBot.v23.py"
-bot4_args = "python3 bots/v22/MyBot.v22.py"
+bot2_args = "python3 bots/v25/MyBot.py"
+bot3_args = "python3 bots/v24/MyBot.v24.py"
+bot4_args = "python3 bots/v23/MyBot.v23.py"
 
 #arg_strict = "--strict"
 arg_seed = "--seed 1543014634" # dense map with deadlock waiting to dropoff
@@ -38,3 +40,5 @@ if retval.returncode != 0:
     print(str(args[0]) + " exited with code " + str(retval.returncode))
     if retval.stderr != None:
         print(retval.stderr.decode('utf-8'))
+
+shutil.copyfile("bot-0.log",  "logs/bot-0." + str(round(time.time())) + ".log")
