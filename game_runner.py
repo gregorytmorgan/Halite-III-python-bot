@@ -16,9 +16,9 @@ arg_height = "--height 32"
 #bot1_args = "./pypy3 -E MyBot.py"
 
 bot1_args = "python3 MyBot.py"
-bot2_args = "python3 bots/v25/MyBot.py"
-bot3_args = "python3 bots/v24/MyBot.v24.py"
-bot4_args = "python3 bots/v23/MyBot.v23.py"
+bot2_args = "python3 bots/v26/MyBot.py"
+bot3_args = "python3 bots/v25/MyBot.py"
+bot4_args = "python3 bots/v24/MyBot.v24.py"
 
 #arg_strict = "--strict"
 arg_seed = "--seed 1543014634" # dense map with deadlock waiting to dropoff
@@ -31,7 +31,7 @@ arg_seed = "--seed 1543094899" # dense map
 # 64x64, 4 player, 1541460138, opponent collision at turn 422
 # , bot3_args, bot4_args
 # , arg_width, arg_height
-args = ["./halite", arg_replay, arg_verbosity, bot1_args, bot2_args, arg_width, arg_height]
+args = ["./halite", arg_replay, arg_verbosity, bot1_args, bot2_args, bot3_args, bot4_args, arg_width, arg_height]
 
 # run is only available in python 3.5+, prior use subprocess.call
 retval = subprocess.run(args, stdout=subprocess.PIPE, stderr=sys.stderr)
