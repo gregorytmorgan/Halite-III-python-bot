@@ -49,5 +49,8 @@ v24		A best block search base exclusion, add chk for friendly occuplied assignme
 
 v25		Fix a number of small bugs, tune mining overhead setting; end result is we're now generating more ships.
 
-v26
+v26		Add homing/end game.
+
+v27
+
 
