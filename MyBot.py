@@ -155,7 +155,7 @@ while True:
     #
 
     # sort the ships by halite, this helps give returning ships priority/helps with
-    # traffic issues around dropoffs until better collision mgmt is in place
+    # traffic issues around bases until better collision mgmt is in place
     my_ships.sort(key = lambda s: s.halite_amount, reverse = True)
 
     for ship in my_ships:
@@ -302,7 +302,7 @@ while True:
                         move_offset = clear_request["position"] - base_position
                         move = Direction.convert((move_offset.x, move_offset.y))
 
-                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} responded to dropoff clear request for {}. Moving {}".format(ship.id, clear_request["position"], move))
+                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} responded to base clear request for {}. Moving {}".format(ship.id, clear_request["position"], move))
 
                         game.command_queue[ship.id] = ship.move(move)
                         game_map[ship].mark_safe()
@@ -314,9 +314,9 @@ while True:
 
                 # log some data about the previous assignment
                 if game.turn_number != ship.christening and ship_states[ship.id]["prior_position"] != base_position:
-                    dropoff_amount = ship_states[ship.id]["prior_halite_amount"]
-                    game_metrics["trip_data"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, dropoff_amount, ship.assignment_distance, ship.assignment_duration))
-                    if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed dropoff of {} halite at {}. Return + explore took {} turns. t{}".format(ship.id, dropoff_amount, base_position, game.turn_number - ship.last_dock, game.turn_number))
+                    drop_amount = ship_states[ship.id]["prior_halite_amount"]
+                    game_metrics["trip_data"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, drop_amount, ship.assignment_distance, ship.assignment_duration))
+                    if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed drop of {} halite at {}. Return + explore took {} turns. t{}".format(ship.id, drop_amount, base_position, game.turn_number - ship.last_dock, game.turn_number))
 
                 # debug
                 if ship.path:
@@ -373,7 +373,7 @@ while True:
                 if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is now {}. t{}".format(ship.id, ship.status, game.turn_number))
             else:
                 # status returning, not home yet
-                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from dropoff {}.".format(ship.id, game_map.calculate_distance(ship.position, base_position), base_position))
+                if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from base {}.".format(ship.id, game_map.calculate_distance(ship.position, base_position), base_position))
 
         #
         # status exploring|transiting --> returning
@@ -395,11 +395,11 @@ while True:
                 if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} at {} is full and did not reach loiter assignment {}. Cleared assignment. t{}".format(ship.id, ship.position, ship.assignments[-1], game.turn_number))
                 game.update_loiter_assignment(ship)
 
-            ship.path, cost = game_map.navigate(ship.position, base_position, "dock") # returning to shipyard/dropoff
+            ship.path, cost = game_map.navigate(ship.position, base_position, "dock") # returning to base
 
             if not ship.path:
                 ship.path = [] # path might be None if failed
-                logging.error("Ship {} Error, navigate failed for dropoff {}".format(ship.id, base_position))
+                logging.error("Ship {} Error, navigate failed for base {}".format(ship.id, base_position))
 
         #
         # status exploring|transiting (exploring when ship.path != 0)
@@ -599,11 +599,11 @@ while True:
             avg_halite_gathered = round(np.mean(game_metrics["trip_data"], axis=0)[3], 2)
             logging.info("Game - Avg. halite gathered: {}".format(avg_halite_gathered))
 
-            # trip_explore_duration 0:turn (end of explore) 1:ship 2:duration 3:distance from dropoff
+            # trip_explore_duration 0:turn (end of explore) 1:ship 2:duration 3:distance from base
             trip_explore_duration = round(np.mean(game_metrics["trip_explore_duration"], axis=0)[3], 2)
             logging.info("Game - Avg. explore duration: {}".format(trip_explore_duration))
 
-            # trip_transit_duration 0:turn (end of return) 1:ship 2:duration 3:distance from dropoff
+            # trip_transit_duration 0:turn (end of return) 1:ship 2:duration 3:distance from base
             trip_transit_duration = round(np.mean(game_metrics["trip_transit_duration"], axis=0)[2], 2)
             logging.info("Game - Avg. transit duration: {}".format(trip_transit_duration))
 

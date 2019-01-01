@@ -66,7 +66,7 @@ def spawn_ok(game):
     # check base_clear_request after occupied_cells since we don't need to spawn in a ship is arriving
     if game.base_clear_request:
         clear_request = game.base_clear_request[-1]
-        if DEBUG & (DEBUG_GAME): logging.info("Game - Spawning to clear blocked dropoff {}".format(clear_request["position"]))
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Spawning to clear blocked base {}".format(clear_request["position"]))
         return True
 
     if game.end_game:
@@ -536,8 +536,8 @@ def move_ok(game, ship, args = None):
     fuel_status = ship.halite_amount / SHIP_MAX_HALITE
 
     # the amount of halite we'll get if we refuel/mine
-    # if ship in a dropoff/shipyard, set fuel to max to the ship departs
-    #refuel_amount = constants.MAX_HALITE if ship.position in dropoffs else cell_halite * SHIP_MINING_EFFICIENCY
+    # if ship in a base (dropoff/shipyard), set fuel to max to the ship departs
+    # refuel_amount = constants.MAX_HALITE if ship.position in base else cell_halite * SHIP_MINING_EFFICIENCY
 
     net_mine = (cell_halite * SHIP_MINING_EFFICIENCY) + (cell_halite - cell_halite * SHIP_MINING_EFFICIENCY) * -SHIP_FUEL_COST
     net_move = cell_halite * -SHIP_FUEL_COST + game.get_mining_rate(MINING_RATE_LOOKBACK) * SHIP_MINING_EFFICIENCY
@@ -564,7 +564,7 @@ def move_ok(game, ship, args = None):
 
 def get_loiter_point(game, ship, hint = None):
     """
-    After a ship complets a dropoff, assign it a new destination whose distance is
+    After a ship complets a drop, assign it a new destination whose distance is
     based on game number and direction is random
 
     1. get the loiter distance (multiplier)
@@ -607,31 +607,31 @@ def get_loiter_point(game, ship, hint = None):
 
     return ship.position + loiterOffset
 
-def get_departure_point(game, dropoff, destination, departure_lanes = "e-w"):
+def get_departure_point(game, base_position, destination, departure_lanes = "e-w"):
     """
     Get the first position for a departing ship.
 
     :param game
-    :param dropoff Position
+    :param base_position Position
     :param destination Position
     :param departure_lanes "n-s" | "e-w", default = "e-w"
     :return Returns a position
     """
-    distance = abs(destination - dropoff)
+    distance = abs(destination - base_position)
 
     shortcut_x = True if distance.x >= (game.game_map.width / 2) else False
     shortcut_y = True if distance.y >= (game.game_map.height / 2) else False
 
-    std_departure_distance = 1 if game.game_map.calculate_distance(dropoff, destination) <= DEPARTURE_DISTANCE else DEPARTURE_DISTANCE
+    std_departure_distance = 1 if game.game_map.calculate_distance(base_position, destination) <= DEPARTURE_DISTANCE else DEPARTURE_DISTANCE
 
     if departure_lanes == "e-w":
         departure_distance = -std_departure_distance if shortcut_x else std_departure_distance
-        departure_x = dropoff.x + departure_distance if destination.x > dropoff.x else dropoff.x - departure_distance
-        departure_y = dropoff.y
+        departure_x = base_position.x + departure_distance if destination.x > base_position.x else base_position.x - departure_distance
+        departure_y = base_position.y
     elif departure_lanes == "n-s":
         departure_distance = -std_departure_distance if shortcut_y else std_departure_distance
-        departure_x = dropoff.x
-        departure_y = dropoff.y + departure_distance if destination.y > dropoff.y else dropoff.y - departure_distance
+        departure_x = base_position.x
+        departure_y = base_position.y + departure_distance if destination.y > base_position.y else base_position.y - departure_distance
     else:
         raise RuntimeError("Unknown departure_lanes: " + str(departure_lanes))
 
@@ -639,7 +639,7 @@ def get_departure_point(game, dropoff, destination, departure_lanes = "e-w"):
 
 def get_base_positions(game, position = None):
     """
-    Get the closest dropoff or shipyard from position.
+    Get the closest base (dropoff or shipyard) from position.
 
     If position is None, get all bases.
 
@@ -959,7 +959,7 @@ def resolve_nav_move(game, collision):
     elif ship2.position == collision_cell.position and ship2.owner != game.me.id and collision_cell.position in get_base_surrounding_cardinals(game, ship1.position):
         game.base_clear_request.insert(0, {"position": collision_cell.position, "ship": ship2}) # , "base": base
 
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} sent a dropoff clear request for {}. Blocked by {}".format(ship1.id, collision_cell.position, ship2.id))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} sent a base clear request for {}. Blocked by {}".format(ship1.id, collision_cell.position, ship2.id))
 
         if game.game_map[ship1].is_occupied:
             new_move = None # None == unwind
@@ -995,7 +995,7 @@ def resolve_nav_move(game, collision):
         new_move = resolve_random_move(game, collision, {"moves": [Direction.convert(m) for m in Direction.laterals(move)]})
 
         # popping the path point will allow nav around the blocking ship, buy this can
-        # cause conjestion/screw up arrival/departure lanes if close to the dropoff
+        # cause conjestion/screw up arrival/departure lanes if close to the base
         if game.game_map.calculate_distance(ship2.position, game.me.shipyard.position) > 4:
             if len(ship1.path) > 1:
                 ship1.path.pop()
@@ -1062,8 +1062,8 @@ def get_base_surrounding_cardinals(game, position = None):
     :return Returns a list of positions
     """
     retval = []
-    dropoff = get_base_positions(game, position)
-    for p in dropoff.get_surrounding_cardinals():
+    base = get_base_positions(game, position)
+    for p in base.get_surrounding_cardinals():
         retval.append(p)
 
     return retval
