@@ -5,6 +5,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 import copy
 import sys
+import math
 
 from . import constants
 from .entity import Entity, Shipyard, Ship, Dropoff
@@ -667,6 +668,30 @@ class GameMap:
 
         # only returning values > 0 is optional, simplifies downstream ops
         return max(-1000, halite - fuel_cost - (distance_constant * distance))
+
+    def get_relative_direction(self, p1, p2):
+        """
+        Get the direction of p2 from p1
+
+        :param p1 Point
+        :param p2 Point
+        "return Returns a dirction(char)
+        """
+        distance = p2 - p1
+
+        shortcut_x = True if abs(distance.x) >= (self.width / 2) else False
+        shortcut_y = True if abs(distance.y) >= (self.height / 2) else False
+
+        a = math.atan2(distance.y, distance.x) + math.pi
+
+        if a > 5*math.pi/4 and a <= 7*math.pi/4:
+            return "s" if not shortcut_y else "n"
+        elif a > math.pi/4 and a <= 3*math.pi/4:
+            return "n" if not shortcut_y else "s"
+        elif a > 3*math.pi/4 and a <= 5*math.pi/4:
+            return "e" if not shortcut_x else "w"
+        else:
+            return "w" if not shortcut_x else "e"
 
     def __repr__(self):
         map = ""
