@@ -302,7 +302,7 @@ while True:
                         move_offset = clear_request["position"] - base_position
 
                         # get an assignment for clearing ship, ship will probably crash, but in
-						# case the blocking ships moves ... we'll need to move it somewhere.
+                        # case the blocking ships moves ... we'll need to move it somewhere.
                         # asbtract this into get_assignment(direction_hint) for use below as well?
                         if len(targets) != 0:
                             assignment_target = targets.pop()
@@ -547,8 +547,6 @@ while True:
     # debug info for each turn
     #
 
-    if DEBUG & (DEBUG_SHIP_STATES): logging.info("Game - end ship_states:\n{}".format(ship_states_to_string(ship_states)))
-
     if DEBUG & (DEBUG_GAME_METRICS):
         mined_this_turn = sum(map(lambda i: i[2] if i[0] == game.turn_number else 0, game_metrics["mined"]))
         logging.info("Game - Mined this turn: {}".format(mined_this_turn))
@@ -645,6 +643,9 @@ while True:
     # resolve collisions
     #
     resolve_collsions(game, ship_states)
+
+    # dump ship states after collision resolution
+    if DEBUG & (DEBUG_SHIP_STATES): logging.info("Game - end ship_states:\n{}".format(ship_states_to_string(ship_states)))
 
     # check if we can spawn a ship. Make sure to check after all moves have been finalized
     if spawn_ok(game):
