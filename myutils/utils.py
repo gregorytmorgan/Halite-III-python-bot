@@ -1044,7 +1044,7 @@ def ship_states_to_string(states):
 
 def get_base_surrounding_cardinals(game, position = None):
     """
-    Get the cells around a position
+    Given a position, get the closest base and surrounding cell positions
 
     :param game
     :param position
