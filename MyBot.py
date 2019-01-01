@@ -302,7 +302,7 @@ while True:
                         move_offset = clear_request["position"] - base_position
                         move = Direction.convert((move_offset.x, move_offset.y))
 
-                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} responded to base clear request for {}. Moving {}".format(ship.id, clear_request["position"], move))
+                        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} responded to base clear request for {}. Moving {}".format(ship.id, clear_request["position"], move))
 
                         game.command_queue[ship.id] = ship.move(move)
                         game_map[ship].mark_safe()
@@ -310,7 +310,7 @@ while True:
 
                         continue
                     else:
-                        if DEBUG & (DEBUG_NAV): logging.info("Nav - Clear request canceled for {}. Cell is clear".format(clear_request["position"]))
+                        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Clear request canceled for {}. Cell is clear".format(clear_request["position"]))
 
                 # log some data about the previous assignment
                 if game.turn_number != ship.christening and ship_states[ship.id]["prior_position"] != base_position:
@@ -365,12 +365,12 @@ while True:
 
                 # log some data about the current assignment
                 if DEBUG & (DEBUG_NAV_METRICS): game.game_metrics["loiter_distances"].append((game.turn_number, game_map.calculate_distance(ship.position, loiter_point, "manhatten")))
-                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is heading out with a departure point of {} and loiter point {}.".format(ship.id, departure_point, loiter_point))
+                if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is heading out with a departure point of {} and loiter point {}.".format(ship.id, departure_point, loiter_point))
 
                 ship.last_dock = game.turn_number
                 ship.status = "transiting"
                 ship.explore_start = 0
-                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is now {}. t{}".format(ship.id, ship.status, game.turn_number))
+                if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is now {}. t{}".format(ship.id, ship.status, game.turn_number))
             else:
                 # status returning, not home yet
                 if DEBUG & (DEBUG_NAV): logging.info("Ship - Ship {} is {} away from base {}.".format(ship.id, game_map.calculate_distance(ship.position, base_position), base_position))
@@ -388,7 +388,7 @@ while True:
                     logging.warn("Unknown status at 'ship full': {}".format(ship.status))
 
                 ship.status = "returning"
-                if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is now {}. t{}".format(ship.id, ship.status, game.turn_number))
+                if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is now {}. t{}".format(ship.id, ship.status, game.turn_number))
 
             # chk if ship has an assignment, if so clear it, we're heading home (need to chk position in case became full on assigned pt?)
             if ship.assignments and ship.assignments[-1] != ship.position:
@@ -426,11 +426,11 @@ while True:
             if ship.path:
                 if ship.status != "transiting":
                     ship.status = "transiting"
-                    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is now {}. t{}".format(ship.id, ship.status, game.turn_number))
+                    if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is now {}. t{}".format(ship.id, ship.status, game.turn_number))
             else:
                 if ship.status != "exploring":
                     ship.status = "exploring"
-                    if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} is now {}. t{}".format(ship.id, ship.status, game.turn_number))
+                    if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is now {}. t{}".format(ship.id, ship.status, game.turn_number))
                     ship.explore_start = game.turn_number
                     game_metrics["trip_transit_duration"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, round(game_map.calculate_distance(ship.position, base_position), 2)))
 
@@ -583,10 +583,10 @@ while True:
     #
     if game.turn_number == constants.MAX_TURNS:
         if DEBUG & (DEBUG_NAV_METRICS):
-            logging.info("Nav - Loiter multiples: {}".format(game_metrics["loiter_multiples"]))
-            logging.info("Nav - Loiter offsets: {}".format(game_metrics["loiter_offsets"]))
-            logging.info("Nav - Loiter distances: {}".format(game_metrics["loiter_distances"]))
-            logging.info("Nav - Raw loiter points: {}".format(game_metrics["raw_loiter_points"]))
+            logging.info("Nav  - Loiter multiples: {}".format(game_metrics["loiter_multiples"]))
+            logging.info("Nav  - Loiter offsets: {}".format(game_metrics["loiter_offsets"]))
+            logging.info("Nav  - Loiter distances: {}".format(game_metrics["loiter_distances"]))
+            logging.info("Nav  - Raw loiter points: {}".format(game_metrics["raw_loiter_points"]))
 
         if DEBUG & (DEBUG_GAME_METRICS):
 
