@@ -33,6 +33,12 @@ def spawn_ok(game):
     me = game.me
     shipyard_cell = game.game_map[me.shipyard]
     ship_count = len(me.get_ships())
+    player_count = len(game.players)
+
+    if player_count == 2:
+        mining_overhead = MINING_OVERHEAD_2P
+    else:
+        mining_overhead = MINING_OVERHEAD_4P
 
     #
     # absolute constraints (order can be important)
@@ -90,8 +96,8 @@ def spawn_ok(game):
     if me.ship_count > 0:
         payback_turns = constants.SHIP_COST / game.get_mining_rate(MINING_RATE_LOOKBACK)
         remaining_turns = constants.MAX_TURNS - game.turn_number
-        retval = round(payback_turns * MINING_OVERHEAD) < remaining_turns
-        if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}, payback: {}*{} < {}".format(retval, round(payback_turns, 2), MINING_OVERHEAD, remaining_turns))
+        retval = round(payback_turns * mining_overhead) < remaining_turns
+        if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}, payback: {}*{} < {}".format(retval, round(payback_turns, 2), mining_overhead, remaining_turns))
         return retval
     else:
         return True
