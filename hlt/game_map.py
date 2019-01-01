@@ -673,9 +673,9 @@ class GameMap:
         """
         Get the direction of p2 from p1
 
-        :param p1 Point
-        :param p2 Point
-        "return Returns a dirction(char)
+        :param p1 Position
+        :param p2 Position
+        :return Returns a dirction(char)
         """
         distance = p2 - p1
 
