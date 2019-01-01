@@ -69,6 +69,9 @@ def spawn_ok(game):
         if DEBUG & (DEBUG_GAME): logging.info("Game - Spawning to clear blocked dropoff {}".format(clear_request["position"]))
         return True
 
+    if game.end_game:
+        return False
+
     #
     # conditional constraints
     #
@@ -520,6 +523,9 @@ def move_ok(game, ship, args = None):
 
     cell_halite = game.game_map[ship.position].halite_amount
 
+    if ship.status == "homing":
+        return True
+
     if ship.is_full:
         return True
 
@@ -945,6 +951,11 @@ def resolve_nav_move(game, collision):
         ship1.path.pop()
         new_move = move
 
+    elif collision_cell.structure_type is Shipyard and game.end_game:
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at shipyard during end game. Crashing".format(ship1.id, ship2.id))
+        collision_cell.mark_unsafe(ship1)
+        new_move = move
+
     elif ship2.position == collision_cell.position and ship2.owner != game.me.id and collision_cell.position in get_base_surrounding_cardinals(game, ship1.position):
         game.base_clear_request.insert(0, {"position": collision_cell.position, "ship": ship2}) # , "base": base
 
@@ -1095,7 +1106,7 @@ def respond_to_sos(game, sos_call):
         if cell.is_occupied:
             distance = game.game_map.calculate_distance(cell.position, sos_position)
             if cell.ship.owner == game.me.id:
-                if cell.ship.status != "returning":
+                if cell.ship.status != "returning" and cell.ship.status != "homing":
                     friendlies.append((cell.ship, distance))
             else:
                 enemies.append((cell.ship, distance))

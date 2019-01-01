@@ -64,6 +64,9 @@ class Game:
         #
         self.sos_calls = []
 
+        #
+        self.end_game = False
+
         # Grab constants JSON
         raw_constants = read_input()
         constants.load_constants(json.loads(raw_constants))

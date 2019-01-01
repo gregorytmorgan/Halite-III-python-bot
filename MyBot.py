@@ -23,7 +23,7 @@ from myutils.constants import *
 game_start_time = time.time()
 game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
-botName = "MyBot.v25"
+botName = "MyBot.v26"
 cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
@@ -242,6 +242,35 @@ while True:
         game.sos_calls.remove(sos)
 
     #
+    # chk for end game
+    #
+    homing_count = 0
+    remaining_turns = constants.MAX_TURNS - game.turn_number
+    if remaining_turns <= game_map.width:
+        for s in my_ships:
+            if s.status != "homing" and game_map.calculate_distance(s.position, get_base_positions(game, s.position)) * HOMING_OVERHEAD >= remaining_turns:
+                if not game.end_game:
+                    game.end_game = game.turn_number
+
+                s.path.clear()
+                s.status = "homing"
+
+                base_position = get_base_positions(game, s.position)
+                arrival_direction = game_map.get_relative_direction(base_position, s.position)
+                arrival_offset = DIRECTIONS[arrival_direction]
+                arrival_point = base_position + Position(arrival_offset[0], arrival_offset[1])
+
+                s.path, cost = game_map.navigate(s.position, arrival_point, "astar", {"move_cost": "turns"})
+                s.path.insert(0, base_position)
+
+                homing_count += 1
+
+                if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is now homing from the {}. t{}".format(s.id, arrival_direction, game.turn_number))
+
+                if homing_count >= 4:
+                    break
+
+    #
     # handle each ship for this turn
     #
     for ship in my_ships:
@@ -254,7 +283,11 @@ while True:
         #
         # status - returning
         #
-        if ship.status == "returning" or ship.position == base_position:
+        if game.end_game:
+            if ship.position == base_position:
+                game.command_queue[ship.id] = ship.move("o")
+
+        elif ship.status == "returning" or ship.position == base_position:
             # Returning - arrived
             if ship.position == base_position:
 
@@ -285,10 +318,12 @@ while True:
                     game_metrics["trip_data"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, dropoff_amount, ship.assignment_distance, ship.assignment_duration))
                     if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed dropoff of {} halite at {}. Return + explore took {} turns. t{}".format(ship.id, dropoff_amount, base_position, game.turn_number - ship.last_dock, game.turn_number))
 
+                # debug
                 if ship.path:
                     if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} at base with a residual path of {}".format(ship.id, list_to_short_string(ship.path, 2)))
                     ship.path.clear()
 
+                # chk for previous assignment
                 assignment = game.get_loiter_assignment(ship) # assignment -> (position, ship Id)
                 if assignment:
                     if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} failed to complete assignment {}".format(ship.id, assignment[0]))
@@ -421,6 +456,8 @@ while True:
                 move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"}) # path scheme = algo for incomplete path
             elif ship.status == "returning":
                 move = get_move(game, ship, "nav", "naive") # returning will break if a waypoint resolution other than naive is used. Why?
+            elif ship.status == "homing":
+                move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"}) # path scheme = algo for incomplete path
             else:
                 raise RuntimeError("Ship {} has an invalid status: {}".format(ship.id, ship.status))
 
@@ -479,19 +516,20 @@ while True:
     # check of lost ships
     #
     lost_ships = []
-    for s_id in ship_states:
-        if not me.has_ship(s_id):
-            lost_ships.append(s_id)
+    if not game.end_game:
+        for s_id in ship_states:
+            if not me.has_ship(s_id):
+                lost_ships.append(s_id)
 
-    for s_id in lost_ships:
-        sos_evt = {
-            "s_id": s_id,
-            "halite": ship_states[s_id]["prior_halite_amount"],
-            "position": ship_states[s_id]["position"]
-        }
-        game.sos_calls.append(sos_evt)
-        if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen at {} on turn {} with {} halite. t{}".format(s_id, ship_states[s_id]["prior_position"], ship_states[s_id]["last_seen"], ship_states[s_id]["prior_halite_amount"], game.turn_number))
-        ship_states.pop(s_id, None)
+        for s_id in lost_ships:
+            sos_evt = {
+                "s_id": s_id,
+                "halite": ship_states[s_id]["prior_halite_amount"],
+                "position": ship_states[s_id]["position"]
+            }
+            game.sos_calls.append(sos_evt)
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen at {} on turn {} with {} halite. t{}".format(s_id, ship_states[s_id]["prior_position"], ship_states[s_id]["last_seen"], ship_states[s_id]["prior_halite_amount"], game.turn_number))
+            ship_states.pop(s_id, None)
 
     #
     # debug info for each turn
