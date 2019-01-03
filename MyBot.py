@@ -85,7 +85,7 @@ while True:
     # Calc hotspots (loiter assignments) and dense areas
     #
     if USE_CELL_VALUE_MAP:
-        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, 2 * game.get_mining_rate(MINING_RATE_LOOKBACK))
+        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, CV_MINING_RATE_MULTIPLIER * game.get_mining_rate(MINING_RATE_LOOKBACK))
 
         if cell_value_map is None:
             raise RuntimeError("cv map is None")
