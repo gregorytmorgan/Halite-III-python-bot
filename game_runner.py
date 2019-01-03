@@ -5,6 +5,7 @@ import subprocess
 import sys
 import shutil
 import time
+import random
 
 arg_replay = "--replay-directory replays/"
 arg_verbosity = "-vvv"
@@ -16,22 +17,30 @@ arg_height = "--height 32"
 #bot1_args = "./pypy3 -E MyBot.py"
 
 bot1_args = "python3 MyBot.py"
-bot2_args = "python3 bots/v26/MyBot.py"
-bot3_args = "python3 bots/v25/MyBot.py"
-bot4_args = "python3 bots/v24/MyBot.v24.py"
+
+opponents = [
+	"python3 bots/v26/MyBot.py",
+	"python3 bots/v25/MyBot.py",
+	"python3 bots/v24/MyBot.v24.py"
+]
+
+# shuffle the oppenents so board layout changes
+
+oppenent_count = len(opponents)
+
+idx = random.randint(1, oppenent_count)
+
+bot2_args = opponents[idx  % oppenent_count]
+bot3_args = opponents[(idx + 1)  % oppenent_count]
+bot4_args = opponents[(idx + 2)  % oppenent_count]
 
 #arg_strict = "--strict"
-arg_seed = "--seed 1543014634" # dense map with deadlock waiting to dropoff
-arg_seed = "--seed 1543094899" # dense map
+arg_seed = "--seed 1543014634" # dense map, 301k halite
+#arg_seed = "--seed 1543094899" # dense map, 265k halite, dense around base
 
-
-# base jam: 64x64, Map seed is 1541367798
-# base jam: 64x64, Map seed is 1541450737 ???
-# 64x64 4 player 1541450737 # stuck at turn ~82
-# 64x64, 4 player, 1541460138, opponent collision at turn 422
 # , bot3_args, bot4_args
 # , arg_width, arg_height
-args = ["./halite", arg_replay, arg_verbosity, bot1_args, bot2_args, bot3_args, bot4_args, arg_width, arg_height]
+args = ["./halite", arg_seed, arg_replay, arg_verbosity, bot1_args, bot2_args, bot3_args, bot4_args, arg_width, arg_height]
 
 # run is only available in python 3.5+, prior use subprocess.call
 retval = subprocess.run(args, stdout=subprocess.PIPE, stderr=sys.stderr)
