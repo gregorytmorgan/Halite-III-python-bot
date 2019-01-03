@@ -51,6 +51,8 @@ v25		Fix a number of small bugs, tune mining overhead setting; end result is we'
 
 v26		Add homing/end game.
 
-v27
+v27		Fix a few minor bugs in collision resolution, tweak homing.
+
+v28		
 
 
