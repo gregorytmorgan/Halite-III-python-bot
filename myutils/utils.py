@@ -334,7 +334,7 @@ def get_random_move(game, ship, args = None):
     #
     if cell.is_occupied:
         remaining_moves = [x for x in moves if move not in x]
-        if DEBUG & (DEBUG_NAV): logging.info("ship {} collided with ship {} at {} while moving {}. Remaining_moves: {}".format(ship, cell.ship, normalized_position, move, remaining_moves))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}. Remaining_moves: {}".format(ship.id, cell.ship, normalized_position, move, remaining_moves))
 
         game.collisions.append((ship, cell.ship, move, normalized_position, resolve_random_move)) # args = remaining moves
         return None
@@ -663,6 +663,31 @@ def get_base_positions(game, position = None):
 
     return closest_base
 
+#
+# Collision Resolution
+#
+# The collision resolution sequence is:
+#    0. Ships are sorted/processed by halite amount.
+#    1. Attempt a move
+#    2. If the move causes a collision, add a collision tupple to the game collision list. The
+#       tuple constains a 'resolver'.
+#    3. After all ship have attempted to move, iterate over the collisions calling the resolver
+#       for each.
+#    4. If the resolver fails (return None), attempt to place the colliding ship in it's original
+#       position (move == 'o'), if that position is occuplied then call unwind() on the colliding
+#       ships position.
+#
+# Collision resolution is generally composed three elements:
+#    1. The collision resolution method. This method loops thru all collisions and calls the
+#       provided resolver for each. It the resolver can not find a satifactory move, it should
+#       return None, this will trigger unwind().
+#    2. A 'resolver' for each move type called from get_move(). The resolver is passed as
+#       part of the collision tuple if the initial move causes a collision.
+#    3. unwind(). When the collision resolver fails, the colliding ship remains in it's original
+#       position. It is possible the another ship has moved into that position expecting the
+#       ship to move. In this case moves are unwound intil a ship can remain in it's position.
+#
+
 def resolve_collsions(game, ship_states):
     """
     Resolve all collisions in the collision list
@@ -701,14 +726,14 @@ def resolve_collsions(game, ship_states):
                 move = resolver(game, collision) # will all res functions have the same prototye/signature? Should they be lambdas?
 
             if move is None:
-                if game_map[ship1].is_occupied:         # ship lost it's original cell to another ship
-                    move = get_random_move(game, ship1) # find any unoccupied cell
-                    if move is None:                    # else unwind
-                        cnt = unwind(game, ship1)
-                        move = "o"
-                        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collision resolved by unwinding {} ships".format(ship1.id, cnt))
+                # resolver failed, if original cell is occupied then unwind, else reclaim old cell
+                if game_map[ship1].is_occupied:
+                    cnt = unwind(game, ship1, ship_states)
+                    if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collision resolved by unwinding {} ships".format(ship1.id, cnt))
                 else:
-                    move = 'o'
+                    game_map[ship1].mark_unsafe(ship1)
+
+                move = 'o'
             else:
                 cell = game_map[ship1.position.directional_offset(move)]
                 cell.mark_unsafe(ship1)
@@ -837,7 +862,7 @@ def resolve_random_move(game, collision, args = None):
 
     for idx in range(moveIdx, moveIdx + len(moves)):
         moveChoice = moves[idx % len(moves)]
-        if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
 
         new_position = ship.position.directional_offset(moveChoice)
         if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} new_position: {}".format(ship.id, new_position))
@@ -866,8 +891,8 @@ def resolve_halite_move(game, collision):
 
     :param game
     :param collision Collision tuple: (0:ship1 1:ship2 2:move 3:dest1 4:res_func)
-    :returns Returns the 'o' or the lateral move based on the one with the most halite. 'o' gets
-        a 10% preference.
+    :returns Returns the 'o' or the lateral move based on the one with the most halite on success. 'o' gets
+        a 10% preference. Returns None if unable to resolve.
     """
 
     ship = collision[0]
@@ -876,9 +901,8 @@ def resolve_halite_move(game, collision):
 
     if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Resolving density move".format(ship.id))
 
-    move_offsets = Direction.laterals(DIRECTIONS[move])
-    move_offsets.append(Direction.Still)
-    move_offsets.append(Direction.invert(DIRECTIONS[move]))
+    # possible moves are left, right, still, back
+    move_offsets = Direction.laterals(DIRECTIONS[move]) + [Direction.Still] + [Direction.invert(DIRECTIONS[move])]
 
     best_moves = []
     for o in move_offsets:
@@ -886,9 +910,9 @@ def resolve_halite_move(game, collision):
         cell = game.game_map[pos]
 
         if o == Direction.Still:
-            val = cell.halite_amount * 1.1
+            val = cell.halite_amount * 1.1    # staying gets a bonus 10%
         elif o == Direction.invert(DIRECTIONS[move]):
-            val = cell.halite_amount * .5
+            val = cell.halite_amount * .5    # going backwards is less desirable
         else:
             val = cell.halite_amount
 
@@ -907,13 +931,10 @@ def resolve_halite_move(game, collision):
             new_cell = m[0]
             break;
 
-    # if no cell available, we know ship lost it's original cell, and the two lateral moves are
+    # if no cell is available then the ship lost it's original cell, and the two lateral moves are
     # blocked, try the only remaining option, the inverse of the original, otherwise rewind
     if new_offset is None:
-        cnt = unwind(game, ship)
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Resolve failed, Unwinding {} ships and using 'o'".format(ship.id, cnt))
-        #game_map[ship].mark_unsafe(ship) # unwind will mark the cell unsafe
-        move = 'o'
+        move = None
     else:
         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Resolved by best cell {}".format(ship.id, new_cell.position))
         new_cell.mark_unsafe(ship)
@@ -930,6 +951,10 @@ def resolve_nav_move(game, collision):
     Note: The current position of the ship is 'given up'/marked safe for others in get_move(),
     there is no guarantee the ship can remain in it's current position - be sure to check is_occupied
     for the current cell if returning 'o'
+
+    Note: before this method is called, a blocked by n turns chk takes place.
+
+    If we don't find a special case solution, the default is a random lateral move.
 
     :param game
     :param collision Collision tuple: (0:ship1 1:ship2 2:move 3:dest1 4:res_func)
@@ -978,6 +1003,7 @@ def resolve_nav_move(game, collision):
     # when arriving at a droppoff, wait from entry rather than making a move
     # this probably will not work as well without entry/exit lanes
     elif ship1.path and ship1.path[0] == game.me.shipyard.position and game.game_map.calculate_distance(ship1.position, game.me.shipyard.position) <= 2:
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is close to base, waiting ...".format(ship1.id))
         if game.game_map[ship1].is_occupied:
             new_move = None # None == unwind
         else:
@@ -999,29 +1025,25 @@ def resolve_nav_move(game, collision):
             ship_cell.mark_unsafe(ship1)
             new_move = 'o'
     else:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collision at {} with ship {}. Resolving to random move {}".format(ship1.id, position, ship2.id , move))
-        new_move = resolve_random_move(game, collision, {"moves": [Direction.convert(m) for m in Direction.laterals(move)]})
+        lateral_moves = [Direction.convert(m) for m in Direction.laterals(move)] + ["o"]
+        new_move = resolve_random_move(game, collision, {"moves": lateral_moves})
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collision at {} with ship {}. Resolving laterally {}, move {}".format(ship1.id, position, ship2.id , lateral_moves, move))
 
-        # popping the path point will allow nav around the blocking ship, buy this can
-        # cause conjestion/screw up arrival/departure lanes if close to the base
-        if game.game_map.calculate_distance(ship2.position, game.me.shipyard.position) > 4:
-            if len(ship1.path) > 1:
+        # popping the path point will allow nav around the blocking ship, but this can
+        # cause conjestion/screw up arrival/departure lanes when close to the base
+        if new_move and len(ship1.path) > 1:
+            new_position = get_position_from_move(game, ship1, new_move)
+            d_next = game.game_map.calculate_distance(new_position, ship1.path[-1])
+            d_plus_one = game.game_map.calculate_distance(new_position, ship1.path[-2])
+            if d_next > d_plus_one:
+                if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} next nav {} is farther than plus one {}. Popping next.".format(ship1.id, ship1.path[-1], ship1.path[-2]))
                 ship1.path.pop()
 
-    #
-    # if we were not able to resolve above, unwind ...
-    #
-    if new_move is None:
-        cnt = unwind(game, ship1)
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Resolved by unwinding {} ships".format(ship1.id, cnt))
-        #ship_cell.mark_unsafe(ship1) this is handled by unwind
-        new_move = 'o'
-
-    if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Successfully resolved nav move collision. Move: {}".format(ship1.id, new_move))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - nav move collision resolved to {}".format(ship1.id, new_move))
 
     return new_move
 
-def unwind(game, displaced_ship):
+def unwind(game, displaced_ship, ship_states):
     """
     Unwinds the moves starting from displaced_ship original position, would be better to consider unwinding
     all ships in cardinal positions based on priority/halite
@@ -1045,11 +1067,14 @@ def unwind(game, displaced_ship):
 
     offending_ship = cell.ship # save the offending ship
 
+    if offending_ship.status == "transiting":
+        offending_ship.path.append(cell.position)
+
     cell.mark_unsafe(displaced_ship) # give the displace ship it's cell back
 
     game.command_queue[offending_ship.id] = offending_ship.move(Direction.Still)
 
-    return unwind(game, offending_ship) + 1
+    return unwind(game, offending_ship, ship_states) + 1
 
 def ship_states_to_string(states):
     """
@@ -1156,13 +1181,13 @@ def respond_to_sos(game, sos_call):
             logging.info("Game - There are no enemies within {} moves of {}".format(block_size, sos_position))
 
         if responder and responder.assignments:
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} diverted from assignment {} to respond to sos from ship {} @ {}".format(responder.id, responder.assignments[-1], sos_ship_id, sos_position))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} diverted from assignment {} to respond to sos from ship {} @ {}. t{}".format(responder.id, responder.assignments[-1], sos_ship_id, sos_position, game.turn_number))
         elif responder:
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} assigned to respond to sos from ship {} @ {}".format(responder.id, sos_ship_id, sos_position))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} assigned to respond to sos from ship {} @ {}. t{}".format(responder.id, sos_ship_id, sos_position, game.turn_number))
         else:
             if DEBUG & (DEBUG_GAME): logging.info("Game - There are no viable ships to respond to sos from ship {} @ {}".format(sos_ship_id, sos_position))
 
-#should the sos position be added as an assignment?
+		#ToDo: add the sos position as an assignment so others don't respond
 
     return responder
 
