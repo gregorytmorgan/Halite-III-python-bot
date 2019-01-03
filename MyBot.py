@@ -281,12 +281,16 @@ while True:
             logging.info("Game - Ship {} at {} has {} halite and is {} {}".format(ship.id, ship.position, ship.halite_amount, ship.status, suffix))
 
         #
+        # status - end game/homing
+        #
+        # don't check for status directly so we can catch normal returning ships as they
+        # arrive at base - no need to send them back out
+        if game.end_game and ship.position == base_position or ship.status == "homing":
+            ship.status = "homing"
+
+        #
         # status - returning
         #
-        if game.end_game:
-            if ship.position == base_position:
-                game.command_queue[ship.id] = ship.move("o")
-
         elif ship.status == "returning" or ship.position == base_position:
             # Returning - arrived
             if ship.position == base_position:
@@ -392,7 +396,7 @@ while True:
         # status exploring|transiting --> returning
         #
         elif ship.halite_amount >= constants.MAX_HALITE or ship.is_full:
-            if ship.status != "returning":
+            if ship.status != "returning" and ship.status != "homing":
                 if ship.status == "transiting":
                     game_metrics["trip_transit_duration"].append((game.turn_number, ship.id, max(ship.explore_start, game.turn_number) - ship.last_dock, round(game_map.calculate_distance(ship.position, base_position), 2)))
                 elif ship.status == "exploring":
@@ -420,21 +424,6 @@ while True:
         else:
             ship.assignment_duration += 1
 
-            if ship.status == "transiting":
-                if ship.assignments: #  and ship.assignments[-1] == ship.position:
-                    assignment_distance = game_map.calculate_distance(ship.assignments[-1], ship.position)
-                    assignment_cell = game_map[ship.assignments[-1]]
-                    if assignment_distance == 0:
-                        if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} reached loiter assignment {} t{}".format(ship.id, ship.assignments[-1], game.turn_number))
-                    elif assignment_distance == 1 and assignment_cell.is_occupied and assignment_cell.ship.owner == me.id and assignment_cell.position != base_position:
-                        if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} approached loiter assignment {} It is friendly occupied by ship {}. Clearing assignment. t{}".format(ship.id, ship.assignments[-1], assignment_cell.ship.id, game.turn_number))
-                        game.update_loiter_assignment(ship)
-                        if not ship.path:
-                            logging.error("Ship {} has an assignment, {}, with no path. t{}".format(ship.id, assignment_cell.position, game.turn_number))
-                        while ship.path[-1] != assignment_cell.position:
-                            ship.path.pop()
-                        ship.path.pop()
-
             if ship.path:
                 if ship.status != "transiting":
                     ship.status = "transiting"
@@ -446,13 +435,19 @@ while True:
                     ship.explore_start = game.turn_number
                     game_metrics["trip_transit_duration"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, round(game_map.calculate_distance(ship.position, base_position), 2)))
 
+            if ship.status == "transiting":
+                if ship.assignments: #  and ship.assignments[-1] == ship.position:
+                    assignment_cell = game_map[ship.assignments[-1]]
+                    if ship.position == assignment_cell.position:
+                        if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} reached loiter assignment {} t{}".format(ship.id, ship.assignments[-1], game.turn_number))
+                    elif len(ship.path) > 1 and ship.path[-2] == ship.assignments[-1] and assignment_cell.is_occupied and assignment_cell.ship.owner == me.id and assignment_cell.position != base_position:
+                        if DEBUG & (DEBUG_GAME): logging.info("Ship - Ship {} approached loiter assignment {} and it is friendly occupied by ship {}. Clearing assignment. t{}".format(ship.id, ship.assignments[-1], assignment_cell.ship.id, game.turn_number))
+                        game.update_loiter_assignment(ship)
+                        ship.path.pop()
+
         #
         # Move
         #
-
-        # if cell is below mining threshold then continue,
-        # if the ship is above cargo threshold continue
-        # else we'll stay in place and mine
         if move_ok(game, ship):
             #
             # exploring (not mining)
@@ -469,7 +464,10 @@ while True:
             elif ship.status == "returning":
                 move = get_move(game, ship, "nav", "naive") # returning will break if a waypoint resolution other than naive is used. Why?
             elif ship.status == "homing":
-                move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"}) # path scheme = algo for incomplete path
+                if ship.position == base_position:
+                    move = "o"
+                else:
+                    move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"}) # path scheme = algo for incomplete path
             else:
                 raise RuntimeError("Ship {} has an invalid status: {}".format(ship.id, ship.status))
 
