@@ -23,7 +23,7 @@ from myutils.constants import *
 game_start_time = time.time()
 game = hlt.Game()
 ship_states = {} # keep ship state inbetween turns
-botName = "MyBot.v27"
+botName = "MyBot.v28"
 cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
@@ -55,6 +55,11 @@ while True:
     game.update_frame()
 
     my_ships = me.get_ships()
+
+    #
+    # update stats - ship count need to be updated before cv map gen
+    #
+    game_metrics["ship_count"].append((game.turn_number, len(my_ships)))
 
 #    cell_values = game_map.get_halite_map()
 #    cell_values_flat = cell_values.flatten()
@@ -225,6 +230,11 @@ while True:
 
         # note, some ship state attribs are not stored on the actual ship object:
         # e.g. prior_position, prior_halite_amount
+
+    #
+    # update stats - update the mining rate as soon as ships are parsed so updated rate is available
+    #
+    game_metrics["mining_rate"].append((game.turn_number, round(game.get_mining_rate(MINING_RATE_LOOKBACK), 2)))
 
     #
     # remove base clear request that are no longer valid
@@ -519,8 +529,6 @@ while True:
     cumulative_profit += (turn_gathered - turn_spent)
     game_metrics["profit"].append((game.turn_number, turn_profit))
     game_metrics["turn_time"].append((game.turn_number, round(time.time() - turn_start_time, 4)))
-    game_metrics["mining_rate"].append((game.turn_number, round(game.get_mining_rate(MINING_RATE_LOOKBACK), 2)))
-    game_metrics["ship_count"].append((game.turn_number, len(my_ships)))
 
     #
     # check of lost ships
