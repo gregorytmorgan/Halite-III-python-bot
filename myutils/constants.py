@@ -48,7 +48,7 @@ DEBUG_ALL = DEBUG_GAME | DEBUG_TIMING | DEBUG_NAV | DEBUG_NAV_METRICS | DEBUG_GA
     | DEBUG_COMMANDS | DEBUG_SHIP_STATES | DEBUG_OUTPUT_GAME_METRICS | DEBUG_CV_MAP | DEBUG_TASKS \
     | DEBUG_NAV_VERBOSE | DEBUG_SHIP_METRICS
 
-DEBUG = DEBUG_NONE #DEBUG_GAME | DEBUG_TIMING| DEBUG_NAV | DEBUG_OUTPUT_GAME_METRICS | DEBUG_GAME_METRICS | DEBUG_TASKS | DEBUG_SHIP_STATES
+DEBUG = DEBUG_GAME | DEBUG_TIMING| DEBUG_NAV | DEBUG_OUTPUT_GAME_METRICS | DEBUG_GAME_METRICS | DEBUG_TASKS | DEBUG_SHIP_STATES
 
 # convert a Direction obj back to a string
 DIRECTIONS = {
@@ -96,9 +96,24 @@ BLOCKED_BY_THRESHOLD = 3
 LOG_DIRECTORY = "."
 #LOG_DIRECTORY = "logs"
 
-MINING_OVERHEAD_2P = 1.0
+# Scale 'payback' turns. Decide if a spawned ship will have enough time to pay for
+# itself. Lower number == spawn ships for longer == more ships.
+#
+# - Related to CV_MINING_RATE_MULTIPLIER in that the higher the rate, the longer we can spawn.
+# - This is also a func of board size, for smaller boards at some point more ship are useless.
+
+MINING_OVERHEAD_2P = 2.5 # manual testing sugggested 2.5 for small maps (32,40)
 MINING_OVERHEAD_4P = 1.5
 
+# how many turns to allow a homing ship to get to base
 HOMING_OVERHEAD = 1.5
 
-CV_MINING_RATE_MULTIPLIER = 2
+# changes the value assigned to cell based on distance from base. This will
+# change the steepness of 'mined' (change in minging rate) for a fix number of ships.
+#
+# - Related to MINING_OVERHEAD since the better the mining rate, the longer we can spawn
+CV_MINING_RATE_MULTIPLIER = .75
+
+# how many data points before try to calc mining rate. Below this, just return the avg
+# halite amount * SHIP_MINING_EFFICIENCY
+MIN_MINE_RATE_DATA = 3

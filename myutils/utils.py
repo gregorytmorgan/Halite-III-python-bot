@@ -85,7 +85,7 @@ def spawn_ok(game):
     #
     # New code
     #
-    #payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
+    #payback_turns = constants.SHIP_COST / game.get_mining_rate()
     #remaining_turns = constants.MAX_TURNS - game.turn_number
     #if payback_turns * mining_over_head < remaining_turns:
     #     if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}".format(retval))
@@ -97,7 +97,7 @@ def spawn_ok(game):
     ### v6 old code
     ###
     if me.ship_count > 0:
-        payback_turns = constants.SHIP_COST / game.get_mining_rate(MINING_RATE_LOOKBACK)
+        payback_turns = constants.SHIP_COST / game.get_mining_rate()
         remaining_turns = constants.MAX_TURNS - game.turn_number
         retval = round(payback_turns * mining_overhead) < remaining_turns
         if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}, payback: {}*{} < {}".format(retval, round(payback_turns, 2), mining_overhead, remaining_turns))
@@ -540,7 +540,7 @@ def move_ok(game, ship, args = None):
     # refuel_amount = constants.MAX_HALITE if ship.position in base else cell_halite * SHIP_MINING_EFFICIENCY
 
     net_mine = (cell_halite * SHIP_MINING_EFFICIENCY) + (cell_halite - cell_halite * SHIP_MINING_EFFICIENCY) * -SHIP_FUEL_COST
-    net_move = cell_halite * -SHIP_FUEL_COST + game.get_mining_rate(MINING_RATE_LOOKBACK) * SHIP_MINING_EFFICIENCY
+    net_move = cell_halite * -SHIP_FUEL_COST + game.get_mining_rate() * SHIP_MINING_EFFICIENCY
 
     #logging.debug("fuel_status: {}".format(fuel_status))
     #logging.debug("refuel_amount: {}".format(refuel_amount))

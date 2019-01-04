@@ -85,7 +85,7 @@ while True:
     # Calc hotspots (loiter assignments) and dense areas
     #
     if USE_CELL_VALUE_MAP:
-        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, CV_MINING_RATE_MULTIPLIER * game.get_mining_rate(MINING_RATE_LOOKBACK))
+        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, CV_MINING_RATE_MULTIPLIER * game.get_mining_rate())
 
         if cell_value_map is None:
             raise RuntimeError("cv map is None")
@@ -234,7 +234,7 @@ while True:
     #
     # update stats - update the mining rate as soon as ships are parsed so updated rate is available
     #
-    game_metrics["mining_rate"].append((game.turn_number, round(game.get_mining_rate(MINING_RATE_LOOKBACK), 2)))
+    game_metrics["mining_rate"].append((game.turn_number, round(game.get_mining_rate(), 2)))
 
     #
     # remove base clear request that are no longer valid
@@ -368,7 +368,7 @@ while True:
                     loiter_point = assignment_target[0]
 
                     if assignment_target[2] < (ship.mining_threshold * 1.32):
-                        if DEBUG & (DEBUG_TASKS): logging.debug("Task - Ship {} has a mining threshold of {}, but assigment {} has {} halite. t{}".format(ship.id, ship.mining_threshold, loiter_point, assignment_target[2], game.turn_number))
+                        if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} has a mining threshold of {}, but assigment {} has {} halite. t{}".format(ship.id, ship.mining_threshold, loiter_point, assignment_target[2], game.turn_number))
                         ship.mining_threshold = 25
 
                     game.update_loiter_assignment(ship, loiter_point)
@@ -522,32 +522,39 @@ while True:
         # end for each ship
         #
 
-    #
-    # collect game metrics
-    #
-    turn_profit = turn_gathered - turn_spent
-    cumulative_profit += (turn_gathered - turn_spent)
-    game_metrics["profit"].append((game.turn_number, turn_profit))
-    game_metrics["turn_time"].append((game.turn_number, round(time.time() - turn_start_time, 4)))
 
     #
     # check of lost ships
     #
     lost_ships = []
-    if not game.end_game:
-        for s_id in ship_states:
-            if not me.has_ship(s_id):
-                lost_ships.append(s_id)
+    for s_id in ship_states:
+        if not me.has_ship(s_id):
+            lost_ships.append(s_id)
 
-        for s_id in lost_ships:
+    for s_id in lost_ships:
+        if not game.end_game:
             sos_evt = {
                 "s_id": s_id,
                 "halite": ship_states[s_id]["prior_halite_amount"],
                 "position": ship_states[s_id]["position"]
             }
             game.sos_calls.append(sos_evt)
+
+        if ship_states[s_id]["position"] in get_base_positions(game):
+            game_metrics["gathered"].append((ship_states[s_id]["last_seen"], s_id, ship_states[s_id]["prior_halite_amount"]))
+            turn_gathered += ship_states[s_id]["prior_halite_amount"]
+        else:
             if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} lost. Last seen at {} on turn {} with {} halite. t{}".format(s_id, ship_states[s_id]["prior_position"], ship_states[s_id]["last_seen"], ship_states[s_id]["prior_halite_amount"], game.turn_number))
-            ship_states.pop(s_id, None)
+
+        ship_states.pop(s_id, None)
+
+    #
+    # collect game metrics
+    #
+    turn_profit = turn_gathered - turn_spent
+    cumulative_profit += turn_profit
+    game_metrics["profit"].append((game.turn_number, turn_profit))
+    game_metrics["turn_time"].append((game.turn_number, round(time.time() - turn_start_time, 4)))
 
     #
     # debug info for each turn
@@ -557,7 +564,7 @@ while True:
         mined_this_turn = sum(map(lambda i: i[2] if i[0] == game.turn_number else 0, game_metrics["mined"]))
         logging.info("Game - Mined this turn: {}".format(mined_this_turn))
         logging.info("Game - Turn mining rate: {}".format(0 if not len(my_ships) else round(mined_this_turn / len(my_ships), 2)))
-        logging.info("Game - Mining rate (Last {} turns): {}".format(MINING_RATE_LOOKBACK, round(game.get_mining_rate(MINING_RATE_LOOKBACK), 2)))
+        logging.info("Game - Mining rate: {}".format(round(game.get_mining_rate(), 2)))
 
         logging.info("Game - Total mined: {}".format(sum(x[2] for x in game_metrics["mined"])))
         logging.info("Game - Total gathered: {}".format(sum(x[2] for x in game_metrics["gathered"])))
