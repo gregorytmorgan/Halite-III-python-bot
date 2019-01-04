@@ -1144,7 +1144,7 @@ def respond_to_sos(game, sos_call):
             else:
                 enemies.append((cell.ship, distance))
 
-    friendlies.sort(key=lambda item: (item[1], item[0].halite_amount), reverse=True)
+    friendlies.sort(key=lambda item: (item[1], item[0].halite_amount))
     enemies.sort(key=lambda item: (item[1]), reverse=True)
 
     # reward/risk
