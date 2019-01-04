@@ -35,10 +35,12 @@ def spawn_ok(game):
     ship_count = len(me.get_ships())
     player_count = len(game.players)
 
-    if player_count == 2:
-        mining_overhead = MINING_OVERHEAD_2P
+    if player_count == 2 and game.game_map.width in [56, 64]:
+        mining_overhead = MINING_OVERHEAD_OPEN
+    elif player_count == 4 and game.game_map.width in [32, 40]:
+        mining_overhead = MINING_OVERHEAD_CONGESTED
     else:
-        mining_overhead = MINING_OVERHEAD_4P
+        mining_overhead = MINING_OVERHEAD_DEFAULT
 
     #
     # absolute constraints (order can be important)
@@ -1187,7 +1189,7 @@ def respond_to_sos(game, sos_call):
         else:
             if DEBUG & (DEBUG_GAME): logging.info("Game - There are no viable ships to respond to sos from ship {} @ {}".format(sos_ship_id, sos_position))
 
-		#ToDo: add the sos position as an assignment so others don't respond
+        #ToDo: add the sos position as an assignment so others don't respond
 
     return responder
 
