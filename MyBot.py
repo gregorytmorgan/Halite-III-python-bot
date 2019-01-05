@@ -85,7 +85,16 @@ while True:
     # Calc hotspots (loiter assignments) and dense areas
     #
     if USE_CELL_VALUE_MAP:
-        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, CV_MINING_RATE_MULTIPLIER * game.get_mining_rate())
+        player_count = len(game.players)
+
+        if player_count == 2 and game.game_map.width in [56, 64]:
+            mining_rate_mult = CV_MINING_RATE_MULTIPLIER_OPEN
+        elif player_count == 4 and game.game_map.width in [32, 40]:
+            mining_rate_mult = CV_MINING_RATE_MULTIPLIER_CONGESTED
+        else:
+            mining_rate_mult = CV_MINING_RATE_MULTIPLIER_DEFAULT
+
+        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, mining_rate_mult * game.get_mining_rate())
 
         if cell_value_map is None:
             raise RuntimeError("cv map is None")
@@ -531,16 +540,18 @@ while True:
         if not me.has_ship(s_id):
             lost_ships.append(s_id)
 
+    base_list = get_base_positions(game)
     for s_id in lost_ships:
-        if not game.end_game:
+        lost_ship_position = ship_states[s_id]["position"]
+        if not (lost_ship_position in base_list):
             sos_evt = {
                 "s_id": s_id,
                 "halite": ship_states[s_id]["prior_halite_amount"],
-                "position": ship_states[s_id]["position"]
+                "position": lost_ship_position
             }
             game.sos_calls.append(sos_evt)
 
-        if ship_states[s_id]["position"] in get_base_positions(game):
+        if lost_ship_position in base_list:
             game_metrics["gathered"].append((ship_states[s_id]["last_seen"], s_id, ship_states[s_id]["prior_halite_amount"]))
             turn_gathered += ship_states[s_id]["prior_halite_amount"]
         else:
