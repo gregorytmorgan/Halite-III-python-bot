@@ -274,7 +274,7 @@ class Game:
                     if pt in self.loiter_assignments:
                         self.loiter_assignments.pop(pt, None)
                     else:
-                        logging.error("Ship {} assignment {} is missing from the loiter assignments list".format(ship.id, pt))
+                        logging.error("Ship {} assignment {} is missing from the loiter assignments list".format(target.id, pt))
 
                     return True
             elif isinstance(target, Position):
