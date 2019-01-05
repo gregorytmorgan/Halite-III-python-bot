@@ -14,10 +14,13 @@ for botRoot in ${BASH_ARGV[*]}; do
     retval=$(cat $botRoot/myutils/constants.py | grep "DEBUG =")
     echo "  $retval"
 
-    retval=$(cat $botRoot/myutils/constants.py | grep "MINING_OVERHEAD_2P =")
+    retval=$(cat $botRoot/myutils/constants.py | grep "MINING_OVERHEAD_CONGESTED")
     echo "  $retval"
-
-    retval=$(cat $botRoot/myutils/constants.py | grep "MINING_OVERHEAD_4P =")
+    
+    retval=$(cat $botRoot/myutils/constants.py | grep "MINING_OVERHEAD_OPEN")
+    echo "  $retval"
+    
+    retval=$(cat $botRoot/myutils/constants.py | grep "MINING_OVERHEAD_DEFAULT")
     echo "  $retval"
 
     retval=$(cat $botRoot/myutils/constants.py | grep "MAX_SHIPS =")
