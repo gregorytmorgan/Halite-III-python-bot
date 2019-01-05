@@ -1189,7 +1189,7 @@ def respond_to_sos(game, sos_call):
         else:
             if DEBUG & (DEBUG_GAME): logging.info("Game - There are no viable ships to respond to sos from ship {} @ {}".format(sos_ship_id, sos_position))
 
-        #ToDo: add the sos position as an assignment so others don't respond
+        #ToDo: add the sos position as an assignment so others don't respond. Need to wait until there can be mult tasks per point
 
     return responder
 
