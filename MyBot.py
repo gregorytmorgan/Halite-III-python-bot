@@ -14,6 +14,8 @@ import numpy as np
 from myutils.utils import *
 from myutils.constants import *
 
+from myutils.mytasks import t_move_randomly, make_dropoff_task
+
 #
 # main
 #
@@ -211,6 +213,7 @@ while True:
                 "blocked_by": None,
                 "mining_threshold": SHIP_MINING_THRESHOLD_DEFAULT,
                 "assignments": [],
+                "tasks": [],
                 "position": ship.position
             }
 
@@ -233,8 +236,9 @@ while True:
         ship.blocked_by = ship_states[ship.id]["blocked_by"]
         ship.mining_threshold = ship_states[ship.id]["mining_threshold"]
         ship.assignments = ship_states[ship.id]["assignments"]
+        ship.tasks = ship_states[ship.id]["tasks"]
 
-        if ship.position != ship_states[ship.id]["position"]:
+        if ship_states[ship.id]["position"] and ship.position != ship_states[ship.id]["position"]:
             logging.warn("Ship {} has an inconsistent position. State: {}, Server: {}. t{}".format(ship.id, ship_states[ship.id]["position"], ship.position, game.turn_number))
 
         # note, some ship state attribs are not stored on the actual ship object:
@@ -306,6 +310,17 @@ while True:
         # arrive at base - no need to send them back out
         if game.end_game and ship.position == base_position or ship.status == "homing":
             ship.status = "homing"
+
+        elif ship.status == "tasked":
+            if not ship.tasks:
+                raise RuntimeError("Ship {} does not have a task.".format(ship.id))
+
+            task = ship.tasks[-1]
+            task_complete = task.turn(game, ship)
+
+            if task_complete:
+                if DEBUG & (DEBUG_TASK): logging.info("Task - Ship {} task {} indicates compete, popping task".format(ship.id, task.id))
+                ship.tasks.pop()
 
         #
         # status - returning
@@ -482,6 +497,12 @@ while True:
                 move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"}) # path scheme = algo for incomplete path
             elif ship.status == "returning":
                 move = get_move(game, ship, "nav", "naive") # returning will break if a waypoint resolution other than naive is used. Why?
+            elif ship.status == "tasked":
+                # generally a ship should set it's status to a non-tasked status when it completes (what if there is another task?). In some
+                # cases a task may leave the status as 'tasked' to preserve a move generated turn the task was completed.
+                if not ship.tasks:
+                    ship.status = "exploring"
+                move = None
             elif ship.status == "homing":
                 if ship.position == base_position:
                     move = "o"
@@ -525,7 +546,8 @@ while True:
         ship_states[ship.id]["blocked_by"] = ship.blocked_by
         ship_states[ship.id]["mining_threshold"] = ship.mining_threshold
         ship_states[ship.id]["assignments"] = ship.assignments
-        ship_states[ship.id]["position"] = None if move is None else get_position_from_move(game, ship, move)
+        ship_states[ship.id]["tasks"] = ship.tasks
+        ship_states[ship.id]["position"] = ship.position if move is None else get_position_from_move(game, ship, move)
 
         #
         # end for each ship
