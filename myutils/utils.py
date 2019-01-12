@@ -65,11 +65,15 @@ def spawn_ok(game):
         if DEBUG & (DEBUG_GAME): logging.info("Game - Spawn denied. Occupied cells: {}".format(occupied_cells))
         return False
 
-    # check base_clear_request after occupied_cells since we don't need to spawn in a ship is arriving
+    # Attention: This short-circuits (is before) some other conditions by design
+    # check base_clear_request after occupied_cells since we don't need to spawn when a ship is arriving
     if game.base_clear_request:
         clear_request = game.base_clear_request[-1]
         if DEBUG & (DEBUG_GAME): logging.info("Game - Spawning to clear blocked base {}".format(clear_request["position"]))
         return True
+
+    if game.fund_dropoff:
+        return False
 
     if game.end_game:
         return False
@@ -567,6 +571,8 @@ def move_ok(game, ship, args = None):
     elif ship.status == "returning":
         if net_move > net_mine or fuel_status > SHIP_REFUEL_THRESHOLD:
             return True
+    elif ship.status == "tasked":
+        return True # don't prevent a tasked ship from moving
     else:
         raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
