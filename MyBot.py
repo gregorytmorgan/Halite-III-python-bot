@@ -30,6 +30,11 @@ cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
 
+# DEBUG
+debug_drop_position = None
+#debug_drop_position = Position(10, 44) # @124
+
+
 #
 # game start
 #
@@ -62,6 +67,10 @@ while True:
     # update stats - ship count need to be updated before cv map gen
     #
     game_metrics["ship_count"].append((game.turn_number, len(my_ships)))
+
+    if False:
+        turn_spent += constants.DROPOFF_COST
+
 
 #    cell_values = game_map.get_halite_map()
 #    cell_values_flat = cell_values.flatten()
@@ -196,7 +205,7 @@ while True:
             if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is a new ship. t{}".format(ship.id, game.turn_number))
             me.ship_count += 1
 
-            turn_spent = constants.SHIP_COST
+            turn_spent += constants.SHIP_COST
             game_metrics["spent"].append((game.turn_number, turn_spent))
 
             ship_states[ship.id] = {
@@ -292,6 +301,20 @@ while True:
 
                 if homing_count >= 4:
                     break
+    #
+    # tasking
+    #
+    if debug_drop_position:
+        for ship in my_ships:
+            if ship.position == me.shipyard.position: # bas position ???
+                if game.turn_number > 9999:
+                    ship.tasks.append(t_move_randomly)
+                    ship.status = "tasked"
+                elif game.turn_number > 125:
+                    ship.tasks.append(make_dropoff_task(debug_drop_position))
+                    ship.status = "tasked"
+                    debug_drop_position = None
+                    break
 
     #
     # handle each ship for this turn
@@ -331,8 +354,8 @@ while True:
 
                 ship.mining_threshold = SHIP_MINING_THRESHOLD_DEFAULT
 
-                # chk if there is a clear request
-                if game.base_clear_request:
+                # chk if there is a clear request for this ships base
+                if game.base_clear_request and game.game_map.calculate_distance(game.base_clear_request[-1]["position"], base_position) != 1:
                     clear_request = game.base_clear_request.pop()
                     cell = game_map[clear_request["position"]]
 
