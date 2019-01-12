@@ -384,14 +384,9 @@ def get_nav_move(game, ship, args = None):
     ship_cell = game_map[ship]
 
     if not ship.path:
-        if DEBUG & (DEBUG_NAV): logging.warn("Nav  - Ship {} Getting nav path. Empty path. Returning 'o'. t{}".format(ship.id, game.turn_number))
-        if ship_cell.is_occupied:
-            game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?
-            if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, ship_cell.ship.id, ship.position, 'o'))
-            return None
-        else:
-            ship_cell.mark_unsafe(ship)
-            return 'o'
+        logging.warn("Nav  - Ship {} Getting nav path. Empty path. Returning 'o'. t{}".format(ship.id, game.turn_number))
+        ship_cell.mark_unsafe(ship)
+        return 'o'
 
     next_position = ship.path[-1]
 
@@ -405,7 +400,7 @@ def get_nav_move(game, ship, args = None):
         path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_resolution, {"move_costs": move_cost})
 
         if path is None or len(path) == 0:
-            if DEBUG & (DEBUG_NAV): logging.warn("Nav  - Ship {} Nav failed, can't reach waypoint {} from {}".format(ship.id, normalized_next_position, ship.position))
+            logging.warn("Nav  - Ship {} Nav failed, can't reach waypoint {} from {}".format(ship.id, normalized_next_position, ship.position))
             if ship_cell.is_occupied:
                 game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?
                 if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, ship_cell.ship.id, ship.position, 'o'))
@@ -422,13 +417,6 @@ def get_nav_move(game, ship, args = None):
 
     normalized_new_position = game_map.normalize(new_position)
     if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} new_position: {}".format(ship.id, normalized_new_position))
-
-    # why?
-    if normalized_new_position == ship.position:
-        if DEBUG & (DEBUG_NAV): logging.warn("Nav  - Ship {} popped move {}. Returning 'o'.  Why did this happen?".format(ship.id, ship.path[-1]))
-        ship.path.pop()
-        game_map[ship].mark_unsafe(ship)
-        return 'o'
 
     cell = game_map[normalized_new_position]
 
