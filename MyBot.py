@@ -546,7 +546,7 @@ while True:
         if not (lost_ship_position in base_list):
             sos_evt = {
                 "s_id": s_id,
-                "halite": ship_states[s_id]["prior_halite_amount"],
+                "halite_amount": ship_states[s_id]["prior_halite_amount"],
                 "position": lost_ship_position
             }
             game.sos_calls.append(sos_evt)
