@@ -349,7 +349,7 @@ while True:
                         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Clear request canceled for {}. Cell is clear".format(clear_request["position"]))
 
                 # log some data about the previous assignment
-                if game.turn_number != ship.christening and ship_states[ship.id]["prior_position"] != base_position:
+                if game.turn_number != ship.christening and ship_states[ship.id]["prior_position"] and ship_states[ship.id]["prior_position"] != base_position:
                     drop_amount = ship_states[ship.id]["prior_halite_amount"]
                     game_metrics["trip_data"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, drop_amount, ship.assignment_distance, ship.assignment_duration))
                     if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed drop of {} halite at {}. Return + explore took {} turns. t{}".format(ship.id, drop_amount, base_position, game.turn_number - ship.last_dock, game.turn_number))
@@ -623,23 +623,29 @@ while True:
             logging.info("Nav  - Raw loiter points: {}".format(game_metrics["raw_loiter_points"]))
 
         if DEBUG & (DEBUG_GAME_METRICS):
+            avg_trip_duration = 0
+            trip_explore_duration = 0
+            trip_transit_duration = 0
 
             # trip_data 0:turn (end of trip) 1:ship 2:duration 3:halite 4:assigned loiter distance
             logging.info("Game - Total trips completed: {}".format(len(game_metrics["trip_data"])))
 
-            avg_trip_duration = round(np.mean(game_metrics["trip_data"], axis=0)[2], 2)
-            logging.info("Game - Avg. trip duration: {}".format(avg_trip_duration))
+            if game_metrics["trip_data"]:
+                avg_trip_duration = round(np.mean(game_metrics["trip_data"], axis=0)[2], 2)
+                logging.info("Game - Avg. trip duration: {}".format(avg_trip_duration))
 
-            avg_halite_gathered = round(np.mean(game_metrics["trip_data"], axis=0)[3], 2)
-            logging.info("Game - Avg. halite gathered: {}".format(avg_halite_gathered))
+                avg_halite_gathered = round(np.mean(game_metrics["trip_data"], axis=0)[3], 2)
+                logging.info("Game - Avg. halite gathered: {}".format(avg_halite_gathered))
 
-            # trip_explore_duration 0:turn (end of explore) 1:ship 2:duration 3:distance from base
-            trip_explore_duration = round(np.mean(game_metrics["trip_explore_duration"], axis=0)[3], 2)
-            logging.info("Game - Avg. explore duration: {}".format(trip_explore_duration))
+            if game_metrics["trip_explore_duration"]:
+                # trip_explore_duration 0:turn (end of explore) 1:ship 2:duration 3:distance from base
+                trip_explore_duration = round(np.mean(game_metrics["trip_explore_duration"], axis=0)[3], 2)
+                logging.info("Game - Avg. explore duration: {}".format(trip_explore_duration))
 
-            # trip_transit_duration 0:turn (end of return) 1:ship 2:duration 3:distance from base
-            trip_transit_duration = round(np.mean(game_metrics["trip_transit_duration"], axis=0)[2], 2)
-            logging.info("Game - Avg. transit duration: {}".format(trip_transit_duration))
+            if game_metrics["trip_transit_duration"]:
+                # trip_transit_duration 0:turn (end of return) 1:ship 2:duration 3:distance from base
+                trip_transit_duration = round(np.mean(game_metrics["trip_transit_duration"], axis=0)[2], 2)
+                logging.info("Game - Avg. transit duration: {}".format(trip_transit_duration))
 
             avg_return_duration = avg_trip_duration - trip_explore_duration - trip_transit_duration
             logging.info("Game - Avg. return duration: {}".format(round(avg_return_duration, 2)))
