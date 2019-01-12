@@ -362,6 +362,14 @@ def get_nav_move(game, ship, args = None):
     if args is None:
         args = {}
 
+    # hack - shouldn't need to do this
+    while ship.path:
+        if game.game_map.normalize(ship.path[-1]) == ship.position:
+            logging.warn("Nav  - Ship {} popped move {}.  Why did this happen?".format(ship.id, ship.path[-1]))
+            ship.path.pop()
+        else:
+            break
+
     waypoint_resolution = args["waypoint_resolution"] if "waypoint_resolution" in args else "astar"
     move_cost = args["move_cost"] if "move_cost" in args else "turns"
 
