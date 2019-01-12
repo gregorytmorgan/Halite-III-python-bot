@@ -657,19 +657,22 @@ def get_base_positions(game, position = None):
     :param position
     :return Returns a single position if the position arg is provded, returns an list of all base positions otherwise.
     """
-    bases = list(game.me.get_dropoffs()) + [game.me.shipyard.position]
+    base_positions = [game.me.shipyard.position]
+
+    for do in game.me.get_dropoffs():
+        base_positions.append(do.position)
 
     if position is None:
-        return bases
+        return base_positions
 
     min_distance = False
     closest_base = False
 
-    for base in bases:
-        distance = game.game_map.calculate_distance(position, base)
-        if min_distance == False or distance < min_distance:
+    for base_position in base_positions:
+        distance = game.game_map.calculate_distance(position, base_position)
+        if closest_base is False or distance < min_distance:
             min_distance = distance
-            closest_base = base
+            closest_base = base_position
 
     return closest_base
 
