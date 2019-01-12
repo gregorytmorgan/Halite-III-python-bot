@@ -70,6 +70,9 @@ class Game:
         #
         self.mining_rate = False
 
+        #
+        self.fund_dropoff = False
+
         # Grab constants JSON
         raw_constants = read_input()
         constants.load_constants(json.loads(raw_constants))
