@@ -388,10 +388,10 @@ while True:
 
                 departure_point = get_departure_point(game, base_position, loiter_point)
 
-                # calc the path for the assignment
-                bases = [me.shipyard.position]
-                ship.path, cost = game_map.navigate(departure_point, loiter_point, "astar", {"move_cost": "turns", "excludes":bases}) # heading out to loiter point
-                if ship.path is None: # note: path will be [] if loiter_point is closer than the departure point
+                # calc the path for the assignment from departure point to loiter point. If for some reason
+                # ship departs wrong side, never cross back over base/current position
+                ship.path, cost = game_map.navigate(departure_point, loiter_point, "astar", {"move_cost": "turns", "excludes": [ship.position]})
+                if ship.path is None: # path will be [] if loiter_point is closer than the departure point
                     logging.error("Ship {} Error, navigate failed for loiter point {}, path:{}".format(ship.id, loiter_point, ship.path))
                     ship.path = [] # path will be None if failed,
                     ship.path.append(loiter_point) # maybe calc will succeed next time?
