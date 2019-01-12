@@ -988,7 +988,7 @@ def resolve_nav_move(game, collision):
 
     if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship1.id, ship2.id, position, move))
 
-    #base = get_base_positions(game, ship1.position)
+    arrival_points = [game.me.shipyard.position.directional_offset(Direction.North), game.me.shipyard.position.directional_offset(Direction.South)]
 
     # don't let enemy ships on a dropoff/shipyard block arrivals or spawns. Halite from both ships will be deposited
     if collision_cell.structure_type is Shipyard and collision_cell.ship.owner != game.me.id:
@@ -997,7 +997,7 @@ def resolve_nav_move(game, collision):
         ship1.path.pop()
         new_move = move
 
-    elif collision_cell.structure_type is Shipyard and game.end_game:
+    elif collision_cell.position in get_base_positions(game) and game.end_game:
         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at shipyard during end game. Crashing".format(ship1.id, ship2.id))
         collision_cell.mark_unsafe(ship1)
         new_move = move
@@ -1015,7 +1015,7 @@ def resolve_nav_move(game, collision):
 
     # when arriving at a droppoff, wait from entry rather than making a move
     # this probably will not work as well without entry/exit lanes
-    elif ship1.path and ship1.path[0] == game.me.shipyard.position and game.game_map.calculate_distance(ship1.position, game.me.shipyard.position) <= 2:
+    elif ship1.path and ship1.path[0] == game.me.shipyard.position and ship1.position in arrival_points:
         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is close to base, waiting ...".format(ship1.id))
         if game.game_map[ship1].is_occupied:
             new_move = None # None == unwind
@@ -1037,6 +1037,8 @@ def resolve_nav_move(game, collision):
         else:
             ship_cell.mark_unsafe(ship1)
             new_move = 'o'
+
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collision with ship {} while departing base {}. move {}".format(ship1.id, ship2.id, position, move))
     else:
         lateral_moves = [Direction.convert(m) for m in Direction.laterals(move)] + ["o"]
         new_move = resolve_random_move(game, collision, {"moves": lateral_moves})
