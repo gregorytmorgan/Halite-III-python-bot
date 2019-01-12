@@ -66,6 +66,7 @@ class Ship(Entity):
         self.blocked_by = None
         self.mining_threshold = 0
         self.assignments = []
+        self.tasks = []
 
         Ship.count += 1
 
@@ -105,8 +106,9 @@ class Ship(Entity):
         return ship_id, Ship(player_id, ship_id, Position(x_position, y_position), halite)
 
     def __repr__(self):
-        return "{}(id={}, {}, cargo={} halite, status={})".format(self.__class__.__name__,
+        return "{}(id={}, {}, cargo={} halite, status={}, tasks={})".format(self.__class__.__name__,
                                                        self.id,
                                                        self.position,
                                                        self.halite_amount,
-                                                       self.status)
+                                                       self.status,
+                                                       self.tasks)
