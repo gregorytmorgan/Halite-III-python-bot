@@ -23,9 +23,11 @@ def usage():
     print("Usage: {} [options] [files]".format(program_name))
     print("-h\tHelp.")
     print("-v\tVerbose.")
-    print("\nExample:")
+    print("")
     print("Either provide a file name on the command line, or edit the data variable in the source file")
-
+    print("")    
+    print("\nExample - multiple files are displayed as below:")
+    print("./show-map.py -v $(ls -rt1 stats/cell_value_map_turn_*-bot-0.log | tail -n 6)")
 
 dummy_data = [[-399,-231,-371,-444,-276,-420],
     [-246,-100, 47, -182,-140,-261],
