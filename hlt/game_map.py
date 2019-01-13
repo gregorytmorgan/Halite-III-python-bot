@@ -103,6 +103,9 @@ class GameMap:
         # dictionary of numpy arrays, dtype=float
         self._cell_value_maps = {}
 
+        #
+        self._distance_maps = {}
+
         # vectorized funcs
         self.v_cell_value_map = np.vectorize(self.get_cell_value)
         self.v_calc_distance = np.vectorize(self.calculate_distance)
@@ -601,7 +604,10 @@ class GameMap:
         param p Position
         :return Returns WxH numpy array of distances to p.
         """
-        return self.v_calc_distance(p, self._coord_map)
+        if not (p in self._distance_maps):
+            self._distance_maps[p] = self.v_calc_distance(p, self._coord_map)
+
+        return self._distance_maps[p]
 
     def get_cell_value_map(self, p, distance_constant = 1):
         """
@@ -640,9 +646,10 @@ class GameMap:
             col_start = p2.x
             col_end = p1.x + 1
 
-        # use pre-computed values for known positions like shipyard/dropoff? Probably not
-        # necessary since we distance is manhatten, perhaps if using a more expensive calc?
-        distance = self.calculate_distance(p1, p2)
+        # use pre-computed values for known positions like shipyard/dropoff
+        distance_map = self.get_distance_map(p1)
+        distance = distance_map[p2.y][p2.x]
+
         halite = self[p2].halite_amount
 
         # skip cells we're never going to mine
