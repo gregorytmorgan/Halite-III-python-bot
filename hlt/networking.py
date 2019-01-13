@@ -195,6 +195,8 @@ class Game:
 
             if DEBUG & (DEBUG_NAV_VERBOSE): logging.warn("Nav - Insufficient metrics to calulate mining rate. Estimate: {}, ship_id: {}".format(round(mrate, 2), ship_id))
 
+            self.mining_rate = mrate
+
             return mrate
 
         mining_rate = []
@@ -228,6 +230,8 @@ class Game:
         except:
             popt, pcov = curve_fit(flinear, X[:n], Y[:n], p0=[float(X[0]), -4], bounds=[[0, -100], [800., 0.]])
             rate = fexp(turn, *popt)
+
+        self.mining_rate = rate
 
         return max(1, rate)
 
