@@ -1,4 +1,5 @@
 from . import commands
+from . import constants
 
 from myutils.constants import DIRECTIONS
 
@@ -85,9 +86,21 @@ class Direction:
             raise IndexError
 
 class Position:
-    def __init__(self, x, y):
+    # The normalize param was not present in the early versions. Once added the default
+    # was set to True. Here, a default of False is used for backwards compatibility.
+    # There are instances where normalized values are not useful, e.g. when working with
+    # areas that span borders. In these cases, it west to work without normalization, and
+    # then normalize results if necessary.
+    def __init__(self, x, y, normalize=False):
         self.x = x
         self.y = y
+
+        if normalize:
+            self.normalize()
+
+    def normalize(self):
+        self.x = self.x % constants.WIDTH
+        self.y = self.y % constants.HEIGHT
 
     def directional_offset(self, direction):
         """
@@ -130,11 +143,13 @@ class Position:
     def __iadd__(self, other):
         self.x += other.x
         self.y += other.y
+        self.normalize()
         return self
 
     def __isub__(self, other):
         self.x -= other.x
         self.y -= other.y
+        self.normalize()
         return self
 
     def __mul__(self, other):
@@ -154,10 +169,10 @@ class Position:
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __hash__(self):
-        return hash(repr(self))
-
     def __repr__(self):
         return "{}({}, {})".format(self.__class__.__name__,
                                    self.x,
                                    self.y)
+
+    def __hash__(self):
+        return hash((self.x, self.y))

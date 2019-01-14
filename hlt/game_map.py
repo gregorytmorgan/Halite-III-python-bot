@@ -136,17 +136,17 @@ class GameMap:
             return self._cells[location.position.y][location.position.x]
         return None
 
-    def calculate_distance(self, source, destination, algorithm = "manhatten"):
+    def calculate_distance(self, source, target, algorithm = "manhatten"):
         """
         Compute the Manhattan distance between two locations.
         Accounts for wrap-around.
         :param source: The source from where to calculate
-        :param destination: The destination to where calculate
+        :param target: The target to where calculate
         :return: The distance between these items
         """
         source = self.normalize(source)
-        destination = self.normalize(destination)
-        resulting_position = abs(source - destination)
+        target = self.normalize(target)
+        resulting_position = abs(source - target)
 
         dx = min(resulting_position.x, self.width - resulting_position.x)
         dy = min(resulting_position.y, self.height - resulting_position.y)
@@ -195,7 +195,7 @@ class GameMap:
         source = self.normalize(source)
         destination = self.normalize(destination)
         possible_moves = []
-        distance = abs(destination - source)
+        distance = Position(abs(destination.x-source.x), abs(destination.y-source.y))
         y_cardinality, x_cardinality = self._get_target_direction(source, destination)
 
         if distance.x != 0:
@@ -546,8 +546,7 @@ class GameMap:
         for y_position in range(map_height):
             cells = read_input().split()
             for x_position in range(map_width):
-                game_map[y_position][x_position] = MapCell(Position(x_position, y_position),
-                                                           int(cells[x_position]))
+                game_map[y_position][x_position] = MapCell(Position(x_position, y_position, normalize=False), int(cells[x_position]))
         return GameMap(game_map, map_width, map_height)
 
     def _update(self):
