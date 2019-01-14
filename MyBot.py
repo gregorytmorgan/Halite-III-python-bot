@@ -45,9 +45,10 @@ if DEBUG & (DEBUG_CV_MAP):
 else:
     np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
 
-# DEBUG
-debug_drop_position = None
-#debug_drop_position = Position(10, 44) # @124
+#debug_drop_position = None
+dropoff_deployments = {
+    Position(0, 48): (225,)
+}
 
 #
 # game start
@@ -325,19 +326,34 @@ while True:
                 if homing_count >= 4:
                     break
     #
-    # tasking
+    # Dropoff tasking
     #
-    if debug_drop_position:
-        for ship in my_ships:
-            if ship.position == me.shipyard.position: # bas position ???
-                if game.turn_number > 9999:
-                    ship.tasks.append(t_move_randomly)
-                    ship.status = "tasked"
-                elif game.turn_number > 125:
-                    ship.tasks.append(make_dropoff_task(debug_drop_position))
-                    ship.status = "tasked"
-                    debug_drop_position = None
-                    break
+    # position -> (turn_trigger, position)
+
+    for deployment_point, deployment in dropoff_deployments.items():
+        if game_map.needs_normalization(deployment_point):
+            logging.error("Invalid deployment point {}. Aborting deployment.".format(deployment_point))
+            dropoff_deployments[deployment_point] = None
+            continue
+
+        if deployment and game.turn_number == deployment[0]:
+            deployment_ship = False
+            deployment_distance = False
+            for ship in my_ships:
+                 distance = game.game_map.calculate_distance(ship.position, deployment_point)
+                 if not deployment_ship or distance < deployment_distance:
+                    deployment_ship = ship
+                    deployment_distance = distance
+
+            if deployment_ship:
+                if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} selected for deploying dropoff {}. t{}".format(deployment_ship.id, deployment_point, game.turn_number))
+                deployment_ship.path.clear()
+                deployment_ship.tasks.append(make_dropoff_task(deployment_point))
+                deployment_ship.status = "tasked"
+                dropoff_deployments[deployment_point] = None
+                break
+            else:
+                logging.warn("Failed to find a deployment ship for dropoff {}".format(deployment_point))
 
     #
     # handle each ship for this turn
