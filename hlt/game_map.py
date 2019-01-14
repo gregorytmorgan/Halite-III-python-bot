@@ -489,48 +489,51 @@ class GameMap:
             (Direction.West, CellBlock(self, west_corner, w, h))
         ]
 
-    def get_dense_areas(self):
+    def get_contiguous_area(self, p, f_threshold):
         """
-            NOT IMPLEMENTED - BROKEN
+        Get the contiguous area around p based on a threshold function
+
+        Note: Positions in the result set contain are not normalized. This is to ease
+        computation of centers.
+
+        :param p Start position
+        :return Returns a set of positions.
         """
-        threshold = self.get_cell_value_map().max() * .8
-        hottest_areas = np.ma.MaskedArray(cell_value_map, mask= [cell_value_map < threshold], fill_value = 0)
+        results = set()
+        closed_points = set()
+        open_points = set()
+        new = set()
 
-        #logging.debug("\n{}".format(hottest_areas.filled())) # std display with masked vals set to 0
+        #logging.debug("begining area search from {}".format(p))
 
-        row, col = hottest_areas.nonzero()
+        open_points.add(p)
 
-        hotspots = []
-        for y, x in zip(row, col):
-            hotspots.append((x, y))
-            #logging.debug("Position({},{}) = {}".format(x, y, hottest_areas[y][x]))
+        while open_points:
+            for op in open_points:
+                #logging.debug("process {} ...".format(op))
+                if op in closed_points:
+                    #logging.debug("process {} ... done. Closed".format(p))
+                    continue
 
-        peaks = []
+                results.add(op)
 
-        #closed_points = set()
+                for a in op.get_surrounding_cardinals():
+                    if not (a in closed_points) and f_threshold(a, op):
+                        #logging.debug("{} added to new".format(a))
+                        new.add(a)
+                    else:
+                        #logging.debug("{} failed, added to closed".format(a))
+                        closed_points.add(a)
 
-        for high_points in hotspots:
-            peak = []
-            open_points = set()
-            open_points.add(high_points)
-            current_val = None
+                #logging.debug("process {} ... done. {} added to closed. new = {}".format(op, op, new))
 
-            for pt in open_points:
-                val = cell_value_map[pt[0]][pt[1]]
+                closed_points.add(op)
 
-                logging.debug("val: {}".format(val))
+            open_points -= closed_points # remove from open_points
+            open_points |= new # add to open_points
+            new.clear()
 
-                if current_val is None or (val <= current_val or val > .8 * current_val):
-                    peak.append(pt)
-#                    for n in get_adjacent(pt):
-#                        open_points.add(n)
-
-#                open_points.remove(pt)
-#                closed_points.add(pt)
-
-            peaks.append(peak)
-
-        return []
+        return results
 
     @staticmethod
     def _generate():
