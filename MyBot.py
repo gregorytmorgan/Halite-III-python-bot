@@ -752,7 +752,7 @@ while True:
         if DEBUG & (DEBUG_PROFILING):
             pr.disable()
             # To view results: ./analyze_stats.py profiler_results.dmp profiling_results.txt
-            pr.dump_stats("profiler_results." + "{}".format(round(time.time())) + "dmp")
+            pr.dump_stats("profiler_results." + "{}".format(round(time.time())) + ".dmp")
 
         if DEBUG & (DEBUG_NAV_METRICS):
             logging.info("Nav  - Loiter multiples: {}".format(game_metrics["loiter_multiples"]))
