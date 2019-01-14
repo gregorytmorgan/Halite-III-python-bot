@@ -10,6 +10,7 @@ import datetime
 import math
 import time
 import numpy as np
+import cProfile
 
 from myutils.utils import *
 from myutils.constants import *
@@ -21,6 +22,11 @@ from myutils.mytasks import t_move_randomly, make_dropoff_task
 #
 
 """ <<<Game Begin>>> """
+
+# To view profiling ./analyze_stats.py profiler_results.dmp profiling_results.txt
+if DEBUG & (DEBUG_PROFILING):
+    pr = cProfile.Profile()
+    pr.enable()
 
 game_start_time = time.time()
 game = hlt.Game()
@@ -661,6 +667,12 @@ while True:
     # last turn output
     #
     if game.turn_number == constants.MAX_TURNS:
+
+        if DEBUG & (DEBUG_PROFILING):
+            pr.disable()
+            # To view results: ./analyze_stats.py profiler_results.dmp profiling_results.txt
+            pr.dump_stats("profiler_results." + "{}".format(round(time.time())) + "dmp")
+
         if DEBUG & (DEBUG_NAV_METRICS):
             logging.info("Nav  - Loiter multiples: {}".format(game_metrics["loiter_multiples"]))
             logging.info("Nav  - Loiter offsets: {}".format(game_metrics["loiter_offsets"]))
