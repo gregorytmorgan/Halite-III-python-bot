@@ -703,6 +703,9 @@ class GameMap:
         else:
             return "w" if not shortcut_x else "e"
 
+    def needs_normalization(self, p):
+        return p.x < 0 or p.x >= self.width or p.y < 0 or p.y >= self.height
+
     def __repr__(self):
         map = ""
         for y in range(self.height):
