@@ -188,10 +188,55 @@ while True:
             # are used in dropoff placement
             #
 
-        if DEBUG & (DEBUG_TASKS): logging.info("Task - There are {} ships and {} targets available.".format(len(my_ships), len(target_sets[target_key])))
+            areas = {}
+            known_points = set()
+            target_area_start_time = time.time()
 
-        if DEBUG & (DEBUG_TASKS): logging.info("Task - Targets: {}".format(list_to_short_string(target_sets[target_key], 2)))
+            def fthreshold(p1, p2):
+                pp = game_map.normalize(p1)
+                return cv_map[pp.y][pp.x] > threshold
 
+            # For each target position, see if it is part of an existing area.
+            # Rarget set will be empty if there are not any ships, e.g. turn 1.
+            # Reverse the order because we want the highest value first and the list
+            # is already sorted so pop pulls the highest off the end
+            tmp_set = target_sets[target_key][:]
+            if tmp_set:
+                tmp_set.reverse()
+                for pos, val, hal in tmp_set:
+                    if not (pos in known_points):
+                        areas[pos] = game_map.get_contiguous_area(pos, fthreshold)
+                        known_points |= areas[pos]
+
+            # for each area, get the bounds and
+            for key, point_list in areas.items():
+                min_row = min(point_list, key=attrgetter("y")).y
+                max_row = max(point_list, key=attrgetter("y")).y
+                min_col = min(point_list, key=attrgetter("x")).x
+                max_col = max(point_list, key=attrgetter("x")).x
+
+                logging.debug("{}:{}, {}:{}".format(min_row, max_row, min_col, max_col))
+
+                #ha = hottest_areas[target_key]
+                #area_mask = ha[min_row:max_row + 1, min_col:max_col + 1]
+
+                m = np.array([[0 for i in range(0, max_col - min_col + 1)] for j in range(0, max_row - min_row + 1)])
+
+                area_mask = m #[min_row:max_row + 1]
+
+                for p in point_list:
+                    pp = game_map.normalize(p)
+                    area_mask[p.y - min_row][p.x - min_col] = cv_map[pp.y][pp.x]
+
+                weighted_center = ndimage.measurements.center_of_mass(area_mask)
+
+                if DEBUG & (DEBUG_CV_MAP): logging.info("Target area {} has {} items with cv value of {}, weighted_center: ({}, {})".format(key, len(point_list), round(np.sum(area_mask)), round(weighted_center[0]), round(weighted_center[1])))
+
+                if DEBUG & (DEBUG_CV_MAP) and game.turn_number <= 10: logging.info("\n{}".format(area_mask.astype(np.int)))
+
+        # end target/area generation
+
+        if DEBUG & (DEBUG_TIMING): logging.info("Time - Target area generation elapsed time: {}".format(round(time.time() - target_area_start_time, 2)))
         if DEBUG & (DEBUG_TASKS): logging.info("Task - Loiter assignments: {}".format(game.loiter_assignments))
 
     else:
