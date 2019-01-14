@@ -292,7 +292,7 @@ class Game:
                         else:
                             logging.warn("Ship {} does not have assignment {} from the loiter assignments list".format(ship.id, target))
                     else:
-                            logging.warn("Ship {} does not exist, though it is assigned to {} from the loiter assignments list".format(ship.id, target))
+                            logging.warn("Ship {} does not exist, though it is assigned to {} from the loiter assignments list".format(sid, target))
 
                     self.loiter_assignments.pop(target, None)
 
