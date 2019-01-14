@@ -12,10 +12,13 @@ import time
 import numpy as np
 import cProfile
 
+from operator import attrgetter
+from scipy import ndimage
+
 from myutils.utils import *
 from myutils.constants import *
 
-from myutils.mytasks import t_move_randomly, make_dropoff_task
+from myutils.mytasks import make_dropoff_task
 
 #
 # main
@@ -36,10 +39,15 @@ cumulative_profit = 5000
 
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
 
+if DEBUG & (DEBUG_CV_MAP):
+    np.ma.masked_print_option.set_display("---")
+    np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
+else:
+    np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
+
 # DEBUG
 debug_drop_position = None
 #debug_drop_position = Position(10, 44) # @124
-
 
 #
 # game start
@@ -58,7 +66,7 @@ while True:
     turn_gathered = 0
     turn_profit = 0
     turn_start_time = time.time()
-    targets = []
+    target_sets = {}
 
     # convenience vars
     me = game.me
@@ -77,29 +85,8 @@ while True:
     if False:
         turn_spent += constants.DROPOFF_COST
 
-
-#    cell_values = game_map.get_halite_map()
-#    cell_values_flat = cell_values.flatten()
-#
-#    if (game.turn_number > 1 and game.turn_number < 4) or game.turn_number > constants.MAX_TURNS - 4:
-#        np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=np.inf)
-#        logging.debug("cell_values:\n{}".format(cell_values.astype(np.int)))
-#    else:
-#        np.set_printoptions(precision=1, linewidth=240, floatmode="fixed", suppress=True, threshold=25)
-#
-#    logging.debug("cell_values shape: {}".format(cell_values_flat.shape))
-#    logging.debug("cell_values amax: {}".format(np.amax(cell_values_flat)))
-#    logging.debug("cell_values mean: {}".format(cell_values_flat.mean()))
-#    logging.debug("cell_values mode: {}".format(stats.mode(cell_values_flat)[0][0]))
-#
-#    cell_values_flat.sort()
-#
-#    # when mean == mode, then evenly distributed
-#    cnt = cell_values_flat.shape[0]
-#    logging.debug("1/5:{} 4/5:{}".format(cell_values_flat[round(cnt/5.0)], cell_values_flat[round(cnt*4.0/5.0)]))
-
     #
-    # Calc hotspots (loiter assignments) and dense areas
+    # Generate hotspots, loiter assignments and areas
     #
     if USE_CELL_VALUE_MAP:
         player_count = len(game.players)
@@ -111,73 +98,103 @@ while True:
         else:
             mining_rate_mult = CV_MINING_RATE_MULTIPLIER_DEFAULT
 
-        cell_value_map = game_map.get_cell_value_map(me.shipyard.position, mining_rate_mult * game.get_mining_rate())
+        #
+        # build target sets
+        #
 
-        if cell_value_map is None:
-            raise RuntimeError("cv map is None")
+        cv_map_start_time = time.time()
 
-        if DEBUG & (DEBUG_CV_MAP):
-            if game.turn_number < 25 or game.turn_number > constants.MAX_TURNS - 1:
-                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
-                logging.info("cell_values:\n{}".format(cell_value_map.astype(np.int)))
-            else:
-                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
+        for base_position in get_base_positions(game):
+            target_sets[base_position] = []
 
-        if DEBUG & (DEBUG_OUTPUT_GAME_METRICS):
-            if game.turn_number in [1, round(constants.MAX_TURNS/2), constants.MAX_TURNS, 5, 10]:
-                dump_data_file(game, cell_value_map, "cell_value_map_turn_" + str(game.turn_number))
+            # first call to a cv_map position triggers a cache load
+            cell_value_map = game_map.get_cell_value_map(base_position, mining_rate_mult * game.get_mining_rate())
 
-        threshold = TARGET_THRESHOLD_DEFAULT
+            if cell_value_map is None:
+                raise RuntimeError("cv map is None")
 
-        while len(targets) < len(my_ships):
-            hottest_areas = np.ma.MaskedArray(cell_value_map, mask = [cell_value_map <= threshold], fill_value = 0, copy=False)
+            if DEBUG & (DEBUG_CV_MAP):
+                if game.turn_number in [1, 2, 25, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
+                    logging.info("cell_values:\n{}".format(cell_value_map.astype(np.int)))
 
-            if DEBUG & (DEBUG_TASKS):
-                if threshold == TARGET_THRESHOLD_DEFAULT:
-                    logging.info("Task - Generating targets, threshold: {}".format(threshold))
-                else:
-                    logging.info("Task - Ships({}) exceeds the {} available targets. Generating targets using threshold {}".format(len(my_ships), len(targets), threshold))
+            if DEBUG & (DEBUG_OUTPUT_GAME_METRICS):
+                if game.turn_number in [1, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
+                    dump_data_file(game, cell_value_map, "cell_value_map_turn_" + str(game.turn_number))
 
-            if DEBUG & (DEBUG_CV_MAP) and threshold != TARGET_THRESHOLD_DEFAULT:
-                np.ma.masked_print_option.set_display("---")
-                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
-                logging.info("cell_values:\n{}".format(cell_value_map.astype(np.int)))
-                logging.debug("hottest_areas:\n{}".format(hottest_areas.astype(np.int)))
-                np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
+        if DEBUG & (DEBUG_TIMING): logging.info("Time - Cell Value Map generation elapsed time: {}".format(round(time.time() - cv_map_start_time, 2)))
 
-            y_vals, x_vals = hottest_areas.nonzero()
+        target_list_start_time = time.time()
 
-            hotspots = []
-            for x, y in zip(x_vals, y_vals):
-                p = Position(x, y)
-                hotspots.append((p, round(cell_value_map[y][x]), game_map[p].halite_amount)) # (position, value, halite)
+        #
+        # for each base, generate a set of minging targets
+        #
 
-            # remove the hotspots previosly assigned, but not reached
-            hotspots[:] = [x for x in hotspots if x[0] not in game.loiter_assignments]
+        hottest_areas = {}
 
-            targets = sorted(hotspots, key=lambda item: item[1])
+        for target_key in target_sets.keys():
+            threshold = TARGET_THRESHOLD_DEFAULT
 
-            if DEBUG & (DEBUG_TASKS): logging.info("Task - Found {} targets".format(len(targets)))
+            tmp_time = time.time()
 
-            if len(targets) < len(my_ships):
-                threshold -= TARGET_THRESHOLD_STEP
+            cv_map = game_map.get_cell_value_map(target_key, mining_rate_mult * game.get_mining_rate())
 
-            if threshold < TARGET_THRESHOLD_MIN:
-                if DEBUG & (DEBUG_TASKS): logging.info("Task - Target threshold {} reached min threshold {}. Aborting target generation".format(threshold, TARGET_THRESHOLD_MIN))
-                break
+            logging.debug("tmp_time: {}".format(round(time.time() - tmp_time)))
+
+            while len(target_sets[target_key]) < len(my_ships):
+                hottest_areas[target_key] = np.ma.MaskedArray(cv_map, mask = [cv_map <= threshold], fill_value = 0, copy=False)
+
+                if DEBUG & (DEBUG_GAME):
+                    if threshold == TARGET_THRESHOLD_DEFAULT:
+                        logging.info("Game - Generating targets, threshold: {}".format(threshold))
+                    else:
+                        logging.info("Game - Ships({}) exceeds the {} available targets. Generating targets using threshold {}".format(len(my_ships), len(target_sets[target_key]), threshold))
+
+                if DEBUG & (DEBUG_CV_MAP): # and threshold != TARGET_THRESHOLD_DEFAULT:
+                    logging.info("cell_values:\n{}".format(cv_map.astype(np.int)))
+                    logging.info("hottest_areas:\n{}".format(hottest_areas[target_key].astype(np.int)))
+
+                y_vals, x_vals = hottest_areas[target_key].nonzero()
+
+                hotspots = []
+                for x, y in zip(x_vals, y_vals):
+                    p = Position(x, y)
+                    hotspots.append((p, round(cv_map[y][x]), game_map[p].halite_amount)) # (position, value, halite)
+
+                # remove the hotspots previosly assigned, but not reached
+                hotspots[:] = [x for x in hotspots if x[0] not in game.loiter_assignments]
+
+                target_sets[target_key] = sorted(hotspots, key=lambda item: item[1])
+
+                target_count = len(target_sets[target_key])
+
+                if DEBUG & (DEBUG_TASKS): logging.info("Task - Found {} targets for target set {}".format(target_count, target_key))
+
+                if target_count < len(my_ships):
+                    threshold -= TARGET_THRESHOLD_STEP
+
+                if threshold < TARGET_THRESHOLD_MIN:
+                    if DEBUG & (DEBUG_TASKS): logging.info("Task - Target threshold {} reached min threshold {}. Aborting target generation for target set {}".format(threshold, TARGET_THRESHOLD_MIN, target_key))
+                    break
+
+            # end hotspot
+
+            if DEBUG & (DEBUG_TASKS): logging.info("Task - There are {} ships and {} targets available for target set {}.".format(len(my_ships), len(target_sets[target_key]), target_key))
+            if DEBUG & (DEBUG_TASKS): logging.info("Task - Targets({}): {}".format(target_key, list_to_short_string(target_sets[target_key], 2)))
+            if DEBUG & (DEBUG_TIMING): logging.info("Time - Target list generation elapsed time: {}".format(round(time.time() - target_list_start_time, 2)))
 
             #
-            # end target generation
+            # For each hotspot/target see if it is part of a larger area of targets. These area
+            # are used in dropoff placement
             #
 
-        if DEBUG & (DEBUG_TASKS): logging.info("Task - There are {} ships and {} targets available.".format(len(my_ships), len(targets)))
+        if DEBUG & (DEBUG_TASKS): logging.info("Task - There are {} ships and {} targets available.".format(len(my_ships), len(target_sets[target_key])))
 
-        if DEBUG & (DEBUG_TASKS): logging.info("Task - Targets: {}".format(list_to_short_string(targets, 2)))
+        if DEBUG & (DEBUG_TASKS): logging.info("Task - Targets: {}".format(list_to_short_string(target_sets[target_key], 2)))
 
         if DEBUG & (DEBUG_TASKS): logging.info("Task - Loiter assignments: {}".format(game.loiter_assignments))
 
     else:
-        targets = []
+        target_sets = {}
 
     if DEBUG & (DEBUG_TIMING): logging.info("Time - Turn setup elapsed time: {}".format(round(time.time() - turn_start_time, 2)))
 
@@ -348,7 +365,7 @@ while True:
             task_complete = task.turn(game, ship)
 
             if task_complete:
-                if DEBUG & (DEBUG_TASK): logging.info("Task - Ship {} task {} indicates compete, popping task".format(ship.id, task.id))
+                if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} task {} indicates compete, popping task".format(ship.id, task.id))
                 ship.tasks.pop()
 
         #
@@ -371,8 +388,8 @@ while True:
                         # get an assignment for clearing ship, ship will probably crash, but in
                         # case the blocking ships moves ... we'll need to move it somewhere.
                         # asbtract this into get_assignment(direction_hint) for use below as well?
-                        if len(targets) != 0:
-                            assignment_target = targets.pop()
+                        if target_sets[base_position]:
+                            assignment_target = target_sets[base_position].pop()
                             ship.path = assignment_target[0]
                         else:
                             ship.path = get_loiter_point(game, ship)
@@ -416,8 +433,11 @@ while True:
                 # task/loiter point assignment
                 #
 
-                if len(targets) != 0:
-                    assignment_target = targets.pop()
+                if base_position in target_sets:
+                    if not target_sets[base_position]:
+                        continue
+
+                    assignment_target = target_sets[base_position].pop()
                     loiter_point = assignment_target[0]
 
                     if assignment_target[2] < (ship.mining_threshold * 1.32):
@@ -425,7 +445,7 @@ while True:
                         ship.mining_threshold = 25
 
                     game.update_loiter_assignment(ship, loiter_point)
-                    if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} assigned loiter point {} off target list. {} targets remain, t{}".format(ship.id, loiter_point, len(targets), game.turn_number))
+                    if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} assigned loiter point {} off target list. {} targets remain, t{}".format(ship.id, loiter_point, len(target_sets[base_position]), game.turn_number))
                 else:
                     loiter_point = get_loiter_point(game, ship)
                     if DEBUG & (DEBUG_TASKS): logging.info("Task - Ship {} No targets remain, using random loiter point {}".format(ship.id, loiter_point))
