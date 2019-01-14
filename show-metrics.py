@@ -178,7 +178,7 @@ def main():
                         return a+b*x
 
                     n = len(X) # n == the number of data points to use
-                    #n = 155
+
                     fxn = np.linspace(1, X[:n][-1])
                     try:
                         popt, pcov = curve_fit(fexp, X[:n], Y[:n], p0=[float(X[0]), 0.01, 1.], bounds=[0., [800., .2, 4.]])
@@ -186,8 +186,6 @@ def main():
                     except:
                         popt, pcov = curve_fit(flinear, X[:n], Y[:n], p0=[float(X[0]), -4], bounds=[0., [800., -100.]])
                         plt.plot(fxn, flinear(fxn, *popt), label="ff", marker = "+")
-                    #print("popt: {}".format(popt))
-                    #print("pcov: {}".format(pcov))
 
     if file_names and len(X):
         handles, labels = ax1.get_legend_handles_labels()
@@ -204,6 +202,8 @@ def main():
             plt.gca().set_title("{}-{} {}".format("Unknown", "Unknown", title))
         else:
             plt.gca().set_title("{}-{} {}".format(m.group(2), m.group(3), title))
+
+        fig.tight_layout()
 
         plt.show()
     else:

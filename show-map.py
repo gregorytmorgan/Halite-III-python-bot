@@ -25,7 +25,7 @@ def usage():
     print("-v\tVerbose.")
     print("")
     print("Either provide a file name on the command line, or edit the data variable in the source file")
-    print("")    
+    print("")
     print("\nExample - multiple files are displayed as below:")
     print("./show-map.py -v $(ls -rt1 stats/cell_value_map_turn_*-bot-0.log | tail -n 6)")
 
@@ -66,7 +66,17 @@ def main():
                 raw_data = file.read()
                 data = eval(raw_data.strip())
 
+            fig = plt.figure(frameon=False)
+            fig.set_size_inches(9, 9)
+
+            ax = plt.subplot(111, aspect = 'equal')
+            
+            plt.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+
+            fig.tight_layout()
+
             plt.imshow(data, cmap='hot', interpolation='nearest')
+
             plt.show()
 
     if (verbose):
