@@ -47,6 +47,10 @@ def usage():
     print("")
     print("[1] Make sure the tail count = number of players * number of stats")
 
+def running_mean(x, N):
+    cumsum = np.cumsum(np.insert(x, 0, 0))
+    return (cumsum[N:] - cumsum[:-N]) / float(N)
+
 def main():
     X = []
     Y = []
@@ -76,13 +80,55 @@ def main():
     #linestyles = ['-', '--', '-.', ':']
     line_colors = ["g", "b", "r", "c", "m", "y", "k", "w"]
 
-    fig = plt.figure(frameon=False)
+    fig, ax1 = plt.subplots()
+
+    ax1.yaxis.tick_right()
+    ax1.yaxis.set_visible(False)
+
+    #fig = plt.figure(frameon=False)
     fig.set_size_inches(12, 9)
 
-    ax1 = plt.gca()
+    #ax1 = plt.gca()
 
     ax2 = ax1.twinx()
     ax2.yaxis.set_visible(False)
+
+    # push all the output down a line for cosmetics
+    if verbose:
+        print("")
+
+    known_metrics = {
+        "assn_drop_amount": {},
+        "assn_duration": {"cumulative":False, "window_size": 70},
+        "assn_duration2": {},
+        "assn_explore_duration": {},
+        "assn_point_distance": {},
+        "assn_transit_duration":  {"cumulative":False, "window_size": 70, "key":-2},
+        "burned": {},
+        "gathered": {},
+        "loiter_distances": {"cumulative":False},
+        "loiter_multiples": {},
+        "loiter_offsets": {},
+        "mined": {},
+        "mining_rate": {"cumulative":False},
+        "profit": {},
+        "raw_loiter_points": {},
+        "ship_count": {"cumulative":False},
+        "spend": {},
+        "turn_time": {}
+    }
+
+    #re_metrics = "trip_data|burned|mined|mining_rate|ship_count|gathered|profit|spent|loiter_distances|return_duration|trip_transit_duration"
+
+    re_metrics = "|".join(known_metrics.keys())
+
+    window_data = []
+
+    default_symbol = "," # pixel
+    default_step = 1
+    default_cumulative = True
+    default_key = -1
+    default_window_size = 0
 
     for fname in file_names:
         X.clear()
@@ -94,12 +140,11 @@ def main():
         if verbose:
             print("Processing {}".format(fname))
 
-        metrics = "burned|mined|mining_rate|ship_count|gathered|profit|spent|loiter_distances|return_duration"
-        m = re.search(r"^(" + metrics + ")-([0-9]+)-([0-9]+)-bot-([0-9])", os.path.basename(fname))
+        m = re.search(r"^(" + re_metrics + ")-([0-9]+)-([0-9]+)-bot-([0-9])", os.path.basename(fname))
 
         if m is None:
-            metric = "Unknown"
-            bot = "Unknown"
+            print("Unknown metric: {}".format(fname))
+            exit(1)
         else:
             metric = m.group(1)
             bot = m.group(4)
@@ -107,53 +152,54 @@ def main():
         data_label = metric.title() + " bot-" + bot
         bot_color = line_colors[(int(bot)) % len(line_colors)]
 
-        cumulative = True # many stats are cumulative
+        #
+        # setup plot attribs
+        #
 
-        if metric == "gathered":
-            step = 1
-            symbol = '.'
-        elif metric == "burned":
-            step = 50
-            symbol = '.'
-        elif metric == "mined":
-            step = 1
-            symbol = ','
-        elif metric == "mining_rate":
-            step = 1
-            symbol = ','
-            cumulative = False
-        elif metric == "ship_count":
-            step = 1
-            symbol = ','
-            cumulative = False
-        elif metric == "profit":
-            step = 5
-            symbol = '.'
-        elif metric == "spent":
-            step = 5
-            symbol = '.'
-        elif metric == "return_duration":
-            step = 1
-            symbol = '.'
-        elif metric == "loiter_distances":
-            step = 1
-            symbol = '.'
-            cumulative = False
+        if "window_size" in known_metrics[metric]:
+            window_size = known_metrics[metric]["window_size"]
         else:
-            symbol = '.'
-            step = 1
+            window_size = default_window_size
 
+        if "symbol" in known_metrics[metric]:
+            symbol = known_metrics[metric]["symbol"]
+        else:
+            symbol = default_symbol
+
+        if "key" in known_metrics[metric]:
+            key = known_metrics[metric]["key"]
+        else:
+            key = default_key
+
+        if "step" in known_metrics[metric]:
+            step = known_metrics[metric]["step"]
+        else:
+            step = default_step
+
+        if "cumulative" in known_metrics[metric]:
+            cumulative = known_metrics[metric]["cumulative"]
+        else:
+            cumulative = default_cumulative
+
+        #
+        # plot each metric/file
+        #
         with open(fname, "r") as file:
           for line in file:
             line_no += 1
             line = line.strip()
             if not re.match(r"^\(", line):
                 continue
+
             item = eval(line)
+
             if cumulative:
-                val += item[len(item) - 1]
+                val += item[key]
+            elif window_size:
+                window_data = np.append(window_data, item[key])
+                val = np.mean(window_data[-window_size:])
             else:
-                val = item[len(item) - 1]
+                val = item[key]
 
             if line_no % step == 0:
                 X.append(item[0])
@@ -163,7 +209,12 @@ def main():
         if len(X):
             if cumulative:
                 ax1.yaxis.tick_right()
+                ax1.yaxis.set_visible(True)
                 ax1.plot(X, Y, label = data_label, marker = symbol, color = bot_color)
+            elif window_size:
+                ax2.yaxis.tick_left()
+                ax2.yaxis.set_visible(True)
+                ax2.plot(X, Y, label = data_label, marker = symbol, color = bot_color)
             else:
                 # plot non cumulative data. E.g. mining_rate, ...
                 ax2.yaxis.tick_left()
