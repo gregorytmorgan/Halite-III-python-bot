@@ -110,10 +110,6 @@ class GameMap:
         self.v_cell_value_map = np.vectorize(self.get_cell_value)
         self.v_calc_distance = np.vectorize(self.calculate_distance)
 
-        # stats
-        self.max_halite = None,
-        self.mean_halite = None,
-
         # init the coord map
         for y in np.arange(self.height):
             for x in np.arange(self.width):
@@ -554,8 +550,7 @@ class GameMap:
         Updates this map object from the input given by the game engine
         :return: nothing
         """
-        # Mark cells as safe for navigation (will re-mark unsafe cells
-        # later)
+        # Mark cells as safe for navigation (will re-mark unsafe cells later)
         for y in range(self.height):
             for x in range(self.width):
                 self[Position(x, y)].ship = None
@@ -564,7 +559,7 @@ class GameMap:
             cell_x, cell_y, cell_energy = map(int, read_input().split())
             self[Position(cell_x, cell_y)].halite_amount = cell_energy
 
-        self._update_halite_map() # update the halite map before cell values
+        self._halite_map = None
 
         # invalid the cv maps at the begining of every turn
         self._cell_value_maps.clear()
@@ -579,15 +574,15 @@ class GameMap:
             for x in range(self.width):
                 self._halite_map[y][x] = self._cells[y][x].halite_amount
 
-        self.max_halite = np.max(self._halite_map)
-        self.mean_halite = np.mean(self._halite_map)
-
     def get_halite_map(self):
         """
         Get the 2d map of halite amounts.
 
         :return Returns a WxH numpy array of halite values.
         """
+        if self._halite_map is None:
+            self._update_halite_map()
+
         return self._halite_map
 
     def get_coord_map(self):
