@@ -115,7 +115,7 @@ def main():
         "raw_loiter_points": {},
         "ship_count": {"cumulative":False},
         "spend": {},
-        "turn_time": {}
+        "turn_time": {"cumulative":False}
     }
 
     #re_metrics = "trip_data|burned|mined|mining_rate|ship_count|gathered|profit|spent|loiter_distances|return_duration|trip_transit_duration"
