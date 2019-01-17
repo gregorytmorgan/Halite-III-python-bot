@@ -116,11 +116,11 @@ while True:
 
             if DEBUG & (DEBUG_CV_MAP):
                 if game.turn_number in [1, 2, 25, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
-                    logging.info("cell_values:\n{}".format(cell_value_map.astype(np.int)))
+                    logging.info("cell_values({}):\n{}".format(base_position, cell_value_map.astype(np.int)))
 
             if DEBUG & (DEBUG_OUTPUT_GAME_METRICS):
                 if game.turn_number in [1, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
-                    dump_data_file(game, cell_value_map, "cell_value_map_turn_" + str(game.turn_number))
+                    dump_data_file(game, cell_value_map, "cv_map_turn_" + str(game.turn_number))
 
         if DEBUG & (DEBUG_TIMING): logging.info("Time - Cell Value Map generation elapsed time: {}".format(round(time.time() - cv_map_start_time, 2)))
 
@@ -135,10 +135,12 @@ while True:
         for target_key in target_sets.keys():
             threshold = TARGET_THRESHOLD_DEFAULT
 
+            # debug
             tmp_time = time.time()
 
             cv_map = game_map.get_cell_value_map(target_key, mining_rate_mult * game.get_mining_rate())
 
+            # debug
             logging.debug("tmp_time: {}".format(round(time.time() - tmp_time)))
 
             while len(target_sets[target_key]) < len(my_ships):
@@ -150,9 +152,9 @@ while True:
                     else:
                         logging.info("Game - Ships({}) exceeds the {} available targets. Generating targets using threshold {}".format(len(my_ships), len(target_sets[target_key]), threshold))
 
-                if DEBUG & (DEBUG_CV_MAP): # and threshold != TARGET_THRESHOLD_DEFAULT:
-                    logging.info("cell_values:\n{}".format(cv_map.astype(np.int)))
-                    logging.info("hottest_areas:\n{}".format(hottest_areas[target_key].astype(np.int)))
+                if DEBUG & (DEBUG_CV_MAP):
+                    if game.turn_number in [1, 2, 25, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
+                        logging.info("hottest_areas({}):\n{}".format(target_key, hottest_areas[target_key].astype(np.int)))
 
                 y_vals, x_vals = hottest_areas[target_key].nonzero()
 
@@ -183,60 +185,159 @@ while True:
             if DEBUG & (DEBUG_TASKS): logging.info("Task - Targets({}): {}".format(target_key, list_to_short_string(target_sets[target_key], 2)))
             if DEBUG & (DEBUG_TIMING): logging.info("Time - Target list generation elapsed time: {}".format(round(time.time() - target_list_start_time, 2)))
 
+
+        #
+        # For each hotspot/target see if it is part of a larger area of targets. These areas
+        # are used in dropoff placement
+        #
+
+        dropoff_area_start_time = time.time()
+
+        # TODO IS THE DEEP COPY NECESSARY ???????????????????????????????????????????????????????????????
+        #area_map = cv_map # cv_map is retrieved above
+        area_map = copy.deepcopy(game_map.get_halite_map())
+
+
+        # TODO Tune the mask threshold
+        # Notes:
+        #  - Using % of max fails since a single large cell obscures the rest of the map
+        #
+
+        #area_map_threshold = np.max(area_map) * DROPOFF_MASK_THRESHOLD # % of max fails since a single large cell obscure the rest of the map
+        #area_map_threshold = np.median(area_map)
+
+        logging.debug("mean: {}, median: {}, p80: {}".format(np.mean(area_map), np.median(area_map), np.percentile(area_map, 80)))
+
+        #area_map_threshold = round(max(np.mean(area_map), np.median(area_map)))
+
+        area_map_threshold = round(np.percentile(area_map, 80))
+
+        #area_map_threshold = SHIP_MINING_THRESHOLD_DEFAULT
+
+
+        def fthreshold(p1, p2):
+            """
+            Test p1
+
+            :param p1 Current position
+            :param p2 Previous position
+            :return Return True if p1 test passed
+            """
+
+            np1 = game_map.normalize(p1)
+            np2 = game_map.normalize(p2)
+
+            h1 = area_map[np1.y][np1.x]
+            h2 = area_map[np2.y][np2.x]
+
+            # TODO Do we need to tune this?
+            # - What should decent threshold be?
+            # - Should we exclude valves below mining threshold?
             #
-            # For each hotspot/target see if it is part of a larger area of targets. These area
-            # are used in dropoff placement
+            # Note:
+            #   - You must specify only traversal up or down, otherwise you'll endless loop if
+            #   the map is fullish, i.e. the is a contiguous region from one side to the other
+            #   - If peak points are not sorted it doesn't matter which traversal direction is used
             #
+            retval = h1 > h2/5 and h1 >= h2 and h1 > SHIP_MINING_THRESHOLD_DEFAULT
+            #retval = h1 > SHIP_MINING_THRESHOLD_DEFAULT # too loose
+            retval = h1 <= h2 and h1 > SHIP_MINING_THRESHOLD_DEFAULT
 
-            areas = {}
-            known_points = set()
-            target_area_start_time = time.time()
+            retval =  h1 <= h2 and h1 > area_map_threshold
 
-            def fthreshold(p1, p2):
-                pp = game_map.normalize(p1)
-                return cv_map[pp.y][pp.x] > threshold
+            #logging.debug("{}({}) > {}({})/2 = {}".format(p1, h1, p2, h2, retval))
 
-            # For each target position, see if it is part of an existing area.
-            # Rarget set will be empty if there are not any ships, e.g. turn 1.
-            # Reverse the order because we want the highest value first and the list
-            # is already sorted so pop pulls the highest off the end
-            tmp_set = target_sets[target_key][:]
-            if tmp_set:
-                tmp_set.reverse()
-                for pos, val, hal in tmp_set:
-                    if not (pos in known_points):
-                        areas[pos] = game_map.get_contiguous_area(pos, fthreshold)
-                        known_points |= areas[pos]
+            return retval
 
-            # for each area, get the bounds and
-            for key, point_list in areas.items():
-                min_row = min(point_list, key=attrgetter("y")).y
-                max_row = max(point_list, key=attrgetter("y")).y
-                min_col = min(point_list, key=attrgetter("x")).x
-                max_col = max(point_list, key=attrgetter("x")).x
+        # For each target position, see if it is part of an existing area.
+        # Target set will be empty if there are not any ships, e.g. turn 1.
+        # Reverse the order because we want the highest value first and the list
+        # is already sorted so pop pulls the highest off the end
+        #tmp_set = target_sets[target_key][:]
 
-                logging.debug("{}:{}, {}:{}".format(min_row, max_row, min_col, max_col))
+        # 1. Get list of halite peaks
+        # 2. For each peak, determine it's contiguous area based on threshold
+        # 3. Sort peak areas by total value
+        # 4. For best peak areas, get it's weighted center, this is the deployment point
 
-                #ha = hottest_areas[target_key]
-                #area_mask = ha[min_row:max_row + 1, min_col:max_col + 1]
+        halite_peak_map = np.ma.MaskedArray(area_map, mask = [area_map <= area_map_threshold], fill_value = 0, copy=False)
 
-                m = np.array([[0 for i in range(0, max_col - min_col + 1)] for j in range(0, max_row - min_row + 1)])
+        if DEBUG & (DEBUG_CV_MAP):
+            logging.info("halite_peak_map:\n{}".format(halite_peak_map.astype(np.int)))
 
-                area_mask = m #[min_row:max_row + 1]
+        r_vals, c_vals = halite_peak_map.nonzero()
 
-                for p in point_list:
-                    pp = game_map.normalize(p)
-                    area_mask[p.y - min_row][p.x - min_col] = cv_map[pp.y][pp.x]
+        peaks = []
+        peak_positions = {}
+        known_points = set()
 
-                weighted_center = ndimage.measurements.center_of_mass(area_mask)
+        peaks_by_value = []
+        for r, c in zip(r_vals, c_vals):
+            peaks_by_value.append((halite_peak_map[r][c], Position(c, r)))
 
-                if DEBUG & (DEBUG_CV_MAP): logging.info("Target area {} has {} items with cv value of {}, weighted_center: ({}, {})".format(key, len(point_list), round(np.sum(area_mask)), round(weighted_center[0]), round(weighted_center[1])))
+        peaks_by_value.sort(key=itemgetter(0), reverse=True)
 
-                if DEBUG & (DEBUG_CV_MAP) and game.turn_number <= 10: logging.info("\n{}".format(area_mask.astype(np.int)))
+        # for each peak exposed by the mask, get it's contiguous positions
+        for halite, pos in peaks_by_value:
+            if pos in known_points:
+                continue
+
+            peak_positions[pos] = game_map.get_contiguous_area(pos, fthreshold)
+
+            known_points |= peak_positions[pos]
+
+            total_halite = 0
+            for p in peak_positions[pos]:
+                npos = game_map.normalize(p)
+                # area_map is a raw map (e.g. _cell_value_map or _halite_map) and is access rc (not xy)
+                total_halite += area_map[npos.y][npos.x]
+
+            peaks.append((pos, total_halite)) # (position, total_halite)
+
+            if DEBUG & (DEBUG_CV_MAP): logging.info("Peak area {} has {} positions with a total value of {}".format(pos, len(peak_positions[pos]), total_halite))
+
+        peaks.sort(key=lambda i: i[1], reverse=True)
+
+        best_peak = peaks[0]
+        best_peak_pos = best_peak[0]
+        best_peak_total_halite = best_peak[1]
+
+        # lazy, should be single loop?
+        min_row = min(peak_positions[best_peak_pos], key=attrgetter("y")).y
+        max_row = max(peak_positions[best_peak_pos], key=attrgetter("y")).y
+        min_col = min(peak_positions[best_peak_pos], key=attrgetter("x")).x
+        max_col = max(peak_positions[best_peak_pos], key=attrgetter("x")).x
+
+        area_mask = np.empty((max_row - min_row + 1, max_col - min_col + 1), dtype="float32")
+
+        for pos in peak_positions[best_peak_pos]:
+            npos = game_map.normalize(pos)
+            area_mask[pos.y - min_row][pos.x - min_col] = area_map[npos.y][npos.x]
+
+        weighted_center = ndimage.measurements.center_of_mass(area_mask)
+
+        # weighted center is in rc (not xy)
+        c_x = round(weighted_center[1])
+        c_y = round(weighted_center[0])
+
+        # TODO tune these params
+        if len(peak_positions[best_peak_pos]) >= DROPOFF_MIN_POSITIONS and best_peak_total_halite >= DROPOFF_MIN_TOTAL_VALUE:
+            current_dropoff_position = game_map.normalize(Position(min_col + c_x, min_row + c_y))
+        else:
+            current_dropoff_position = None
+
+        if DEBUG & (DEBUG_CV_MAP): logging.info("Best peak is {} with {} positions and a total value of {}. Center is xy({}, {})".format(best_peak_pos, len(peak_positions[best_peak_pos]), best_peak_total_halite, c_x, c_y))
+
+        if DEBUG & (DEBUG_CV_MAP): logging.info("best area:\n{}".format(area_mask))
+
+        if DEBUG & (DEBUG_CV_MAP): logging.info("Game - Current dropoff is {}".format(current_dropoff_position))
+
+        #if game.turn_number > 10:
+        #    exit()
 
         # end target/area generation
 
-        if DEBUG & (DEBUG_TIMING): logging.info("Time - Target area generation elapsed time: {}".format(round(time.time() - target_area_start_time, 2)))
+        if DEBUG & (DEBUG_TIMING): logging.info("Time - Dropoff area generation elapsed time: {}".format(round(time.time() - dropoff_area_start_time, 2)))
         if DEBUG & (DEBUG_TASKS): logging.info("Task - Loiter assignments: {}".format(game.loiter_assignments))
 
     else:
