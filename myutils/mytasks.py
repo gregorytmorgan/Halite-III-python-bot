@@ -56,12 +56,12 @@ def make_dropoff_action(dropoff_position):
                 logging.debug("Task - Ship {} at dropoff deploy point {}. Deploying.".format(ship.id, dropoff_position))
                 game.command_queue[ship.id] = ship.make_dropoff()
                 game.me.halite_amount -= 4000
-                game.fund_dropoff = False
+                game.fund_dropoff -= 1
                 return True
             else:
                 logging.debug("Task - Ship {} at dropoff deploy point {}. Insufficient halite ({}).".format(ship.id, dropoff_position, game.me.halite_amount))
                 game.command_queue[ship.id] = ship.move('o')
-                game.fund_dropoff = True
+                game.fund_dropoff += 1
         else:
             next_move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"})
             if next_move:

@@ -40,10 +40,14 @@ class Game:
             "mining_rate": [],
             "profit": [],
             "raw_loiter_points": [],
-            "trip_transit_duration": [],
-            "trip_explore_duration": [],
+            "assn_transit_duration": [],
+            "assn_explore_duration": [],
+            "assn_return_duration": [],
             "spent": [],
-            "trip_data": [],
+            "assn_duration": [],
+            "assn_duration2": [], # tmp. compare to assn_duration
+            "assn_point_distance": [],
+            "assn_drop_amount": [],
             "turn_time": []
         }
 
@@ -70,8 +74,11 @@ class Game:
         #
         self.mining_rate = False
 
-        #
-        self.fund_dropoff = False
+        # semaphore for pending dropoffs
+        self.fund_dropoff = 0
+
+        # turn that max ships is reached the first time
+        self.max_ships_reached = 0
 
         # Grab constants JSON
         raw_constants = read_input()
@@ -191,7 +198,8 @@ class Game:
             col_start = self.me.shipyard.position.x - 3
             col_end = self.me.shipyard.position.x + 3
 
-            shipyard_area_mean_halite = np.mean(self.game_map._halite_map[row_start:row_end, col_start:col_end])
+            halite_map = self.game_map.get_halite_map()
+            shipyard_area_mean_halite = np.mean(halite_map[row_start:row_end, col_start:col_end])
 
             mrate = max(1.0, shipyard_area_mean_halite * SHIP_MINING_EFFICIENCY / 2)
 

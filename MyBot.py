@@ -47,10 +47,29 @@ if DEBUG & (DEBUG_CV_MAP):
 else:
     np.set_printoptions(precision=1, linewidth=280, suppress=True, threshold=64)
 
-#debug_drop_position = None
-dropoff_deployments = {
-    Position(0, 48): (225,)
-}
+# Deployed dropoffs
+#
+# To deploy a dropoff, add it to the dropoff_deployment_queue. dropoff_deployment_queue
+# is a list of tuple(position, min_deployment_turn). Once the dropoff is deployed it is
+# added to dropoff_deployments dictionary keyed on position, with a value of deployed turn
+# number.
+#
+# Notes:
+#  - To add a dropoff at the current dropoff position use None as the position.
+#  - To add a dropoff immediately simply use a turn number of 0
+#  - A queued entry without a turn is skipped/remains in the queue
+#  - A queued entry is a unnormalized positions is aborted (popped from queue, added
+#    to dropoff_deployments with a turn of None.
+
+# non deployed dropoff, key:point, value turn deployed
+dropoff_deployment_queue = []
+
+# deployed dropoffs, both successful and aborted
+dropoff_deployments = {}
+
+
+dropoff_deployment_queue.append((None, 150))
+
 
 #
 # game start
@@ -478,30 +497,41 @@ while True:
     #
     # position -> (turn_trigger, position)
 
-    for deployment_point, deployment in dropoff_deployments.items():
+    for deployment_point, deployment_turn in dropoff_deployment_queue:
+        if deployment_turn is None:
+            continue
+
+        if game.turn_number < deployment_turn:
+            continue
+
+        if deployment_point is None:
+            deployment_point = current_dropoff_position
+
         if game_map.needs_normalization(deployment_point):
             logging.error("Invalid deployment point {}. Aborting deployment.".format(deployment_point))
             dropoff_deployments[deployment_point] = None
             continue
 
-        if deployment and game.turn_number == deployment[0]:
-            deployment_ship = False
-            deployment_distance = False
-            for ship in my_ships:
-                 distance = game.game_map.calculate_distance(ship.position, deployment_point)
-                 if not deployment_ship or distance < deployment_distance:
-                    deployment_ship = ship
-                    deployment_distance = distance
+        logging.error("popping dropoff deployment {}. deployment_turn: {}".format(deployment_point, deployment_turn))
 
-            if deployment_ship:
-                if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} selected for deploying dropoff {}. t{}".format(deployment_ship.id, deployment_point, game.turn_number))
-                deployment_ship.path.clear()
-                deployment_ship.tasks.append(make_dropoff_task(deployment_point))
-                deployment_ship.status = "tasked"
-                dropoff_deployments[deployment_point] = None
-                break
-            else:
-                logging.warn("Failed to find a deployment ship for dropoff {}".format(deployment_point))
+        dropoff_deployment_queue.pop()
+        deployment_ship = False
+        deployment_distance = False
+        for ship in my_ships:
+             distance = game.game_map.calculate_distance(ship.position, deployment_point)
+             if not deployment_ship or distance < deployment_distance:
+                deployment_ship = ship
+                deployment_distance = distance
+
+        if deployment_ship:
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} selected for deploying dropoff {}. t{}".format(deployment_ship.id, deployment_point, game.turn_number))
+            deployment_ship.path.clear()
+            deployment_ship.tasks.append(make_dropoff_task(deployment_point))
+            deployment_ship.status = "tasked"
+            dropoff_deployments[deployment_point] = game.turn_number
+            break
+        else:
+            logging.warn("Failed to find a deployment ship for dropoff {}. Wil retry.".format(deployment_point))
 
     #
     # handle each ship for this turn
@@ -933,6 +963,15 @@ while True:
     if spawn_ok(game):
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn request")
         game.command_queue[-1] = me.shipyard.spawn()
+
+    #
+    # max ship dropoff deployment
+    #
+
+    # must come after spawn_ok()
+    if False and game.max_ships_reached == game.turn_number and not (current_dropoff_position is None):
+        if DEBUG & (DEBUG_CV_MAP): logging.info("Queued dropoff deployment {}. t{}".format(current_dropoff_position, game.turn_number))
+        dropoff_deployment_queue.append((current_dropoff_position, 0)) # dropofff = (deployment position, min_deploy_turn)
 
     if (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(game.command_queue))
 

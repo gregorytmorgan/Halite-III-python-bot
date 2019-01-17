@@ -107,6 +107,11 @@ def spawn_ok(game):
         remaining_turns = constants.MAX_TURNS - game.turn_number
         retval = round(payback_turns * mining_overhead) < remaining_turns
         if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}, payback: {}*{} < {}".format(retval, round(payback_turns, 2), mining_overhead, remaining_turns))
+
+        if not retval and not game.max_ships_reached:
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Peak ships reached at t{}".format(game.turn_number))
+            game.max_ships_reached = game.turn_number
+
         return retval
     else:
         return True
