@@ -439,7 +439,7 @@ while True:
                 ship.mining_threshold = SHIP_MINING_THRESHOLD_DEFAULT
 
                 # chk if there is a clear request for this ships base
-                if game.base_clear_request and game.game_map.calculate_distance(game.base_clear_request[-1]["position"], base_position) != 1:
+                if game.base_clear_request and game.game_map.calculate_distance(game.base_clear_request[-1]["position"], base_position) == 1:
                     clear_request = game.base_clear_request.pop()
                     cell = game_map[clear_request["position"]]
 
