@@ -122,3 +122,7 @@ CV_MINING_RATE_MULTIPLIER_DEFAULT = .75
 # how many data points before try to calc mining rate. Below this, just return the avg
 # halite amount * SHIP_MINING_EFFICIENCY
 MIN_MINE_RATE_DATA = 3
+
+DROPOFF_MIN_TOTAL_VALUE = 4000
+
+DROPOFF_MIN_POSITIONS = 2
