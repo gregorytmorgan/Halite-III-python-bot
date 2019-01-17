@@ -41,9 +41,9 @@ if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}"
 
 if DEBUG & (DEBUG_CV_MAP):
     np.ma.masked_print_option.set_display("---")
-    np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
+    np.set_printoptions(precision=1, linewidth=280, suppress=True, threshold=np.inf)
 else:
-    np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=64)
+    np.set_printoptions(precision=1, linewidth=280, suppress=True, threshold=64)
 
 #debug_drop_position = None
 dropoff_deployments = {
