@@ -24,4 +24,9 @@ Ship states and navigation
 -----------------------------------------
 
 Exploring
-1. Exploring ships have two 'sub-states', 'navigating' and 'mining/searching'.
+1. Exploring ships have two 'sub-states', 'navigating' and 'mining/searching'. Not implemented.
+
+2. Performance, per the discussion linked below, 'inspiration' is expensive. You can
+   test without it by using a custom config. 'halite-config.json'.
+   https://forums.halite.io/t/solved-halite-cli-cpu-usage/716/6
+
