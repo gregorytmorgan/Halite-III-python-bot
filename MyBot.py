@@ -909,15 +909,15 @@ while True:
             # trip_data 0:turn (end of trip) 1:ship 2:duration 3:halite 4:assigned loiter distance
             logging.info("Game - Total trips completed: {}".format(len(game_metrics["assn_duration"])))
 
+            if game_metrics["assn_drop_amount"]:
+                avg_halite_gathered = round(np.mean(game_metrics["assn_drop_amount"], axis=0)[3], 2)
+                logging.info("Game - Avg. halite gathered: {}".format(avg_halite_gathered))
+
             # all the keys below area
             if game_metrics["assn_duration"]:
                 avg_trip_duration = round(np.mean(game_metrics["assn_duration"], axis=0)[2], 2)
                 avg_trip_duration2 = round(np.mean(game_metrics["assn_duration2"], axis=0)[2], 2)
                 logging.info("Game - Avg. trip duration: {} / ".format(avg_trip_duration, avg_trip_duration2))
-
-            if game_metrics["assn_drop_amount"]:
-                avg_halite_gathered = round(np.mean(game_metrics["assn_drop_amount"], axis=0)[3], 2)
-                logging.info("Game - Avg. halite gathered: {}".format(avg_halite_gathered))
 
             if game_metrics["assn_explore_duration"]:
                 # trip_explore_duration 0:turn (end of explore) 1:ship 2:duration 3:distance from base
