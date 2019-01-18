@@ -42,7 +42,7 @@ cumulative_profit = 5000
 if DEBUG & (DEBUG_TIMING): logging.info("Time - Initialization elapsed time: {}".format(round(time.time() - game_start_time, 2)))
 
 if DEBUG & (DEBUG_CV_MAP):
-    np.ma.masked_print_option.set_display("---")
+    np.ma.masked_print_option.set_display("...")
     np.set_printoptions(precision=1, linewidth=280, suppress=True, threshold=np.inf)
 else:
     np.set_printoptions(precision=1, linewidth=280, suppress=True, threshold=64)
