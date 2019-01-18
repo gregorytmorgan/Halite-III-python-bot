@@ -132,7 +132,7 @@ tasks = {
         "action": cover_shipyard_action,
         "move": cover_cell_move,
         "ships": [],
-        "active": False,
+        "active": True,
         "ships_required": 1
     },
     2: {
@@ -150,7 +150,7 @@ tasks = {
         "action": cover_dropoff_south_action,
         "move": cover_cell_move,
         "ships": [],
-        "active": True,
+        "active": False,
         "ships_required": 1
     },
     4: {
@@ -168,7 +168,7 @@ tasks = {
         "action": cover_dropoff_west_action,
         "move": cover_cell_move,
         "ships": [],
-        "active": True,
+        "active": False,
         "ships_required": 1
     }
 }
