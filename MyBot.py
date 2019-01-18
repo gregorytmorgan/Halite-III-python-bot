@@ -60,6 +60,7 @@ else:
 #  - A queued entry without a turn is skipped/remains in the queue
 #  - A queued entry is a unnormalized positions is aborted (popped from queue, added
 #    to dropoff_deployments with a turn of None.
+#  - Careful to not deploy with the last/only ship
 
 # non deployed dropoff, key:point, value turn deployed
 dropoff_deployment_queue = []
@@ -67,8 +68,16 @@ dropoff_deployment_queue = []
 # deployed dropoffs, both successful and aborted
 dropoff_deployments = {}
 
+#Examples:
+#
+# Dropoff at Position(8, 40) at turn 150
+#dropoff_deployment_queue.append((Position(8, 40), 150))
 
-dropoff_deployment_queue.append((None, 150))
+# Dropoff at Position(current_dropoff_position) as soon as funded
+#dropoff_deployment_queue.append((None, 0))
+
+# Dropoff at Position(current_dropoff_position) at max_ships
+#dropoff_deployment_queue.append((None, None))
 
 
 #
@@ -104,8 +113,12 @@ while True:
     #
     game_metrics["ship_count"].append((game.turn_number, len(my_ships)))
 
+    # TODO debug
     if False:
         turn_spent += constants.DROPOFF_COST
+
+    if DEBUG & (DEBUG_GAME): logging.info("TASK - dropoff_deployment_queue: {}".format(dropoff_deployment_queue))
+    if DEBUG & (DEBUG_GAME): logging.info("TASK - dropoff_deployments: {}".format(dropoff_deployments))
 
     #
     # Generate hotspots, loiter assignments and areas
