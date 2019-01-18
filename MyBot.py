@@ -522,25 +522,33 @@ while True:
     # position -> (turn_trigger, position)
 
     for deployment_point, deployment_turn in dropoff_deployment_queue:
+        if DEBUG & (DEBUG_GAME): logging.info("Game - Checking deployment {} ...".format(deployment_point))
+
         if deployment_turn is None:
-            continue
+            if game.max_ships_reached + 1 == game.turn_number:
+                deployment_turn = game.turn_number
+            else:
+                if DEBUG & (DEBUG_GAME): logging.info("Game - Checking deployment {} ... max ships not reached {}".format(deployment_point, game.max_ships_reached))
+                continue
 
         if game.turn_number < deployment_turn:
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Checking deployment {} ... too early".format(deployment_point))
             continue
 
         if deployment_point is None:
+            if current_dropoff_position is None:
+                logging.warn("current_dropoff_position is None for dropoff with None deployment point. Deployment failed. Will retry.".format(deployment_point))
+                continue
             deployment_point = current_dropoff_position
 
         if game_map.needs_normalization(deployment_point):
-            logging.error("Invalid deployment point {}. Aborting deployment.".format(deployment_point))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Invalid deployment point {}. Aborting deployment.".format(deployment_point))
             dropoff_deployments[deployment_point] = None
             continue
 
-        logging.error("popping dropoff deployment {}. deployment_turn: {}".format(deployment_point, deployment_turn))
-
-        dropoff_deployment_queue.pop()
         deployment_ship = False
         deployment_distance = False
+
         for ship in my_ships:
              distance = game.game_map.calculate_distance(ship.position, deployment_point)
              if not deployment_ship or distance < deployment_distance:
@@ -548,14 +556,14 @@ while True:
                 deployment_distance = distance
 
         if deployment_ship:
+            dropoff_deployment_queue.pop()
             if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} selected for deploying dropoff {}. t{}".format(deployment_ship.id, deployment_point, game.turn_number))
             deployment_ship.path.clear()
             deployment_ship.tasks.append(make_dropoff_task(deployment_point))
             deployment_ship.status = "tasked"
             dropoff_deployments[deployment_point] = game.turn_number
-            break
         else:
-            logging.warn("Failed to find a deployment ship for dropoff {}. Wil retry.".format(deployment_point))
+            logging.warn("No ship available to deploy dropoff {}. Deployment failed. Will retry.".format(deployment_point))
 
     #
     # handle each ship for this turn
