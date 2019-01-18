@@ -575,6 +575,10 @@ while True:
         if game.end_game and ship.position == base_position or ship.status == "homing":
             ship.status = "homing"
 
+            if game.base_clear_request and game.game_map.calculate_distance(game.base_clear_request[-1]["position"], base_position) == 1:
+                if handle_base_clear_request(game, ship, base_position):
+                    continue
+
         elif ship.status == "tasked":
             if not ship.tasks:
                 raise RuntimeError("Ship {} does not have a task.".format(ship.id))
@@ -597,32 +601,7 @@ while True:
 
                 # chk if there is a clear request for this ships base
                 if game.base_clear_request and game.game_map.calculate_distance(game.base_clear_request[-1]["position"], base_position) == 1:
-                    clear_request = game.base_clear_request.pop()
-                    cell = game_map[clear_request["position"]]
-
-                    if cell.is_occupied and cell.ship.owner != me.id:
-                        move_offset = clear_request["position"] - base_position
-
-                        # get an assignment for clearing ship, ship will probably crash, but in
-                        # case the blocking ships moves ... we'll need to move it somewhere.
-                        # asbtract this into get_assignment(direction_hint) for use below as well?
-                        if target_sets[base_position]:
-                            assignment_target = target_sets[base_position].pop()
-                            ship.path = assignment_target[0]
-                        else:
-                            ship.path = get_loiter_point(game, ship)
-
-                        move = Direction.convert((move_offset.x, move_offset.y))
-
-                        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} responded to base clear request for {}. Moving {}".format(ship.id, clear_request["position"], move))
-
-                        game.command_queue[ship.id] = ship.move(move)
-                        game_map[ship].mark_safe()
-                        game_map[clear_request["position"]].mark_unsafe(ship)
-                        ship.last_dock = game.turn_number
-                        ship.status = "transiting"
-                        ship.explore_start = 0
-
+                    if handle_base_clear_request(game, ship, base_position):
                         continue
                     else:
                         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Clear request canceled for {}. Cell is clear".format(clear_request["position"]))
@@ -632,11 +611,8 @@ while True:
                     drop_amount = ship_states[ship.id]["prior_halite_amount"]
 
                     game_metrics["assn_duration"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock))
-
                     game_metrics["assn_duration2"].append((game.turn_number, ship.id, ship.assignment_duration))
-
                     game_metrics["assn_point_distance"].append((game.turn_number, ship.id, ship.assignment_distance))
-
                     game_metrics["assn_drop_amount"].append((game.turn_number, ship.id, game.turn_number - ship.last_dock, drop_amount, ship.assignment_distance, ship.assignment_duration))
 
                     if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} completed drop of {} halite at {}. Return + explore took {}/{} turns. t{}".format(ship.id, drop_amount, base_position, game.turn_number - ship.last_dock, ship.assignment_duration, game.turn_number))

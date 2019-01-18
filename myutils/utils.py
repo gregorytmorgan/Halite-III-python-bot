@@ -109,7 +109,7 @@ def spawn_ok(game):
         if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}, payback: {}*{} < {}".format(retval, round(payback_turns, 2), mining_overhead, remaining_turns))
 
         if not retval and not game.max_ships_reached:
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Peak ships reached at t{}".format(game.turn_number))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Max ships reached at t{}".format(game.turn_number))
             game.max_ships_reached = game.turn_number
 
         return retval
@@ -509,7 +509,7 @@ def dump_data_file(game, data, file_basename):
 
     np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
 
-    data_str = np.array2string(data.astype(np.int64), separator=",")
+    data_str = np.array2string(data.astype(np.float32), separator=",")
 
     with open(stats_dir + '/' + file_basename + "-" + ts + "-bot-" + str(game.me.id) + ".log", "w") as f:
         f.write(data_str)
@@ -1205,6 +1205,42 @@ def respond_to_sos(game, sos_call):
 
     return responder
 
+
 def get_position_from_move(game, ship, move):
+    """
+
+    """
     move_offset = DIRECTIONS[move]
     return game.game_map.normalize(ship.position + Position(move_offset[0], move_offset[1]))
+
+
+def handle_base_clear_request(game, ship, base_position):
+    """
+
+
+    """
+    clear_request = game.base_clear_request.pop()
+    cell = game.game_map[clear_request["position"]]
+
+    if cell.is_occupied and cell.ship.owner != game.me.id:
+        move_offset = clear_request["position"] - base_position
+
+        # get an assignment for clearing ship, ship will probably crash, but in
+        # case the blocking ships moves ... we'll need to move it somewhere.
+        # asbtract this into get_assignment(direction_hint) for use below as well?
+        ship.path = get_loiter_point(game, ship)
+
+        move = Direction.convert((move_offset.x, move_offset.y))
+
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} responded to base clear request for {}. Moving {}".format(ship.id, clear_request["position"], move))
+
+        game.command_queue[ship.id] = ship.move(move)
+        game.game_map[ship].mark_safe()
+        game.game_map[clear_request["position"]].mark_unsafe(ship)
+        ship.last_dock = game.turn_number
+        ship.status = "transiting"
+        ship.explore_start = 0
+    else:
+        return False
+
+    return True
