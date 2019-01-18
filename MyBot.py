@@ -964,15 +964,6 @@ while True:
         if DEBUG & (DEBUG_GAME): logging.info("Game - Ship spawn request")
         game.command_queue[-1] = me.shipyard.spawn()
 
-    #
-    # max ship dropoff deployment
-    #
-
-    # must come after spawn_ok()
-    if False and game.max_ships_reached == game.turn_number and not (current_dropoff_position is None):
-        if DEBUG & (DEBUG_CV_MAP): logging.info("Queued dropoff deployment {}. t{}".format(current_dropoff_position, game.turn_number))
-        dropoff_deployment_queue.append((current_dropoff_position, 0)) # dropofff = (deployment position, min_deploy_turn)
-
     if (DEBUG & (DEBUG_COMMANDS)): logging.info("Game - command queue: {}".format(game.command_queue))
 
     # Send your moves back to the game environment, ending this turn.
