@@ -84,6 +84,10 @@ def parse_lines(lines):
     return players, match_count
 
 
+def shorten_string(s, size, sep = ".."):
+    return s[0:round(size/2) - len(sep)] + sep + s[-round(size/2) - len(sep):]
+
+
 def print_win_lose_table(wins_lose_data):
     row = 0
     col = 0
@@ -93,9 +97,11 @@ def print_win_lose_table(wins_lose_data):
     summary_results = []
     col += 1
 
+    # populate column 0 of the results table with full length player names
     for player in wins_lose_data:
-        if len(player) > max_player_length:
-            player_name = player[0:round(max_player_length / 2) - len(sep)] + sep + player[-round(max_player_length / 2) - len(sep):]
+        player_len = len(player)
+        if player_len > max_player_length:
+            player_name = shorten_string(player, max_player_length)
         else:
             player_name = player
 
@@ -104,6 +110,7 @@ def print_win_lose_table(wins_lose_data):
 
     row += 1
 
+    # populate the remainder of the result columns
     for player1, p1_data in wins_lose_data.items():
         col = 0
         total_wins = 0
@@ -125,10 +132,11 @@ def print_win_lose_table(wins_lose_data):
                     total_wins += wins
                     total_loses += loses
 
-            results[row][col] =  "{}/{}".format("-" if player1 == player2 else wins, "-" if player1 == player2 else loses)
+            results[row][col] =  "{:>3s}/{:<3s}".format("-" if player1 == player2 else str(wins), "-" if player1 == player2 else str(loses))
 
         row += 1
 
+        # save summary data
         if consider_rank:
             summary_results.append((player1, total_wins, total_loses))
         else:
