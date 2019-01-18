@@ -142,12 +142,12 @@ def print_win_lose_table(wins_lose_data):
         else:
             print("\t\t".join(r))
 
-    summary_results.sort(key=lambda item: item[1]/(item[1] + item[2]), reverse=True) #
+    summary_results.sort(key=lambda item: item[1]/(item[1] + item[2]), reverse=True)
 
     print("\n")
 
     for r in summary_results:
-        print("{}\t{}/{} {}%".format(r[0], r[1], r[2], round(r[1]/(r[1] + r[2]) * 100, 0)))
+        print("{:<24s} {:>3d}/{:<3d} {}%".format(r[0], r[1], r[2], round(r[1]/(r[1] + r[2]) * 100, 0)))
 
 
 def main():
