@@ -134,6 +134,17 @@ while True:
             mining_rate_mult = CV_MINING_RATE_MULTIPLIER_DEFAULT
 
         #
+        # use dropoff for uncongested maps
+        #
+        if player_count == 2:
+            dropoff_deployment_queue.append((None, None))
+        elif player_count == 4:
+            if game.game_map.width in [56, 64]:
+                dropoff_deployment_queue.append((None, None))
+        else:
+            pass
+
+        #
         # build target sets
         #
 
