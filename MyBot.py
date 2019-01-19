@@ -90,7 +90,8 @@ dropoff_deployments = {}
 # Dropoff config for different maps
 #
 if player_count == 2:
-    dropoff_deployment_queue.append((None, None))
+    if game.game_map.width in [48, 56, 64]:
+        dropoff_deployment_queue.append((None, None))
 elif player_count == 4:
     if game.game_map.width in [56, 64]:
         dropoff_deployment_queue.append((None, None))
@@ -343,17 +344,15 @@ while True:
                 distance = game_map.calculate_distance(closest_base_position, peak[0])
                 if peak[2] >= DROPOFF_AREA_MIN_POSITIONS:
                     if distance < game_map.width/4:
-                        logging.debug("Best peak candidate {} is being rejected, distance to closes base is {}".format(peak[0], distance))
+                        if DEBUG & (DEBUG_CV_MAP): logging.info("Game - Best peak candidate {} is being rejected, distance to closes base is {}".format(peak[0], distance))
                         break
                     best_peak = peak
                     break
 
             if best_peak is None:
-                logging.warn("Best peak number of positions {} fails threshold {}".format('None', DROPOFF_AREA_MIN_POSITIONS))
                 current_dropoff_position = None
                 area_mask = None
-
-                if DEBUG & (DEBUG_CV_MAP): logging.info("Best peak is None")
+                if DEBUG & (DEBUG_CV_MAP): logging.info("Game - Best peak is None")
             else:
                 best_peak_pos = best_peak[0]
                 best_peak_total_halite = best_peak[1]
@@ -508,6 +507,7 @@ while True:
         for s in my_ships:
             if s.status != "homing" and game_map.calculate_distance(s.position, get_base_positions(game, s.position)) * HOMING_OVERHEAD >= remaining_turns:
                 if not game.end_game:
+                    if DEBUG & (DEBUG_GAME): logging.info("Game - End game reached at turn {}".format(game.turn_number))
                     game.end_game = game.turn_number
 
                 s.path.clear()
@@ -519,7 +519,12 @@ while True:
                 arrival_point = base_position + Position(arrival_offset[0], arrival_offset[1])
 
                 s.path, cost = game_map.navigate(s.position, arrival_point, "astar", {"move_cost": "turns"})
-                s.path.insert(0, base_position)
+
+                if s.path is None:
+                    logging.error("Homeing path is None. Setting path to []".format())
+                    s.path = [arrival_point]
+                else:
+                    s.path.insert(0, base_position)
 
                 homing_count += 1
 
