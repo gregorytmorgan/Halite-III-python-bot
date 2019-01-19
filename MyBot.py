@@ -12,8 +12,6 @@ import time
 import numpy as np
 import cProfile
 
-import copy
-
 from operator import attrgetter, itemgetter
 from scipy import ndimage
 
@@ -47,6 +45,15 @@ if DEBUG & (DEBUG_CV_MAP):
 else:
     np.set_printoptions(precision=1, linewidth=280, suppress=True, threshold=64)
 
+player_count = len(game.players)
+
+if player_count == 2 and game.game_map.width in [56, 64]:
+    mining_rate_mult = CV_MINING_RATE_MULTIPLIER_OPEN
+elif player_count == 4 and game.game_map.width in [32, 40]:
+    mining_rate_mult = CV_MINING_RATE_MULTIPLIER_CONGESTED
+else:
+    mining_rate_mult = CV_MINING_RATE_MULTIPLIER_DEFAULT
+
 # Deployed dropoffs
 #
 # To deploy a dropoff, add it to the dropoff_deployment_queue. dropoff_deployment_queue
@@ -79,6 +86,16 @@ dropoff_deployments = {}
 # Dropoff at Position(current_dropoff_position) at max_ships
 #dropoff_deployment_queue.append((None, None))
 
+#
+# Dropoff config for different maps
+#
+if player_count == 2:
+    dropoff_deployment_queue.append((None, None))
+elif player_count == 4:
+    if game.game_map.width in [56, 64]:
+        dropoff_deployment_queue.append((None, None))
+else:
+    pass
 
 #
 # game start
@@ -124,25 +141,6 @@ while True:
     # Generate hotspots, loiter assignments and areas
     #
     if USE_CELL_VALUE_MAP:
-        player_count = len(game.players)
-
-        if player_count == 2 and game.game_map.width in [56, 64]:
-            mining_rate_mult = CV_MINING_RATE_MULTIPLIER_OPEN
-        elif player_count == 4 and game.game_map.width in [32, 40]:
-            mining_rate_mult = CV_MINING_RATE_MULTIPLIER_CONGESTED
-        else:
-            mining_rate_mult = CV_MINING_RATE_MULTIPLIER_DEFAULT
-
-        #
-        # use dropoff for uncongested maps
-        #
-        if player_count == 2:
-            dropoff_deployment_queue.append((None, None))
-        elif player_count == 4:
-            if game.game_map.width in [56, 64]:
-                dropoff_deployment_queue.append((None, None))
-        else:
-            pass
 
         #
         # build target sets
@@ -169,11 +167,13 @@ while True:
                 cv_map = np.ma.MaskedArray(cv_map, mask = [cv_map < aggregate_cv_map], fill_value = -np.inf, copy=True, dtype="float32")
 
             if DEBUG & (DEBUG_CV_MAP):
-                if game.turn_number in [1, 2, 25, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
+                if game.turn_number in [1, 2, 5, 10, 25, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
+                    halite_map = game_map.get_halite_map()
+                    logging.info("halite:({}):\n{}".format(target_key, halite_map.astype(np.int)))
                     logging.info("cell_values({}):\n{}".format(target_key, cv_map.astype(np.int)))
 
             if DEBUG & (DEBUG_OUTPUT_GAME_METRICS):
-                if game.turn_number in [1, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
+                if game.turn_number in [1, 2, 5, 10, 25, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
                     dump_data_file(game, cv_map, "cv_map_turn_" + str(game.turn_number))
 
             if DEBUG & (DEBUG_TIMING): logging.info("Time - Cell Value Map generation elapsed time: {}".format(round(time.time() - cv_map_start_time, 2)))
@@ -206,7 +206,7 @@ while True:
                         logging.info("Game - Ships({}) exceeds the {} available targets. Generating targets using cv_map_threshold {}".format(len(my_ships), len(target_sets[target_key]), cv_map_threshold))
 
                 if DEBUG & (DEBUG_CV_MAP):
-                    if game.turn_number in [1, 2, 25, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
+                    if game.turn_number in [1, 2, 5, 10, 25, 50] + list(range(0, constants.MAX_TURNS + 100, 100)):
                         logging.info("hottest_areas({}):\n{}".format(target_key, hottest_areas[target_key].astype(np.int)))
 
                 y_vals, x_vals = hottest_areas[target_key].nonzero()
@@ -244,9 +244,9 @@ while True:
 
             if DEBUG & (DEBUG_GAME): logging.info("Game - Finding hottest areas for target key {}".format(target_key))
 
-            # TODO IS DEEP COPY NECESSARY ???????????????????????????????????????????????????????????????
-            area_map = cv_map # = game_map.get_cell_value_map(target_key, mining_rate_mult * game.get_mining_rate())
-            #area_map = copy.deepcopy(game_map.get_halite_map())
+            # TODO is deep copy necessary for any reason?
+            #area_map = game_map.get_halite_map()
+            area_map = cv_map
 
             # TODO Tune the mask threshold
             # Notes:
