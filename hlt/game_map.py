@@ -15,6 +15,8 @@ from .common import read_input
 
 from myutils.cell_block import CellBlock
 
+from myutils.constants import DIRECTIONS, SHIP_FUEL_COST
+
 class MapCell:
     """A cell on the game map."""
     def __init__(self, position, halite_amount):
@@ -283,6 +285,8 @@ class GameMap:
             path, cost = self.get_naive_path(start, destination)
         elif algorithm == "dock":
             path, cost = self.get_docking_path(start, destination)
+        elif algorithm == "straightline_path":
+            path, cost = self.straightline_path(start, destination)
         else:
             logging.info("Error - Unknown navigate algorithm {}".format(algorithm))
             path, cost = None, None
@@ -454,6 +458,63 @@ class GameMap:
                 if self.DEBUG: logging.info("Neighbour elapsed time {}".format(round(time.time() - astar_start_time, 4)))
 
         return None, None
+
+    def straightline_path(self, start, destination):
+        """
+
+        """
+        path = []
+        results = []
+        cost = 0
+        move_count = 0
+
+        normalized_next_position = None
+
+        current_position = self.normalize(start)
+        destination = self.normalize(destination)
+
+        halite_map = self.get_halite_map()
+
+        while normalized_next_position is None or normalized_next_position != destination:
+            results.clear()
+            min_distance = self.width
+
+            offset = DIRECTIONS[self.get_relative_direction(current_position, destination)]
+            move_offsets = Direction.laterals(offset) + [offset]
+
+            for offset in move_offsets:
+                distance = self.calculate_distance(current_position + Position(offset[0], offset[1]), destination)
+                if distance < min_distance:
+                    min_distance = distance
+                    results.clear()
+                    results.append(offset)
+                elif distance == min_distance:
+                    results.append(offset)
+
+            result_count = len(results)
+
+            if result_count > 3 or result_count == 0:
+                raise RuntimeError("Unable to get direction {} {} ()".format(start, destination, results))
+            elif result_count == 2 or result_count == 3:
+                offset = results[move_count % 2]
+            else:
+                offset = results[0]
+
+            cost += halite_map[normalized_next_position.y][normalized_next_position.x] * SHIP_FUEL_COST
+
+            if Position.needs_normalization():
+                normalized_next_position = self.normalize(current_position.directional_offset(offset))
+            else:
+                 normalized_next_position = current_position.directional_offset(offset)
+
+            path.append(normalized_next_position)
+
+            current_position = normalized_next_position
+
+            move_count += 1
+
+        return path, cost
+
 
     def get_cell_blocks(self, position, w, h, blocks = None):
         """
