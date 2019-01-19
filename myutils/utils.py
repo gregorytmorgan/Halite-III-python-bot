@@ -279,11 +279,9 @@ def get_halite_move(game, ship, args = None):
 
     move_offset = best_bloc_data[0]
 
-    new_position = game.game_map.normalize(ship.position.directional_offset(move_offset))
+    new_position = ship.position.directional_offset(move_offset)
 
-    normalized_position = game.game_map.normalize(new_position)
-
-    cell = game.game_map[normalized_position]
+    cell = game.game_map[new_position]
 
     if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} next cell: {}, offset: {}, value: {}".format(ship.id, normalized_position, move_offset, cell.halite_amount))
 
@@ -291,8 +289,8 @@ def get_halite_move(game, ship, args = None):
     # collision resolution
     #
     if cell.is_occupied:
-        game.collisions.append((ship, cell.ship, Direction.convert(move_offset), normalized_position, resolve_halite_move)) # args = alt moves?
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_position, Direction.convert(move_offset)))
+        game.collisions.append((ship, cell.ship, Direction.convert(move_offset), cell.position, resolve_halite_move)) # args = alt moves?
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, new_position, Direction.convert(move_offset)))
         return None
 
     #
