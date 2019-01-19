@@ -25,9 +25,10 @@ opponents = [
     "python3.6 bots/v26/MyBot.py",
     "python3.6 bots/v25/MyBot.py",
     "python3.6 bots/v27/MyBot.py"
+#    "python3.6 bots/cover-dropoff2/MyBot.py"
 ]
 
-# True = 4p with oppenent shuffle
+# True = 4p with oppenent shuffle, False = 2p
 if False:
     oppenent_count = len(opponents)
     idx = random.randint(0, oppenent_count) % oppenent_count
@@ -47,9 +48,46 @@ seed = None
 #seed = 1547265756
 #seed = 1547280599 # good for dropoffs @64 , not so much @ 32
 
-seed = 1547320475
+#seed = 1547320475
+
+# @64 has dropoff area in upper corner (0, 8). First ships arrive here around 275
+# seed = 1547489576
+
+# @64 dense map, 915k halite. Drops (16,10)@t125, (0,48)@t200, (32,48)@?
+#seed = 1547491166
+
+# @32 good example of early dropoff (0,16)@t1 ... and totally failing
+#seed =1547508173
+
+# @48 medium good placement (8, 25)@t125 produces predicable wins by 10k
+#seed = 1547513975
+
+# @48 413K halite, good placement (8, 40)@200 produces wins by 15k
+# opt #2 (4, 36)@150, (24,42)@250 ... with order backward win by 8k
+
+# 1547618229 444k more halite better for dropoffs?
+
+#1547618661 299k very distinct areas. consistent wins. Good to dev map reshape strat?
+
+# 1547619884 437k generally dense
+
+# 1547653248 320k good board edge areas
+
+# 760k clusters around each base in 4p 64 and to a lesser extent @56
+#seed = 1547674870
+
+# 458k dense "X"
+#seed = 1547766731
+
+# 176k @32 2p dense, win by 10k!
+#seed = 1547775491
 
 arg_seed = ["--seed " + str(seed)] if seed else []
+
+# @32 2p lose by 47k to 40k
+#seed = 1547774601
+
+arg_config = "-c halite-config.no-inspire.json"
 
 # , bot3_args, bot4_args
 # , arg_width, arg_height
