@@ -17,6 +17,7 @@ import math
 import random
 import logging
 import numpy as np
+from operator import attrgetter
 
 # mybot utils
 from myutils.constants import *
@@ -269,13 +270,29 @@ def get_halite_move(game, ship, args = None):
             return move
 
     best_bloc_data = sorted_blocks[0] # (directional_offset, block, block mean value)
-    max_cell_amount = best_bloc_data[1].get_max()
 
-    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} found {} valid halite cells with a the max cell containing {} halite".format(ship.id, len(sorted_blocks), max_cell_amount))
+    # Scheme for finding the 'plus one cell' - ignore the cell if occupied. This makes sense
+    # because we'll finish mining before visiting it.  Whether its occupied now isn't particularly
+    # accurate, but since its visited it's halite will be depleted; so ignore it
+    if False:
+        max_cell_amount = best_bloc_data[1].get_max()
+        if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} found {} valid halite cells with a the max cell containing {} halite".format(ship.id, len(sorted_blocks), max_cell_amount))
+        for best_cell in best_bloc_data[1].get_cells():    # find the highest value cell
+            if best_cell.halite_amount == max_cell_amount:
+                break
+    else:
+        best_cells = best_bloc_data[1].get_cells()
+        best_cells.sort(key=attrgetter('halite_amount'), reverse=True)
+        best_cell = None
+        for cell in best_cells: # find the highest value unocccupied cell
+            if not cell.is_occupied:
+                best_cell = cell
+                break
 
-    for best_cell in best_bloc_data[1].get_cells():
-        if best_cell.halite_amount == max_cell_amount:
-            break
+        if best_cell is None:   # if all the cells are occupied, just wait for the higest value one
+            best_cell = best_cells[0]
+
+        max_cell_amount = best_cell.halite_amount
 
     move_offset = best_bloc_data[0]
 
