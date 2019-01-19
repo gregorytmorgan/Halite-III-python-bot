@@ -19,7 +19,7 @@ verbose = 0
 consider_rank = False
 map_size = []
 player_count = 0
-max_player_length = 12
+max_player_length = 16
 sep = ".."
 
 try:
@@ -93,11 +93,13 @@ def print_win_lose_table(wins_lose_data):
     col = 0
     results = [["x" for _ in range(len(wins_lose_data) + 1)] for _ in range(len(wins_lose_data) + 1)]
 
-    results[row][col] = "\t\t"
+
     summary_results = []
     col += 1
 
-    # populate column 0 of the results table with full length player names
+    mx_ply_n_len = 0
+
+    # populate header row with fixed length player names
     for player in wins_lose_data:
         player_len = len(player)
         if player_len > max_player_length:
@@ -105,17 +107,26 @@ def print_win_lose_table(wins_lose_data):
         else:
             player_name = player
 
+        if player_len > mx_ply_n_len:
+            mx_ply_n_len = player_len
+
         results[row][col] = player_name
         col += 1
 
     row += 1
+
+    results[0][0] = ("{:<" + str(mx_ply_n_len) + "s}").format("")
 
     # populate the remainder of the result columns
     for player1, p1_data in wins_lose_data.items():
         col = 0
         total_wins = 0
         total_loses = 0
-        results[row][col] = player1
+
+        pad = 0
+
+        # populate column 0 of the results table with full length player names
+        results[row][col] = ("{:<" + str(mx_ply_n_len + pad) + "s}").format(player1)
 
         for player2, p2_data in wins_lose_data.items():
             col += 1
@@ -132,7 +143,7 @@ def print_win_lose_table(wins_lose_data):
                     total_wins += wins
                     total_loses += loses
 
-            results[row][col] =  "{:>3s}/{:<3s}".format("-" if player1 == player2 else str(wins), "-" if player1 == player2 else str(loses))
+            results[row][col] =  "{:>3s}/{:<3s}".format("-" if player1 == player2 else str(wins), "-" if player1 == player2 else str(loses)) + ("{:>" + str(max_player_length - len(" ") - 7) + "s}").format(".") # 7 = len('nnn/nnn')
 
         row += 1
 
@@ -146,16 +157,16 @@ def print_win_lose_table(wins_lose_data):
 
     for r in results:
         if r[0].strip() == "":
-            print("\t".join(r))
+            print("    ".join(r))     # header
         else:
-            print("\t\t".join(r))
+            print("    ".join(r))   # data
 
     summary_results.sort(key=lambda item: item[1]/(item[1] + item[2]), reverse=True)
 
     print("\n")
 
     for r in summary_results:
-        print("{:<24s} {:>3d}/{:<3d} {}%".format(r[0], r[1], r[2], round(r[1]/(r[1] + r[2]) * 100, 0)))
+        print("{:<16s}    {:>3d}/{:<3d} {}%".format(r[0], r[1], r[2], round(r[1]/(r[1] + r[2]) * 100, 0)))
 
 
 def main():
