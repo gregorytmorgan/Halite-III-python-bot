@@ -285,11 +285,15 @@ class GameMap:
             path, cost = self.get_naive_path(start, destination)
         elif algorithm == "dock":
             path, cost = self.get_docking_path(start, destination)
-        elif algorithm == "straightline_path":
+        elif algorithm == "straightline":
             path, cost = self.straightline_path(start, destination)
         else:
-            logging.info("Error - Unknown navigate algorithm {}".format(algorithm))
             path, cost = None, None
+            msg = "Unknown navigate algorithm {}".format(algorithm)
+            if DEBUG:
+                raise RuntimeError(msg)
+            else:
+                logging.info(msg)
 
         return path, cost
 
@@ -500,12 +504,14 @@ class GameMap:
             else:
                 offset = results[0]
 
-            cost += halite_map[normalized_next_position.y][normalized_next_position.x] * SHIP_FUEL_COST
+            next_position = current_position.directional_offset(offset)
 
-            if Position.needs_normalization():
-                normalized_next_position = self.normalize(current_position.directional_offset(offset))
+            if self.needs_normalization(next_position):
+                normalized_next_position = self.normalize(next_position)
             else:
-                 normalized_next_position = current_position.directional_offset(offset)
+                normalized_next_position = next_position
+
+            cost += halite_map[normalized_next_position.y][normalized_next_position.x] * SHIP_FUEL_COST
 
             path.append(normalized_next_position)
 
@@ -513,8 +519,9 @@ class GameMap:
 
             move_count += 1
 
-        return path, cost
+        path.reverse()
 
+        return path, cost
 
     def get_cell_blocks(self, position, w, h, blocks = None):
         """
