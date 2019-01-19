@@ -28,10 +28,10 @@ class Task():
     def turn(self, game, ship):
         retval = self.turn_action(game, ship)
 
-        if retval:
-            return self.on_complete(game, ship, retval)
-        else:
+        if retval is False:
             return False
+        else:
+            return self.on_complete(game, ship, retval)
 
     def abort(self):
         pass
