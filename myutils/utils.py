@@ -17,7 +17,7 @@ import math
 import random
 import logging
 import numpy as np
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 
 # mybot utils
 from myutils.constants import *
@@ -189,7 +189,7 @@ def get_loiter_multiple(game):
 #
 #  waypoint_algorithm = "astar", args
 #
-def get_move(game, ship, type="random", args = None):
+def get_move(game, ship, type, args = {}):
     """
     Get a move
 
@@ -206,11 +206,11 @@ def get_move(game, ship, type="random", args = None):
     if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} Getting {} move ...".format(ship.id, type))
 
     if type == "random":
-        move = get_random_move(game, ship, args)    # (game, ship, moves (optional))
+        move = get_random_move(game, ship, args)
     elif type == "density":
-        move = get_halite_move(game, ship, args)    # (game, ship)
+        move = get_halite_move(game, ship, args)
     elif type == "nav":
-        move = get_nav_move(game, ship, args)       # (game, ship, {"waypoint_algorithm":"astar", "move_cost":"turns"}
+        move = get_nav_move(game, ship, args)
     else:
         raise RuntimeError("Unknown move type: {}".format(type))
 
@@ -410,12 +410,15 @@ def get_nav_move(game, ship, args = None):
         else:
             break
 
-    waypoint_resolution = args["waypoint_resolution"] if "waypoint_resolution" in args else "astar"
-    move_cost = args["move_cost"] if "move_cost" in args else "turns"
+    if "waypoint_algorithm" in args:
+        waypoint_algorithm = args["waypoint_algorithm"]
+    else:
+        waypoint_algorithm = "astar"
+        args["move_cost_type"] = "turns"
 
     game_map = game.game_map
 
-    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} Getting nav move, path: {}, waypoint resolution: {}, move_cost: {}".format(ship.id, list_to_short_string(ship.path, 4), waypoint_resolution, move_cost))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} Getting nav move, path: {}, waypoint resolution: {}, move_cost_type: {}".format(ship.id, list_to_short_string(ship.path, 4), waypoint_algorithm, move_cost_type))
 
     ship_cell = game_map[ship]
 
@@ -430,12 +433,12 @@ def get_nav_move(game, ship, args = None):
     if game_map.calculate_distance(ship.position, next_position) > 1:
         normalized_next_position = game_map.normalize(next_position)
 
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} Getting nav path. Found waypoint {}, calulating complete path".format(ship.id, next_position))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} Getting nav path. Found waypoint {}, calulating waypoint path".format(ship.id, next_position))
 
         # calc a continous path
-        path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_resolution, {"move_costs": move_cost})
+        path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_algorithm, args)
 
-        if path is None or len(path) == 0:
+        if not path:
             logging.warn("Nav  - Ship {} Nav failed, can't reach waypoint {} from {}".format(ship.id, normalized_next_position, ship.position))
             if ship_cell.is_occupied:
                 game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?

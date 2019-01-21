@@ -6,6 +6,7 @@ from scipy.spatial.distance import cdist
 import copy
 import sys
 import math
+from operator import itemgetter
 
 from . import constants
 from .entity import Entity, Shipyard, Ship, Dropoff
@@ -14,6 +15,8 @@ from .positionals import Direction, Position
 from .common import read_input
 
 from myutils.cell_block import CellBlock
+
+from myutils.utils import check_enemy_ships
 
 from myutils.constants import DIRECTIONS, SHIP_FUEL_COST
 
@@ -221,7 +224,7 @@ class GameMap:
 
         return Direction.Still
 
-    def move_cost(self, a, b, move_cost_type = "turns"):
+    def move_cost(self, a, b, args={}):
         """
         Get the cost of moving from position a -> b.
 
@@ -229,8 +232,9 @@ class GameMap:
         :param b End position
         :move_cost_type Most cost type can be 'halite' or 'turns'
         """
-        if move_cost_type is None:
-            move_cost_type = "turns"
+
+        move_cost_type = args["move_cost_type"] if "move_cost_type" in args else "turns"
+        player_id = args["player_id"] if "player_id" in args else None
 
         if move_cost_type == "turns":
             return 1
@@ -239,7 +243,7 @@ class GameMap:
         else:
             raise RuntimeError("Unknown nav move_cost_type: ".format(move_cost_type))
 
-    def heuristic(self, start, current, goal, move_cost_type = None):
+    def heuristic(self, start, current, goal, args = {}):
         """
         Get the cost heuristic for moving from position a -> b. Used by A*
 
@@ -249,8 +253,10 @@ class GameMap:
         :move_cost_type Most cost type can be 'halite' or 'turns'
         """
 
+        move_cost_type = args["move_cost_type"] if "move_cost_type" in args else None
+
         if move_cost_type is None:
-            move_cost_type = "turns"
+            raise RuntimeError("Missing required argument 'move_cost_type'".format())
 
         manhatten = self.calculate_distance(current, goal)
 
@@ -270,22 +276,23 @@ class GameMap:
 
     def navigate(self, start, destination, algorithm="astar", args={}):
         """
+        Populates a ships path attribute with a list of position to destination
+
         :param start Starting Position
         :param destination Ending position
-        :param algorithm: 'astar', 'naive'
+        :param algorithm:
           'astar' - takes args: 'move_cost': 'turns'|'halite'
           'naive' - takes no args
           'dock' - takes no args
+          'straightline' - takes no args
         """
         if algorithm == "astar":
-            move_cost = args["move_cost"] if "move_cost" in args else None
-            excludes = args["excludes"] if "excludes" in args else []
-            path, cost = self.get_astar_path(start, destination, move_cost, excludes)
+            path, cost = self.get_astar_path(start, destination, args)
         elif algorithm == "naive":
             path, cost = self.get_naive_path(start, destination)
         elif algorithm == "dock":
             path, cost = self.get_docking_path(start, destination)
-        elif algorithm == "straightline":
+        elif algorithm == "straightline": # same as A* if no obstacles, 25% faster
             path, cost = self.straightline_path(start, destination)
         else:
             path, cost = None, None
@@ -365,7 +372,7 @@ class GameMap:
 
         return path, cost
 
-    def get_astar_path(self, start, destination, move_cost_type="turns", excludes = []):
+    def get_astar_path(self, start, destination, args = {}):
         """
         Get a path using a-star search
 
@@ -377,6 +384,9 @@ class GameMap:
             otherwise returns a path list and a cumlative cost
         """
         astar_start_time = time.time()
+
+        move_cost_type = args["move_cost_type"] if "move_cost_type" in args else None
+        excludes = args["excludes"] if "excludes" in args else []
 
         G = {} #Actual movement cost to each position from the start position
         F = {} #Estimated movement cost of start to end going via this position
@@ -391,7 +401,7 @@ class GameMap:
 
         #Initialize starting values
         G[start] = 0
-        F[start] = self.heuristic(start, start, end, move_cost_type)
+        F[start] = self.heuristic(start, start, end, {"move_cost_type": move_cost_type})
 
         closedVertices = set()
         openVertices = set([start])
@@ -444,7 +454,7 @@ class GameMap:
                     if self.DEBUG: logging.info("skipping neighbour {}, already checked".format(neighbour))
                     continue #We have already processed this node exhaustively
 
-                cost = sys.maxsize if neighbour in excludes else self.move_cost(current, neighbour, move_cost_type)
+                cost = sys.maxsize if neighbour in excludes else self.move_cost(current, neighbour, args)
                 candidateG = G[current] + cost
 
                 if neighbour not in openVertices:
@@ -457,7 +467,7 @@ class GameMap:
                 #Adopt this G score
                 cameFrom[neighbour] = current
                 G[neighbour] = candidateG
-                H = self.heuristic(start, neighbour, end, move_cost_type)
+                H = self.heuristic(start, neighbour, end, {"move_cost_type": move_cost_type})
                 F[neighbour] = G[neighbour] + H
                 if self.DEBUG: logging.info("Neighbour elapsed time {}".format(round(time.time() - astar_start_time, 4)))
 
@@ -478,6 +488,8 @@ class GameMap:
         destination = self.normalize(destination)
 
         halite_map = self.get_halite_map()
+
+        # ToDo consider using get_unsafe_moves()
 
         while normalized_next_position is None or normalized_next_position != destination:
             results.clear()

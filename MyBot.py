@@ -518,7 +518,7 @@ while True:
                 arrival_offset = DIRECTIONS[arrival_direction]
                 arrival_point = base_position + Position(arrival_offset[0], arrival_offset[1])
 
-                s.path, cost = game_map.navigate(s.position, arrival_point, "astar", {"move_cost": "turns"})
+                s.path, cost = game_map.navigate(s.position, arrival_point, "astar", {"move_cost_type": "turns"})
 
                 if s.path is None:
                     logging.error("Homeing path is None. Setting path to []".format())
@@ -680,7 +680,8 @@ while True:
 
                 # calc the path for the assignment from departure point to loiter point. If for some reason
                 # ship departs wrong side, never cross back over base/current position
-                ship.path, cost = game_map.navigate(departure_point, loiter_point, "astar", {"move_cost": "turns", "excludes": [ship.position]})
+                ship.path, cost = game_map.navigate(departure_point, loiter_point, "astar", {"move_cost_type": "turns", "excludes": [ship.position]})
+
                 if ship.path is None: # path will be [] if loiter_point is closer than the departure point
                     logging.error("Ship {} Error, navigate failed for loiter point {}, path:{}".format(ship.id, loiter_point, ship.path))
                     ship.path = [] # path will be None if failed,
@@ -769,9 +770,9 @@ while True:
             if ship.status == "exploring":
                 move = get_move(game, ship, "density")
             elif ship.status == "transiting":
-                move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"}) # path scheme = algo for incomplete path
+                move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost_type": "turns"}) # path scheme = algo for incomplete path
             elif ship.status == "returning":
-                move = get_move(game, ship, "nav", "naive") # returning will break if a waypoint resolution other than naive is used. Why?
+                move = get_move(game, ship, "nav", {"waypoint_algorithm": "naive"}) # returning will break if a waypoint resolution other than naive is used. Why?
             elif ship.status == "tasked":
                 # generally a ship should set it's status to a non-tasked status when it completes (what if there is another task?). In some
                 # cases a task may leave the status as 'tasked' to preserve a move generated turn the task was completed.
@@ -782,7 +783,7 @@ while True:
                 if ship.position == base_position:
                     move = "o"
                 else:
-                    move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"}) # path scheme = algo for incomplete path
+                    move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost_type": "turns"}) # path scheme = algo for incomplete path
             else:
                 raise RuntimeError("Ship {} has an invalid status: {}".format(ship.id, ship.status))
 
@@ -799,7 +800,7 @@ while True:
             #
             # mining
             #
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is mining".format(ship.id))
+            if DEBUG & (DEBUG_GAME): logging.info("Game - Ship {} is mining with a threshold of {}".format(ship.id, ship.mining_threshold))
             move = "o"
             game.command_queue[ship.id] = ship.move(move)
 
