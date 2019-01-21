@@ -225,7 +225,7 @@ def get_move(game, ship, type="random", args = None):
 
 def get_best_blocks(game, ship, w, h):
     """
-    Get the surrounding cell blocks
+    Get the surrounding cell blocks sorted by avg halite
 
     :param game
     :param ship
@@ -238,8 +238,18 @@ def get_best_blocks(game, ship, w, h):
 
         has_base = True if block.contains_position(get_base_positions(game, ship.position)) else False
 
-        if block.get_max() > ship.mining_threshold and not has_base:
-            best_blocks.append((directional_offset, block, block.get_mean()))
+        if block.get_max() < ship.mining_threshold:
+            continue
+
+        if has_base:
+            continue
+
+        safe_path = check_enemy_ships(game.game_map, ship.position, ship.position.directional_offset(directional_offset), game.me.id)
+        logging.debug("{} is not safe".format(ship.position.directional_offset(directional_offset)))
+        if not safe_path:
+            continue
+
+        best_blocks.append((directional_offset, block, block.get_mean()))
 
     return sorted(best_blocks, key=lambda item: item[2], reverse=True)
 
@@ -266,6 +276,12 @@ def get_halite_move(game, ship, args = None):
         sorted_blocks = get_best_blocks(game, ship, 3, 3)
         if not sorted_blocks:
             move = get_random_move(game, ship) # ToDo: would be better to try a large search radius?
+            if move:
+                safe_path = check_enemy_ships(game.game_map, ship.position, ship.position.directional_offset(DIRECTIONS[move]), game.me.id)
+                if not safe_path:
+                    logging.debug("{} is not safe. Returning 'o'".format(ship.position.directional_offset(DIRECTIONS[move])))
+                    return 'o'
+
             if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} Best block search failed 2. All surrounding cells have halite < threshold({}) . Returning random move: {}. t{}".format(ship.id, ship.mining_threshold, move, game.turn_number))
             return move
 
@@ -932,20 +948,26 @@ def resolve_halite_move(game, collision):
     move_offsets = Direction.laterals(DIRECTIONS[move]) + [Direction.Still] + [Direction.invert(DIRECTIONS[move])]
 
     best_moves = []
-    for o in move_offsets:
-        pos = ship.position.directional_offset(o)
+    for offset in move_offsets:
+        pos = ship.position.directional_offset(offset)
         cell = game.game_map[pos]
 
-        if o == Direction.Still:
-            val = cell.halite_amount * 1.1    # staying gets a bonus 10%
-        elif o == Direction.invert(DIRECTIONS[move]):
-            val = cell.halite_amount * .5    # going backwards is less desirable
+        if offset == Direction.Still:
+            score = cell.halite_amount * 1.1  # staying gets a bonus 10%
+        elif offset == Direction.invert(DIRECTIONS[move]):
+            score = cell.halite_amount * .5   # going backwards is less desirable
         else:
-            val = cell.halite_amount
+            score = cell.halite_amount
 
-        best_moves.append((cell, val, o))
+        safe_path = check_enemy_ships(game.game_map, ship.position, cell.position, ship.owner)
+        if not safe_path:
+            logging.debug("{} is not safe".format(cell.position))
+            score = 0
+            #score = len(safe_path) * ????
 
-    best_moves.sort(key=lambda item: item[1], reverse=True)
+        best_moves.append((cell, score, offset))
+
+    best_moves.sort(key=itemgetter(1), reverse=True)
 
     new_offset = None
     new_cell = None
