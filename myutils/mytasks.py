@@ -21,11 +21,11 @@ def random_path_action(game, ship):
         y = random.randint(0, game.game_map.height - 1)
         logging.debug("Task - Ship {} is moving to a new random point {}".format(ship.id, Position(x,y)))
         bases = get_base_positions(game)
-        ship.path, cost = game.game_map.navigate(ship.position, Position(x,y), "astar", {"move_cost": "turns", "excludes":bases})
+        ship.path, cost = game.game_map.navigate(ship.position, Position(x,y), "astar", {"move_cost_type": "turns", "excludes":bases})
     else:
         logging.debug("Task - Ship {} is moving to random point {}".format(ship.id, ship.path[0]))
 
-    next_move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"})
+    next_move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost_type": "turns"})
     if next_move:
         game.command_queue[ship.id] = ship.move(next_move)
 
@@ -51,7 +51,7 @@ def make_dropoff_action(dropoff_position):
         logging.debug("Task - Ship {} is deploying dropoff to {}".format(ship.id, dropoff_position))
 
         if not ship.path and ship.position != dropoff_position:
-            ship.path, cost = game.game_map.navigate(ship.position, dropoff_position, "astar", {"move_cost": "turns", "excludes": get_base_positions(game)})
+            ship.path, cost = game.game_map.navigate(ship.position, dropoff_position, "astar", {"move_cost_type": "turns", "excludes": get_base_positions(game)})
 
         if ship.position == dropoff_position:
             if game.me.halite_amount >= 4000:
@@ -65,7 +65,7 @@ def make_dropoff_action(dropoff_position):
                 game.command_queue[ship.id] = ship.move('o')
                 game.fund_dropoff += 1
         else:
-            next_move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"})
+            next_move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost_type": "turns"})
             if next_move:
                 game.command_queue[ship.id] = ship.move(next_move)
 
@@ -112,7 +112,7 @@ def dropoff_complete(game, ship, dropoff_position):
             s.tasks.append(make_goto_task(dropoff_position, -4))
 
             # use the std nav instead of goto_task if ship should mine on the way to new dropoff
-            #s.path, cost = game.game_map.navigate(s.position, dropoff_position, "astar", {"move_cost": "turns"})
+            #s.path, cost = game.game_map.navigate(s.position, dropoff_position, "astar", {"move_cost_type": "turns"})
 
             logging.debug("Tasking ship {} to dropoff {}".format(s.id, dropoff_position))
 
@@ -146,7 +146,7 @@ def make_goto_action(p, modifier = 0):
     def action(game, ship):
 
         if not ship.path and ship.position != p:
-            path, cost = game.game_map.navigate(ship.position, p, "astar", {"move_cost": "turns"})
+            path, cost = game.game_map.navigate(ship.position, p, "astar", {"move_cost_type": "turns"})
 
             #if modifier:
             #    path = path[:-modifier]
@@ -161,7 +161,7 @@ def make_goto_action(p, modifier = 0):
             #ship.status = "returning"
             return True
         else:
-            next_move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost": "turns"})
+            next_move = get_move(game, ship, "nav", {"waypoint_algorithm": "astar", "move_cost_type": "turns"})
             if next_move:
                 game.command_queue[ship.id] = ship.move(next_move)
 
