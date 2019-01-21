@@ -121,8 +121,8 @@ def spawn_ok(game):
 #
 #
 def get_max_loiter_distance(game):
-    max_loiter_dist_x = min(game.me.shipyard.position.x, (game.game_map.width - game.me.shipyard.position.x))
-    max_loiter_dist_y = min(game.me.shipyard.position.y, (game.game_map.height - game.me.shipyard.position.y))
+    max_loiter_dist_x = min(game.me.shipyard.position.x, (game.game_map.width/2))
+    max_loiter_dist_y = min(game.me.shipyard.position.y, (game.game_map.height/2))
     max_loiter_distance = min(max_loiter_dist_x, max_loiter_dist_y, MAX_LOITER)
 
     return float(max_loiter_distance)
