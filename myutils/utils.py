@@ -1259,3 +1259,77 @@ def handle_base_clear_request(game, ship, base_position):
         return False
 
     return True
+
+
+def check_enemy_ships(game_map, start, destination, player_id, args = {}):
+    """
+    Returns a path of a single position leading to destination that does not have any enemy
+    within 1 cell.  In the case of start/dest be 1 move away, only dest is returned, in this
+    case dest must meet the 'no enemy' requirement
+
+    :param start
+    :param destination
+    :param args:
+        -player_id
+
+    ToDo - options:
+        - 'move_away', move away if there is currently an enemy beside the current position.
+        - 'exchange', allow move is enemy ship is more valuable
+        - 'risk', risk threshold based on number of enemy ships
+    """
+    path = []
+    possible_moves = []
+
+    logging.debug("check_enemy_ships - s:{}, d:{}".format(start, destination))
+
+    cell_halite_bias = args["cell_halite_bias"] if "cell_halite_bias" in args else 0
+    move_away = args["move_away"] if "move_away" in args else 0
+    exchange = args["exchange"] if "exchange" in args else 0
+    risk = args["risk"] if "risk" in args else 0
+
+    for offset in game_map.get_unsafe_moves(start, destination):
+        p1 = start.directional_offset(offset)
+
+        logging.debug("process unsafe p1: {}".format(p1))
+
+        dest_cell = game_map[p1]
+
+        enemy_count = 0
+        enemy_halite = 0
+        for p2 in dest_cell.position.get_surrounding_cardinals():
+            if p2 == start:
+                continue
+            border_cell = game_map[p2]
+
+            if border_cell.is_occupied and border_cell.ship.owner != player_id:
+                enemy_count += 1
+                enemy_halite += border_cell.ship.halite_amount
+
+        possible_moves.append((p1, enemy_count, enemy_halite, dest_cell.halite_amount))
+
+    possible_moves.sort(key=itemgetter(1))
+
+    if cell_halite_bias:
+        possible_moves.sort(key=itemgetter(3), reverse=True)
+    else:
+        possible_moves.sort(key=itemgetter(3))
+
+    # need to be able to customise sort.
+    # - find more enemy
+    # - choose cell with less/more halite
+    # - move toward 'fat' ememy ships
+
+    logging.debug("possible_moves: {}".format(possible_moves))
+
+    if not possible_moves or possible_moves[0][1] > risk:
+        ec = possible_moves[0][1] if possible_moves else 0
+        logging.debug("Nav  - Returning danger move None. risk: {}, enemy_count: {}".format(risk, ec))
+        path = None
+    else:
+        next_position = possible_moves[0][0]
+        if next_position == destination:
+            path = [next_position]
+        else:
+            path = [destination, next_position]
+
+    return path
