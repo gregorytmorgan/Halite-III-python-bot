@@ -94,7 +94,8 @@ CV_MAP_THRESHOLD_STEP = 25
 CV_MAP_THRESHOLD_MIN = -(CV_MAP_THRESHOLD_STEP * 10)
 
 BLOCKED_BY_THRESHOLD_FRIENDLY = 16
-BLOCKED_BY_THRESHOLD = 3
+BLOCKED_BY_THRESHOLD = 4
+PROXIMITY_BLOCKED_BY_THRESHOLD = 16
 
 LOG_DIRECTORY = "."
 #LOG_DIRECTORY = "logs"
@@ -129,3 +130,10 @@ MIN_MINE_RATE_DATA = 3
 
 # the minimum number of positions to consider a valid area
 DROPOFF_AREA_MIN_POSITIONS = 2
+
+# min value for COLLISION_AVOIDANCE_EXCHANGE_RATIO. Even f the enemy/friendly halite ratio exceeds
+# COLLISION_AVOIDANCE_EXCHANGE_RATIO still avoid enemy ships if their halite < COLLISION_AVOIDANCE_THRESHOLD_MIN
+COLLISION_AVOIDANCE_THRESHOLD_MIN = 800
+
+# Ship halite amount at which friendly ship will not avoid enemy ships/ crash is ok if they have x more cargo
+COLLISION_AVOIDANCE_EXCHANGE_RATIO = 4
