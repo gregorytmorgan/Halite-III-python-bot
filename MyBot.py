@@ -600,7 +600,7 @@ while True:
             ship.status = "homing"
 
             if game.base_clear_request and game.game_map.calculate_distance(game.base_clear_request[-1]["position"], base_position) == 1:
-                if handle_base_clear_request(game, ship, base_position):
+                if handle_base_clear_request(game, ship, base_position, game.base_clear_request[-1]["ship"]):
                     continue
 
         elif ship.status == "tasked":
@@ -625,7 +625,7 @@ while True:
 
                 # chk if there is a clear request for this ships base
                 if game.base_clear_request and game.game_map.calculate_distance(game.base_clear_request[-1]["position"], base_position) == 1:
-                    if handle_base_clear_request(game, ship, base_position):
+                    if handle_base_clear_request(game, ship, base_position, game.base_clear_request[-1]["ship"]):
                         continue
                     else:
                         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Clear request canceled for {}. Cell is clear".format(clear_request["position"]))
