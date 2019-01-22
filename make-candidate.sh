@@ -48,7 +48,7 @@ if [ "$2" != "" ]; then
 	echo $2 > $Candidate/readme.txt
 fi
 
-./manager.py -A candidate.$n -p "python3 candidate.$n/MyBot.py"
+./manager.py -A candidate.$n -p "python3.6 candidate.$n/MyBot.py"
 
 sed -r -i '/botName\s+=/c\botName = \"candidate.'$n\" $Candidate/MyBot.py
 
