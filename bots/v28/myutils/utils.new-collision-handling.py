@@ -9,13 +9,14 @@ from hlt import constants
 from hlt.positionals import Position
 from hlt.positionals import Direction
 
+from hlt.entity import Shipyard
+
 import os
 import time
 import math
 import random
 import logging
 import numpy as np
-from operator import attrgetter, itemgetter
 
 # mybot utils
 from myutils.constants import *
@@ -34,12 +35,10 @@ def spawn_ok(game):
     ship_count = len(me.get_ships())
     player_count = len(game.players)
 
-    if player_count == 2 and game.game_map.width in [56, 64]:
-        mining_overhead = MINING_OVERHEAD_OPEN
-    elif player_count == 4 and game.game_map.width in [32, 40]:
-        mining_overhead = MINING_OVERHEAD_CONGESTED
+    if player_count == 2:
+        mining_overhead = MINING_OVERHEAD_2P
     else:
-        mining_overhead = MINING_OVERHEAD_DEFAULT
+        mining_overhead = MINING_OVERHEAD_4P
 
     #
     # absolute constraints (order can be important)
@@ -64,15 +63,11 @@ def spawn_ok(game):
         if DEBUG & (DEBUG_GAME): logging.info("Game - Spawn denied. Occupied cells: {}".format(occupied_cells))
         return False
 
-    # Attention: This short-circuits (is before) some other conditions by design
-    # check base_clear_request after occupied_cells since we don't need to spawn when a ship is arriving
+    # check base_clear_request after occupied_cells since we don't need to spawn in a ship is arriving
     if game.base_clear_request:
         clear_request = game.base_clear_request[-1]
         if DEBUG & (DEBUG_GAME): logging.info("Game - Spawning to clear blocked base {}".format(clear_request["position"]))
         return True
-
-    if game.fund_dropoff:
-        return False
 
     if game.end_game:
         return False
@@ -90,7 +85,7 @@ def spawn_ok(game):
     #
     # New code
     #
-    #payback_turns = constants.SHIP_COST / game.get_mining_rate()
+    #payback_turns = constants.SHIP_COST / get_mining_rate(game, MINING_RATE_LOOKBACK)
     #remaining_turns = constants.MAX_TURNS - game.turn_number
     #if payback_turns * mining_over_head < remaining_turns:
     #     if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}".format(retval))
@@ -102,15 +97,10 @@ def spawn_ok(game):
     ### v6 old code
     ###
     if me.ship_count > 0:
-        payback_turns = constants.SHIP_COST / game.get_mining_rate()
+        payback_turns = constants.SHIP_COST / game.get_mining_rate(MINING_RATE_LOOKBACK)
         remaining_turns = constants.MAX_TURNS - game.turn_number
         retval = round(payback_turns * mining_overhead) < remaining_turns
         if DEBUG & (DEBUG_GAME): logging.info("Spawn retval: {}, payback: {}*{} < {}".format(retval, round(payback_turns, 2), mining_overhead, remaining_turns))
-
-        if not retval and not game.max_ships_reached:
-            if DEBUG & (DEBUG_GAME): logging.info("Game - Max ships reached at t{}".format(game.turn_number))
-            game.max_ships_reached = game.turn_number
-
         return retval
     else:
         return True
@@ -119,8 +109,8 @@ def spawn_ok(game):
 #
 #
 def get_max_loiter_distance(game):
-    max_loiter_dist_x = min(game.me.shipyard.position.x, (game.game_map.width/2))
-    max_loiter_dist_y = min(game.me.shipyard.position.y, (game.game_map.height/2))
+    max_loiter_dist_x = min(game.me.shipyard.position.x, (game.game_map.width - game.me.shipyard.position.x))
+    max_loiter_dist_y = min(game.me.shipyard.position.y, (game.game_map.height - game.me.shipyard.position.y))
     max_loiter_distance = min(max_loiter_dist_x, max_loiter_dist_y, MAX_LOITER)
 
     return float(max_loiter_distance)
@@ -187,7 +177,7 @@ def get_loiter_multiple(game):
 #
 #  waypoint_algorithm = "astar", args
 #
-def get_move(game, ship, type, args = {}):
+def get_move(game, ship, type="random", args = None):
     """
     Get a move
 
@@ -204,11 +194,11 @@ def get_move(game, ship, type, args = {}):
     if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} Getting {} move ...".format(ship.id, type))
 
     if type == "random":
-        move = get_random_move(game, ship, args)
+        move = get_random_move(game, ship, args)    # (game, ship, moves (optional))
     elif type == "density":
-        move = get_halite_move(game, ship, args)
+        move = get_halite_move(game, ship, args)    # (game, ship)
     elif type == "nav":
-        move = get_nav_move(game, ship, args)
+        move = get_nav_move(game, ship, args)       # (game, ship, {"waypoint_algorithm":"astar", "move_cost":"turns"}
     else:
         raise RuntimeError("Unknown move type: {}".format(type))
 
@@ -223,7 +213,7 @@ def get_move(game, ship, type, args = {}):
 
 def get_best_blocks(game, ship, w, h):
     """
-    Get the surrounding cell blocks sorted by avg halite
+    Get the surrounding cell blocks
 
     :param game
     :param ship
@@ -236,26 +226,8 @@ def get_best_blocks(game, ship, w, h):
 
         has_base = True if block.contains_position(get_base_positions(game, ship.position)) else False
 
-        if block.get_max() < ship.mining_threshold:
-            continue
-
-        if has_base:
-            continue
-
-        next_position = ship.position.directional_offset(directional_offset)
-
-        if len(game.players) == 2:
-            ces_args = {"halite_amount": max(COLLISION_AVOIDANCE_THRESHOLD_MIN, ship.halite_amount * COLLISION_AVOIDANCE_EXCHANGE_RATIO)}
-        else:
-            ces_args = {"halite_amount": 1001} # 1001 == all ships a threat, 0 == no ships a threat
-
-        safe_positions, danger_positions = check_enemy_ships(game.game_map, ship.position, next_position, game.me.id, ces_args)
-        if not safe_positions:
-            eship = danger_positions[list(danger_positions.keys())[0]][0]
-            if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} avoided {} due to an enemy ship {} at {}".format(ship.id, next_position, eship.id, eship.position))
-            continue
-
-        best_blocks.append((directional_offset, block, block.get_mean()))
+        if block.get_max() > ship.mining_threshold and not has_base:
+            best_blocks.append((directional_offset, block, block.get_mean()))
 
     return sorted(best_blocks, key=lambda item: item[2], reverse=True)
 
@@ -286,35 +258,21 @@ def get_halite_move(game, ship, args = None):
             return move
 
     best_bloc_data = sorted_blocks[0] # (directional_offset, block, block mean value)
+    max_cell_amount = best_bloc_data[1].get_max()
 
-    # Scheme for finding the 'plus one cell' - ignore the cell if occupied. This makes sense
-    # because we'll finish mining before visiting it.  Whether its occupied now isn't particularly
-    # accurate, but since its visited it's halite will be depleted; so ignore it
-    if False:
-        max_cell_amount = best_bloc_data[1].get_max()
-        if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} found {} valid halite cells with a the max cell containing {} halite".format(ship.id, len(sorted_blocks), max_cell_amount))
-        for best_cell in best_bloc_data[1].get_cells():    # find the highest value cell
-            if best_cell.halite_amount == max_cell_amount:
-                break
-    else:
-        best_cells = best_bloc_data[1].get_cells()
-        best_cells.sort(key=attrgetter('halite_amount'), reverse=True)
-        best_cell = None
-        for cell in best_cells: # find the highest value unocccupied cell
-            if not cell.is_occupied:
-                best_cell = cell
-                break
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} found {} valid halite cells with a the max cell containing {} halite".format(ship.id, len(sorted_blocks), max_cell_amount))
 
-        if best_cell is None:   # if all the cells are occupied, just wait for the higest value one
-            best_cell = best_cells[0]
-
-        max_cell_amount = best_cell.halite_amount
+    for best_cell in best_bloc_data[1].get_cells():
+        if best_cell.halite_amount == max_cell_amount:
+            break
 
     move_offset = best_bloc_data[0]
 
-    new_position = ship.position.directional_offset(move_offset)
+    new_position = game.game_map.normalize(ship.position.directional_offset(move_offset))
 
-    cell = game.game_map[new_position]
+    normalized_position = game.game_map.normalize(new_position)
+
+    cell = game.game_map[normalized_position]
 
     if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} next cell: {}, offset: {}, value: {}".format(ship.id, normalized_position, move_offset, cell.halite_amount))
 
@@ -322,8 +280,8 @@ def get_halite_move(game, ship, args = None):
     # collision resolution
     #
     if cell.is_occupied:
-        game.collisions.append((ship, cell.ship, Direction.convert(move_offset), cell.position, "crash", resolve_halite_move)) # args = alt moves?
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, new_position, Direction.convert(move_offset)))
+        game.collisions.append((ship, cell.ship, Direction.convert(move_offset), normalized_position, resolve_halite_move)) # args = alt moves?
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_position, Direction.convert(move_offset)))
         return None
 
     #
@@ -366,28 +324,19 @@ def get_random_move(game, ship, args = None):
     new_position = ship.position.directional_offset(DIRECTIONS[move])
     if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} new_position: {}".format(ship.id, new_position))
 
-    cell = game.game_map[new_position]
+    normalized_position = game.game_map.normalize(new_position)
+    if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} normalized_position {}".format(ship.id, normalized_position))
 
-    if len(game.players) == 2:
-        ces_args = {"halite_amount": max(COLLISION_AVOIDANCE_THRESHOLD_MIN, ship.halite_amount * COLLISION_AVOIDANCE_EXCHANGE_RATIO)}
-    else:
-        ces_args = {"halite_amount": 1001} # 1001 == all ships a threat, 0 == no ships a threat
-
-    safe_positions, danger_positions = check_enemy_ships(game.game_map, ship.position, new_position, game.me.id, ces_args)
-    if not safe_positions:
-        eship = danger_positions[list(danger_positions.keys())[0]][0]
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} avoided {} due to an enemy ship {} at {}".format(ship.id, new_position, eship.id, eship.position))
-        game.collisions.append((ship, eship, move, new_position, "proximity", resolve_random_move))
-        return None
+    cell = game.game_map[normalized_position]
 
     #
     # collision resolution
     #
     if cell.is_occupied:
         remaining_moves = [x for x in moves if move not in x]
-        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}. Remaining_moves: {}".format(ship.id, cell.ship, new_position, move, remaining_moves))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} collided with ship {} at {} while moving {}. Remaining_moves: {}".format(ship.id, cell.ship, normalized_position, move, remaining_moves))
 
-        game.collisions.append((ship, cell.ship, move, new_position, "crash", resolve_random_move)) # args = remaining moves
+        game.collisions.append((ship, cell.ship, move, normalized_position, resolve_random_move)) # args = remaining moves
         return None
 
     #
@@ -408,33 +357,27 @@ def get_nav_move(game, ship, args = None):
     :returns Returns a move letter on success, None if there is a collision.
     """
 
-    game_map = game.game_map
-
     if args is None:
         args = {}
 
-    # hack - shouldn't need to do this
-    while ship.path:
-        if game_map.normalize(ship.path[-1]) == ship.position:
-            logging.warn("Nav  - Ship {} popped move {}.  Why did this happen?".format(ship.id, ship.path[-1]))
-            ship.path.pop()
-        else:
-            break
+    waypoint_resolution = args["waypoint_resolution"] if "waypoint_resolution" in args else "astar"
+    move_cost = args["move_cost"] if "move_cost" in args else "turns"
 
-    if "waypoint_algorithm" in args:
-        waypoint_algorithm = args["waypoint_algorithm"]
-    else:
-        waypoint_algorithm = "astar"
-        args["move_cost_type"] = "turns"
+    game_map = game.game_map
 
-    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} Getting nav move, path: {}, waypoint resolution: {}, move_cost_type: {}".format(ship.id, list_to_short_string(ship.path, 4), waypoint_algorithm, move_cost_type))
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} Getting nav move, path: {}, waypoint resolution: {}, move_cost: {}".format(ship.id, list_to_short_string(ship.path, 4), waypoint_resolution, move_cost))
 
     ship_cell = game_map[ship]
 
     if not ship.path:
-        logging.warn("Nav  - Ship {} Getting nav path. Empty path. Returning 'o'. t{}".format(ship.id, game.turn_number))
-        ship_cell.mark_unsafe(ship)
-        return 'o'
+        if DEBUG & (DEBUG_NAV): logging.warn("Nav  - Ship {} Getting nav path. Empty path. Returning 'o'. t{}".format(ship.id, game.turn_number))
+        if ship_cell.is_occupied:
+            game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?
+            if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, ship_cell.ship.id, ship.position, 'o'))
+            return None
+        else:
+            ship_cell.mark_unsafe(ship)
+            return 'o'
 
     next_position = ship.path[-1]
 
@@ -442,15 +385,15 @@ def get_nav_move(game, ship, args = None):
     if game_map.calculate_distance(ship.position, next_position) > 1:
         normalized_next_position = game_map.normalize(next_position)
 
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} Getting nav path. Found waypoint {}, calulating waypoint path".format(ship.id, next_position))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} Getting nav path. Found waypoint {}, calulating complete path".format(ship.id, next_position))
 
         # calc a continous path
-        path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_algorithm, args)
+        path, cost = game_map.navigate(ship.position, normalized_next_position, waypoint_resolution, {"move_costs": move_cost})
 
-        if not path:
-            logging.warn("Nav  - Ship {} Nav failed, can't reach waypoint {} from {}".format(ship.id, normalized_next_position, ship.position))
+        if path is None or len(path) == 0:
+            if DEBUG & (DEBUG_NAV): logging.warn("Nav  - Ship {} Nav failed, can't reach waypoint {} from {}".format(ship.id, normalized_next_position, ship.position))
             if ship_cell.is_occupied:
-                game.collisions.append((ship, ship_cell.ship, 'o', ship.position, "crash", resolve_nav_move))
+                game.collisions.append((ship, ship_cell.ship, 'o', ship.position, resolve_nav_move)) # args = ?
                 if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, ship_cell.ship.id, ship.position, 'o'))
                 return None
             else:
@@ -461,25 +404,23 @@ def get_nav_move(game, ship, args = None):
             ship.path.pop()
             ship.path = ship.path + path
 
-    # get the potential next cell
-    cell = game_map[ship.path[-1]]
+    new_position = ship.path[-1]
+
+    normalized_new_position = game_map.normalize(new_position)
+    if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} new_position: {}".format(ship.id, normalized_new_position))
+
+    # why?
+    if normalized_new_position == ship.position:
+        if DEBUG & (DEBUG_NAV): logging.warn("Nav  - Ship {} popped move {}. Returning 'o'.  Why did this happen?".format(ship.id, ship.path[-1]))
+        ship.path.pop()
+        game_map[ship].mark_unsafe(ship)
+        return 'o'
+
+    cell = game_map[normalized_new_position]
 
     # use get_unsafe_moves() to get a normalized directional offset. We should always get one soln.
-    offset = game_map.get_unsafe_moves(ship.position, cell.position)[0]
+    offset = game_map.get_unsafe_moves(ship.position, normalized_new_position)[0]
     move = Direction.convert(offset)
-
-    # check move againt collission avoidance policy
-    if len(game.players) == 2:
-        ces_args = {"halite_amount": max(COLLISION_AVOIDANCE_THRESHOLD_MIN, ship.halite_amount * COLLISION_AVOIDANCE_EXCHANGE_RATIO)}
-    else:
-        ces_args = {"halite_amount": 1001} # 1001 == all ships a threat, 0 == no ships a threat
-
-    safe_positions, danger_positions = check_enemy_ships(game_map, ship.position, cell.position, ship.owner, ces_args)
-    if not safe_positions:
-        eship = danger_positions[list(danger_positions.keys())[0]][0]
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} avoided {} due to an enemy ship {} at {}".format(ship.id, cell.position, eship.id, eship.position))
-        game.collisions.append((ship, eship, move, cell.position, "proximity", resolve_nav_move))
-        return None
 
     if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} has potential nav move: {}".format(ship.id, move))
 
@@ -487,8 +428,8 @@ def get_nav_move(game, ship, args = None):
     # collision resolution
     #
     if cell.is_occupied:
-        game.collisions.append((ship, cell.ship, move, cell.position, "crash", resolve_nav_move))
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, cell.position, move))
+        game.collisions.append((ship, cell.ship, move, normalized_new_position, resolve_nav_move)) # args = ?
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship.id, cell.ship.id, normalized_new_position, move))
         return None
 
     #
@@ -561,7 +502,7 @@ def dump_data_file(game, data, file_basename):
 
     np.set_printoptions(precision=1, linewidth=240, suppress=True, threshold=np.inf)
 
-    data_str = np.array2string(data.astype(np.float32), separator=",")
+    data_str = np.array2string(data.astype(np.int64), separator=",")
 
     with open(stats_dir + '/' + file_basename + "-" + ts + "-bot-" + str(game.me.id) + ".log", "w") as f:
         f.write(data_str)
@@ -599,7 +540,7 @@ def move_ok(game, ship, args = None):
     # refuel_amount = constants.MAX_HALITE if ship.position in base else cell_halite * SHIP_MINING_EFFICIENCY
 
     net_mine = (cell_halite * SHIP_MINING_EFFICIENCY) + (cell_halite - cell_halite * SHIP_MINING_EFFICIENCY) * -SHIP_FUEL_COST
-    net_move = cell_halite * -SHIP_FUEL_COST + game.get_mining_rate() * SHIP_MINING_EFFICIENCY
+    net_move = cell_halite * -SHIP_FUEL_COST + game.get_mining_rate(MINING_RATE_LOOKBACK) * SHIP_MINING_EFFICIENCY
 
     #logging.debug("fuel_status: {}".format(fuel_status))
     #logging.debug("refuel_amount: {}".format(refuel_amount))
@@ -616,8 +557,6 @@ def move_ok(game, ship, args = None):
     elif ship.status == "returning":
         if net_move > net_mine or fuel_status > SHIP_REFUEL_THRESHOLD:
             return True
-    elif ship.status == "tasked":
-        return True # don't prevent a tasked ship from moving
     else:
         raise RuntimeError("Unknown ship status: {}".format(ship.status))
 
@@ -708,49 +647,21 @@ def get_base_positions(game, position = None):
     :param position
     :return Returns a single position if the position arg is provded, returns an list of all base positions otherwise.
     """
-    base_positions = [game.me.shipyard.position]
-
-    for do in game.me.get_dropoffs():
-        base_positions.append(do.position)
+    bases = list(game.me.get_dropoffs()) + [game.me.shipyard.position]
 
     if position is None:
-        return base_positions
+        return bases
 
     min_distance = False
     closest_base = False
 
-    for base_position in base_positions:
-        distance = game.game_map.calculate_distance(position, base_position)
-        if closest_base is False or distance < min_distance:
+    for base in bases:
+        distance = game.game_map.calculate_distance(position, base)
+        if min_distance == False or distance < min_distance:
             min_distance = distance
-            closest_base = base_position
+            closest_base = base
 
     return closest_base
-
-#
-# Collision Resolution
-#
-# The collision resolution sequence is:
-#    0. Ships are sorted/processed by halite amount.
-#    1. Attempt a move
-#    2. If the move causes a collision, add a collision tupple to the game collision list. The
-#       tuple constains a 'resolver'.
-#    3. After all ship have attempted to move, iterate over the collisions calling the resolver
-#       for each.
-#    4. If the resolver fails (return None), attempt to place the colliding ship in it's original
-#       position (move == 'o'), if that position is occuplied then call unwind() on the colliding
-#       ships position.
-#
-# Collision resolution is generally composed three elements:
-#    1. The collision resolution method. This method loops thru all collisions and calls the
-#       provided resolver for each. It the resolver can not find a satifactory move, it should
-#       return None, this will trigger unwind().
-#    2. A 'resolver' for each move type called from get_move(). The resolver is passed as
-#       part of the collision tuple if the initial move causes a collision.
-#    3. unwind(). When the collision resolver fails, the colliding ship remains in it's original
-#       position. It is possible the another ship has moved into that position expecting the
-#       ship to move. In this case moves are unwound intil a ship can remain in it's position.
-#
 
 def resolve_collsions(game, ship_states):
     """
@@ -764,18 +675,16 @@ def resolve_collsions(game, ship_states):
 
     if DEBUG & (DEBUG_GAME): logging.info("Game - Collision resolution start. {} collisions need resolution".format(len(game.collisions)))
 
-    # for each collisiFon identify type and resolve, then add solved move to the command queue
+    # for each collision identify type and resolve, then add solved move to the command queue
     for collision in game.collisions:
         # 0:ship1 1:ship2 2:move 3:dest1 4:res_func
         ship1 = collision[0]
         ship2 = collision[1]
         direction = collision[2]
         collision_cell = game_map[collision[3]]
-        collision_type = collision[4]
-        resolver = collision[5]
-        resolver_args = collision[6] if len(collision) == 7 else {}
+        resolver = collision[4]
 
-        if not collision_cell.is_occupied and collision_type != "proximity":
+        if not collision_cell.is_occupied:
             if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - not occupied: moving {} to {} previously collided with ship {}".format(ship1.id, direction, collision_cell.position, ship2.id))
             move = direction
             collision_cell.mark_unsafe(ship1)
@@ -789,10 +698,7 @@ def resolve_collsions(game, ship_states):
                 move = blocked_by_move
             else:
                 if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - calling provided resolver: moving {} to {} collided with ship {}, resolving ...".format(ship1.id, direction, collision_cell.position, ship2.id))
-                if collision_type == "proximity":
-                    move = None
-                else:
-                    move = resolver(game, collision, resolver_args)
+                move = resolver(game, collision) # will all res functions have the same prototye/signature? Should they be lambdas?
 
             if move is None:
                 # resolver failed, if original cell is occupied then unwind, else reclaim old cell
@@ -876,44 +782,38 @@ def get_blocked_by_move(game, collision):
     ship2 = collision[1]
     move = collision[2]
     position = collision[3]
-    collision_type = collision[4]
     #cell = game.game_map[position]
 
-    if not ship1.blocked_by or ship1.blocked_by["ship"] != ship2 or ship1.blocked_by["type"] != collision_type:
-        ship1.blocked_by = {"ship": ship2, "turns": 1, "type": collision_type}
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is now blocked by ship {} at {} Collision_type: {}.".format(ship1.id, ship2.id, position, collision_type))
+    if not ship1.blocked_by:
+        ship1.blocked_by = {"ship": ship2, "turns": 1}
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is now blocked by ship {} at {}.".format(ship1.id, ship2.id, position))
         return None
 
     turns_blocked = ship1.blocked_by["turns"]
     blocker = ship1.blocked_by["ship"]
-
-    if ship2.owner == game.me.id:
+    if ship1.owner == game.me.id:
         block_threshold = BLOCKED_BY_THRESHOLD_FRIENDLY
     else:
-        if collision_type == "proximity":
-            block_threshold = PROXIMITY_BLOCKED_BY_THRESHOLD
-        else:
-            block_threshold = BLOCKED_BY_THRESHOLD
+        block_threshold = BLOCKED_BY_THRESHOLD
 
     # cell.ship.id == ship2.id and
-    if blocker.id == ship2.id and (blocker.position == ship2.position or collision_type == "proximity") and turns_blocked >= block_threshold:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} has been blocked by ship {} at {} for {}/{} turns. Crashing".format(ship1.id, ship2.id, position, turns_blocked, block_threshold))
-        ship1.blocked_by = None
+    if blocker.id == ship2.id and blocker.position == ship2.position and turns_blocked >= block_threshold:
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} has been blocked by ship {} at {} for {} turns. Crashing".format(ship1.id, ship2.id, position, turns_blocked))
         game.game_map[position].mark_unsafe(ship1)
         if ship1.path:
             ship1.path.pop()
         return move
-    elif blocker.id == ship2.id and (blocker.position == ship2.position or collision_type == "proximity"):
+    elif blocker.id == ship2.id and blocker.position == ship2.position:
         turns_blocked += 1
-        ship1.blocked_by = {"ship": ship2, "turns": turns_blocked, "type": collision_type}
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} has been blocked by ship {} at {} for {}/{} turns. Waiting.".format(ship1.id, ship2.id, position, turns_blocked, block_threshold))
+        ship1.blocked_by = {"ship": ship2, "turns": turns_blocked}
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} has been blocked by ship {} at {} for {} turns. Waiting.".format(ship1.id, ship2.id, position, turns_blocked))
     else:
-        ship1.blocked_by = {"ship": ship2, "turns": 1, "type": collision_type}
+        ship1.blocked_by = {"ship": ship2, "turns": 1}
         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is now blocked by ship {} at {}".format(ship1.id, ship2.id, position))
 
     return None
 
-def resolve_random_move(game, collision, args = {}):
+def resolve_random_move(game, collision, args = None):
     """
     Resolve a random move.
 
@@ -937,25 +837,15 @@ def resolve_random_move(game, collision, args = {}):
 
     for idx in range(moveIdx, moveIdx + len(moves)):
         moveChoice = moves[idx % len(moves)]
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} Starting move search with choice: {} {}".format(ship.id, idx, moveChoice))
+        if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} moveChoice: {} {}".format(ship.id, idx, moveChoice))
 
         new_position = ship.position.directional_offset(moveChoice)
         if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} new_position: {}".format(ship.id, new_position))
 
-        cell = game.game_map[new_position]
+        normalized_position = game.game_map.normalize(new_position)
+        if DEBUG & (DEBUG_NAV_VERBOSE): logging.info("Nav  - Ship {} normalized_position {}".format(ship.id, normalized_position))
 
-        # check move againt collission avoidance policy
-        if len(game.players) == 2:
-            ces_args = {"halite_amount": max(COLLISION_AVOIDANCE_THRESHOLD_MIN, ship.halite_amount * COLLISION_AVOIDANCE_EXCHANGE_RATIO)}
-        else:
-            ces_args = {"halite_amount": 1001} # 1001 == all ships a threat, 0 == no ships a threat
-
-        if new_position != ship.position:
-            safe_positions, danger_positions = check_enemy_ships(game.game_map, ship.position, new_position, game.me.id, ces_args)
-            if not safe_positions:
-                eship = danger_positions[list(danger_positions.keys())[0]][0]
-                if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} avoided {} due to an enemy ship {} at {}".format(ship.id, cell.position, eship.id, eship.position))
-                continue
+        cell = game.game_map[normalized_position]
 
         #
         # collision resolution
@@ -963,14 +853,14 @@ def resolve_random_move(game, collision, args = {}):
         if not cell.is_occupied:
             cell.mark_unsafe(ship)
             move = moveChoice
-            if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Successfully resolved random move collision. Move: {}".format(ship.id, move))
             break
+            if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Successfully resolved random move collision. Move: {}".format(ship.id, move))
         else:
             if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Failed to resolved random move collision. Move: {}".format(ship.id, move))
 
     return move
 
-def resolve_halite_move(game, collision, args = {}):
+def resolve_halite_move(game, collision):
     """
     Resolve collisions for a halite move.
 
@@ -984,39 +874,27 @@ def resolve_halite_move(game, collision, args = {}):
     move = collision[2]
     #position = collision[3]
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Resolving halite move".format(ship.id))
+    if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Resolving density move".format(ship.id))
 
-    # possible moves are left, right, still, back
-    move_offsets = Direction.laterals(DIRECTIONS[move]) + [Direction.Still] + [Direction.invert(DIRECTIONS[move])]
+    move_offsets = Direction.laterals(DIRECTIONS[move])
+    move_offsets.append(Direction.Still)
+    move_offsets.append(Direction.invert(DIRECTIONS[move]))
 
     best_moves = []
-    for offset in move_offsets:
-        pos = ship.position.directional_offset(offset)
+    for o in move_offsets:
+        pos = ship.position.directional_offset(o)
         cell = game.game_map[pos]
 
-        if offset == Direction.Still:
-            score = cell.halite_amount * 1.1  # staying gets a bonus 10%
-        elif offset == Direction.invert(DIRECTIONS[move]):
-            score = cell.halite_amount * .5   # going backwards is less desirable
+        if o == Direction.Still:
+            val = cell.halite_amount * 1.1
+        elif o == Direction.invert(DIRECTIONS[move]):
+            val = cell.halite_amount * .5
         else:
-            score = cell.halite_amount
+            val = cell.halite_amount
 
-            # check move againt collission avoidance policy
-            if len(game.players) == 2:
-                ces_args = {"halite_amount": max(COLLISION_AVOIDANCE_THRESHOLD_MIN, ship.halite_amount * COLLISION_AVOIDANCE_EXCHANGE_RATIO)}
-            else:
-                ces_args = {"halite_amount": 1001} # 1001 == all ships a threat, 0 == no ships a threat
+        best_moves.append((cell, val, o))
 
-            safe_positions, danger_positions = check_enemy_ships(game.game_map, ship.position, cell.position, ship.owner, ces_args)
-            if not safe_positions:
-                eship = danger_positions[list(danger_positions.keys())[0]][0]
-                if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} avoided {} due to an enemy ship {} at {}".format(ship.id, cell.position, eship.id, eship.position))
-                score = 0
-                #score = len(safe_path) * ????
-
-        best_moves.append((cell, score, offset))
-
-    best_moves.sort(key=itemgetter(1), reverse=True)
+    best_moves.sort(key=lambda item: item[1], reverse=True)
 
     new_offset = None
     new_cell = None
@@ -1029,10 +907,15 @@ def resolve_halite_move(game, collision, args = {}):
             new_cell = m[0]
             break;
 
-    # if no cell is available then the ship lost it's original cell, and the two lateral moves are
+    # if no cell available, we know ship lost it's original cell, and the two lateral moves are
     # blocked, try the only remaining option, the inverse of the original, otherwise rewind
     if new_offset is None:
         move = None
+#        cnt = unwind(game, ship)
+#        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Resolve failed, Unwinding {} ships and using 'o'".format(ship.id, cnt))
+#        #game_map[ship].mark_unsafe(ship) # unwind will mark the cell unsafe
+#        move = 'o'
+
     else:
         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - Resolved by best cell {}".format(ship.id, new_cell.position))
         new_cell.mark_unsafe(ship)
@@ -1042,7 +925,7 @@ def resolve_halite_move(game, collision, args = {}):
 
     return move
 
-def resolve_nav_move(game, collision, args = {}):
+def resolve_nav_move(game, collision):
     """
     Resolve a nav move.
 
@@ -1073,29 +956,28 @@ def resolve_nav_move(game, collision, args = {}):
 
     if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at {} while moving {}".format(ship1.id, ship2.id, position, move))
 
-    base_positions = get_base_positions(game)
-
-    arrival_points = []
-    for pos in base_positions:
-        arrival_points.append(pos.directional_offset(Direction.North))
-        arrival_points.append(pos.directional_offset(Direction.South))
-
-    # don't let enemy ships on a dropoff/shipyard block arrivals or spawns. Halite from both ships will be deposited
-    if collision_cell.position in base_positions and collision_cell.ship.owner != game.me.id:
+    # When arriving or spawning, don't let enemy ships sitting on a base. A base crash deposits halite from both ships.
+    if collision_cell.structure_type is Shipyard and collision_cell.ship.owner != game.me.id:
         if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with enemy ship {} at shipyard. Crashing".format(ship1.id, ship2.id))
         collision_cell.mark_unsafe(ship1)
         ship1.path.pop()
         new_move = move
 
-    elif collision_cell.position in base_positions and game.end_game:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at base during end game. Crashing".format(ship1.id, ship2.id))
+    elif collision_cell.structure_type is Shipyard and game.end_game:
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collided with ship {} at shipyard during end game. Crashing".format(ship1.id, ship2.id))
         collision_cell.mark_unsafe(ship1)
         new_move = move
 
-    elif ship2.position == collision_cell.position and ship2.owner != game.me.id and collision_cell.position in get_base_surrounding_cardinals(game, ship1.position):
-        game.base_clear_request.insert(0, {"position": collision_cell.position, "ship": ship2}) # , "base": base
-
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} sent a base clear request for {}. Blocked by {}".format(ship1.id, collision_cell.position, ship2.id))
+    # When arriving or departing and a ship is in a cell beside the base (diff than moving into):
+    #    - Don't let an enemy is next to a base block arrivals/departures, crash an empty ship from the base into
+    #      them (if necessary spawn a ship to do this). Wait for the blocking ship to be removed.
+    #    - For friendly ships, we wait (until blocked_by times out)
+    #    - This is harmless for exploring ships as well ... better than a lateral that may put the ship into the
+    #      arrival/departure lanes or base.
+    elif ship2.position == collision_cell.position and collision_cell.position in get_base_surrounding_cardinals(game, ship1.position):
+        if ship2.owner != game.me.id:
+            if DEBUG & (DEBUG_NAV): logging.info("Nav - Ship {} sent a dropoff clear request for {}. Blocked by {}".format(ship1.id, collision_cell.position, ship2.id))
+            game.base_clear_request.insert(0, {"position": collision_cell.position, "ship": ship2})
 
         if game.game_map[ship1].is_occupied:
             new_move = None # None == unwind
@@ -1103,48 +985,54 @@ def resolve_nav_move(game, collision, args = {}):
             ship_cell.mark_unsafe(ship1)
             new_move = "o"
 
-    # when arriving at a droppoff, wait from entry rather than making a move
-    # this probably will not work as well without entry/exit lanes
-    elif ship1.path and ship1.path[0] in base_positions and ship1.position in arrival_points:
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} is close to base, waiting ...".format(ship1.id))
+    # In all cases, when blocked by any ship moving into a cardinal cell, wait, no room to manuver, if it stays it'll be cleared.
+    elif collision_cell.position in get_base_surrounding_cardinals(game, ship1.position):
         if game.game_map[ship1].is_occupied:
             new_move = None # None == unwind
         else:
             ship_cell.mark_unsafe(ship1)
             new_move = "o"
 
-    # when departing ...
-    elif ship1.position in base_positions:
-        # wait zero for enemy
-        if collision_cell.ship.owner != game.me.id:
-            collision_cell.mark_unsafe(ship1)
-            ship1.path.pop()
-            new_move = move
-        # wait to leave for friendly, ... but make sure our old cell is available. prob should never happen
-        # since we don't spawn with a ship already in shipyard, but rapid departure could cause this
-        elif game.game_map[ship1].is_occupied:
-            new_move = None # None == unwind
-        else:
-            ship_cell.mark_unsafe(ship1)
-            new_move = 'o'
+#    # When arriving at a base (<= 2 away), wait from entry rather than making a move.
+#    elif ship1.path and ship1.path[0] == game.me.shipyard.position and game.game_map.calculate_distance(ship1.position, game.me.shipyard.position) <= 2:
+#        if game.game_map[ship1].is_occupied:
+#            new_move = None # None == unwind
+#        else:
+#            ship_cell.mark_unsafe(ship1)
+#            new_move = "o"
+#
+#    # When arriving and 4 or more cells away, navigate around a blockage by moving laterally and
+#    # popping the blockage position. Don't do this for 3 cells away; a ship beside the base
+#    elif ship.status == returning and game.game_map.calculate_distance(ship1.position, game.me.shipyard.position) > 4:
+#            if len(ship1.path) > 1:
+#                ship1.path.pop()
 
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collision with ship {} while departing base {}. move {}".format(ship1.id, ship2.id, position, move))
+    # Default is a random lateral move
     else:
-        lateral_moves = [Direction.convert(m) for m in Direction.laterals(move)] + ["o"]
-        new_move = resolve_random_move(game, collision, {"moves": lateral_moves})
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} collision at {} with ship {}. Resolving laterally {}, move {}".format(ship1.id, position, ship2.id , lateral_moves, new_move))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} collision at {} with ship {}. Resolving to lateral move {}".format(ship1.id, position, ship2.id , move))
+        new_move = resolve_random_move(game, collision, {"moves": [Direction.convert(m) for m in Direction.laterals(move)]})
 
-        # popping the path point will allow nav around the blocking ship, but this can
-        # cause conjestion/screw up arrival/departure lanes when close to the base
-        if new_move and len(ship1.path) > 1:
-            new_position = get_position_from_move(game, ship1, new_move)
-            d_next = game.game_map.calculate_distance(new_position, ship1.path[-1])
-            d_plus_one = game.game_map.calculate_distance(new_position, ship1.path[-2])
-            if d_next > d_plus_one:
-                if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} next nav {} is farther than plus one {}. Popping next.".format(ship1.id, ship1.path[-1], ship1.path[-2]))
-                ship1.path.pop()
+        # popping the path point will allow nav around the blocking ship, buy this can
+        # cause conjestion/screw up arrival/departure lanes if close to the dropoff
+        # Don't use distance < ?, although workable typically, if the cell adjacent to the base is blocked
+        # a lateral move will put the ship into the departure lane.
+#        if game.game_map.calculate_distance(ship2.position, game.me.shipyard.position) > 4:
+#            if len(ship1.path) > 1:
+#                ship1.path.pop()
 
-    if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} - nav move collision resolved to {}".format(ship1.id, new_move))
+    #
+    # If we were not able to resolve above (the ship lost it's current position), unwind ...
+    #
+
+#    if new_move is None:
+#        return None
+
+#        cnt = unwind(game, ship1)
+#        if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - Resolved by unwinding {} ships".format(ship1.id, cnt))
+#        #ship_cell.mark_unsafe(ship1) this is handled by unwind
+#        new_move = 'o'
+
+    if DEBUG & (DEBUG_NAV): logging.info("Nav - ship {} - nav move collision resolved to {}".format(ship1.id, new_move))
 
     return new_move
 
@@ -1172,12 +1060,10 @@ def unwind(game, displaced_ship, ship_states):
 
     offending_ship = cell.ship # save the offending ship
 
-    if offending_ship.status == "transiting":
-        offending_ship.path.append(cell.position)
-
     cell.mark_unsafe(displaced_ship) # give the displace ship it's cell back
 
     game.command_queue[offending_ship.id] = offending_ship.move(Direction.Still)
+    #ship_states[offending_ship.id]["position"] = offending_ship.position # use the current pos since we're not moving
 
     return unwind(game, offending_ship, ship_states) + 1
 
@@ -1249,7 +1135,7 @@ def respond_to_sos(game, sos_call):
             else:
                 enemies.append((cell.ship, distance))
 
-    friendlies.sort(key=lambda item: (item[1], item[0].halite_amount))
+    friendlies.sort(key=lambda item: (item[1], item[0].halite_amount), reverse=True)
     enemies.sort(key=lambda item: (item[1]), reverse=True)
 
     # reward/risk
@@ -1292,102 +1178,10 @@ def respond_to_sos(game, sos_call):
         else:
             if DEBUG & (DEBUG_GAME): logging.info("Game - There are no viable ships to respond to sos from ship {} @ {}".format(sos_ship_id, sos_position))
 
-        #ToDo: add the sos position as an assignment so others don't respond. Need to wait until there can be mult tasks per point
+#should the sos position be added as an assignment?
 
     return responder
 
-
 def get_position_from_move(game, ship, move):
-    """
-
-    """
     move_offset = DIRECTIONS[move]
     return game.game_map.normalize(ship.position + Position(move_offset[0], move_offset[1]))
-
-
-def handle_base_clear_request(game, responder_ship, base_position, blocker_ship):
-    """
-
-
-    """
-    clear_request = game.base_clear_request.pop()
-    cell = game.game_map[clear_request["position"]]
-
-    if cell.is_occupied and cell.ship.id == blocker_ship.id:
-        move_offset = clear_request["position"] - base_position
-
-        # get an assignment for clearing ship, ship will probably crash, but in
-        # case the blocking ships moves ... we'll need to move it somewhere.
-        # asbtract this into get_assignment(direction_hint) for use below as well?
-        responder_ship.path = get_loiter_point(game, responder_ship)
-
-        move = Direction.convert((move_offset.x, move_offset.y))
-
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} responded to base clear request for {}. Moving {}".format(responder_ship.id, clear_request["position"], move))
-
-        game.command_queue[responder_ship.id] = responder_ship.move(move)
-        #game.game_map[responder_ship].mark_safe()
-        game.game_map[clear_request["position"]].mark_unsafe(responder_ship)
-        responder_ship.last_dock = game.turn_number
-        responder_ship.status = "transiting"
-        responder_ship.explore_start = 0
-    else:
-        return False
-
-    return True
-
-
-def check_enemy_ships(game_map, start, destination, player_id, args = {}):
-    """
-    Checks first move toward destination for ememy ships within 1 cell. If destination is multiple cells
-    away, more than one friendly position may be returned.
-
-    :param start
-    :param destination
-    :param args:
-        -player_id
-    :return Returns 2-tuple
-        A list of first move positions between start and destination, a list of
-        tuples of enemy ships blocking the moves.
-
-    ToDo - options:
-        - 'risk', risk threshold based on number of enemy ships
-    """
-    path = []
-    danger_positions = {}
-    safe_positions = []
-
-    risk = args["risk"] if "risk" in args else 0
-    halite_amount = args["halite_amount"] if "halite_amount" in args else 1001
-
-    if start == destination:
-        possible_offsets = Direction.get_all_cardinals()
-    else:
-        possible_offsets = game_map.get_unsafe_moves(start, destination)
-
-    for offset in possible_offsets:
-        p1 = start.directional_offset(offset)
-        for p2 in game_map[p1].position.get_surrounding_cardinals():
-            if p2 == start:
-                continue
-
-            border_cell = game_map[p2]
-
-            if border_cell.is_occupied and border_cell.ship.owner != player_id:
-
-                if border_cell.ship.halite_amount >= halite_amount:
-                    continue
-
-                # this isn't optimal for an number of reasons ... ship can be None during collision
-                #res, this allows collision to occur. Hard coded status
-                if game_map[start].ship and game_map[start].ship.status == "homing":
-                    continue
-
-                if not (p1) in danger_positions:
-                    danger_positions[p1] = []
-                danger_positions[p1].append(border_cell.ship)
-
-        if not (p1 in danger_positions):
-            safe_positions.append(p1)
-
-    return safe_positions, danger_positions

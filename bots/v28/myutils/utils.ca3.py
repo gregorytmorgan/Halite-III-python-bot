@@ -376,7 +376,7 @@ def get_random_move(game, ship, args = None):
     safe_positions, danger_positions = check_enemy_ships(game.game_map, ship.position, new_position, game.me.id, ces_args)
     if not safe_positions:
         eship = danger_positions[list(danger_positions.keys())[0]][0]
-        if DEBUG & (DEBUG_NAV): logging.info("Nav  - Ship {} avoided {} due to an enemy ship {} at {}".format(ship.id, new_position, eship.id, eship.position))
+        if DEBUG & (DEBUG_NAV): logging.info("Nav  - get_random_move() - {} is not safe due to enemy ship {} at {}".format(ship.position, eship.id, eship.position))
         game.collisions.append((ship, eship, move, new_position, "proximity", resolve_random_move))
         return None
 

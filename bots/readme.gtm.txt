@@ -53,6 +53,8 @@ v26		Add homing/end game.
 
 v27		Fix a few minor bugs in collision resolution, tweak homing.
 
-v28		
+v28		Mining rate smoothing via curve fitting, crude dropoffs, basic collision avoidance.
+
+
 
 
