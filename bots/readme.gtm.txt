@@ -55,6 +55,6 @@ v27		Fix a few minor bugs in collision resolution, tweak homing.
 
 v28		Mining rate smoothing via curve fitting, crude dropoffs, basic collision avoidance.
 
-
+Bot-5363.v29.zip Bot created automatically for finals.
 
 
