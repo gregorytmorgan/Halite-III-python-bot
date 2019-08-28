@@ -1,8 +1,12 @@
 #
+# https://halite.io
 #
+# https://2018.halite.io
 #
 
+
 Repos
+=========================================
 
 # Alternative visualizer
 https://github.com/fohristiwhirl/fluorine
@@ -15,6 +19,29 @@ https://github.com/HaliteChallenge/Halite-III/tree/master/tools/hlt_client
 
 # totally optional
 https://github.com/HaliteChallenge/Halite-III
+
+
+Running the Game
+=========================================
+
+> ./run_game.sh
+[info] Map seed is 1567005861
+[info] [P0] Launching with command python3 MyBot.py
+[info] [P1] Launching with command python3 MyBot.py
+[info] [P0] Initializing player
+[info] [P1] Initializing player
+[info] [P0] Initialized player MyBot.v28
+[info] [P1] Initialized player MyBot.v28
+[info] Player initialization complete
+...
+
+
+Viewing the Game Output
+=========================================
+
+> ./run_fluorine.sh
+
+[A UI window will open. Space bar starts/stops autoplay. Left/right arrows for single move]
 
 
 Notes
