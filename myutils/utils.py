@@ -732,7 +732,7 @@ def get_base_positions(game, position = None):
 #
 # The collision resolution sequence is:
 #    0. Ships are sorted/processed by halite amount.
-#    1. Attempt a move
+#    1. Attempt a move.
 #    2. If the move causes a collision, add a collision tupple to the game collision list. The
 #       tuple constains a 'resolver'.
 #    3. After all ship have attempted to move, iterate over the collisions calling the resolver
@@ -745,10 +745,10 @@ def get_base_positions(game, position = None):
 #    1. The collision resolution method. This method loops thru all collisions and calls the
 #       provided resolver for each. It the resolver can not find a satifactory move, it should
 #       return None, this will trigger unwind().
-#    2. A 'resolver' for each move type called from get_move(). The resolver is passed as
+#    2. A 'resolver' for each move type is called from get_move(). The resolver is passed as
 #       part of the collision tuple if the initial move causes a collision.
 #    3. unwind(). When the collision resolver fails, the colliding ship remains in it's original
-#       position. It is possible the another ship has moved into that position expecting the
+#       position. It is possible that another ship has moved into that position expecting the
 #       ship to move. In this case moves are unwound intil a ship can remain in it's position.
 #
 
