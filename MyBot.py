@@ -104,7 +104,14 @@ else:
 
 game.ready(botName)
 
+#logging.info("DEBUG - exit")
+
+# Send your moves back to the game environment, ending this turn.
+#game.end_turn(list(game.command_queue.values()))
+
 if DEBUG & (DEBUG_GAME): logging.info("Game - Successfully created bot! My Player ID is {}. {} ({})".format(game.my_id, "{:%Y-%m-%d %H:%M:%S}".format(datetime.datetime.now()), round(time.time())))
+
+#exit
 
 """ <<<Game Loop>>> """
 

@@ -324,5 +324,8 @@ def send_commands(commands):
     :param commands: The list of commands to send.
     :return: nothing.
     """
+
+    logging.info("Commands:\n{}".format(" ".join(commands)))
+
     print(" ".join(commands))
     sys.stdout.flush()
